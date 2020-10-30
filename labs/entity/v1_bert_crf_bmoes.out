@@ -1,0 +1,473 @@
+nohup: ignoring input
+2020-10-27 16:31:47.990680: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - running train_bert_crf.py --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext --metric micro_f1 --dataset policy --tagscheme bmoes --use_crf --batch_size 16 --lr 1e-3 --bert_lr 3e-5 --weight_decay 0 --warmup_step 0 --max_length 256 --max_epoch 20 --optimizer adam
+train_bert_crf.py:109: DeprecationWarning: The 'warn' method is deprecated, use 'warning' instead
+  logger.warn("Val file {} does not exist! Use test file instead".format(args.val_file))
+2020-10-27 16:32:55 - WARNING - train_bert_crf.py - Val file /home/liujian/VSCode/AIPolicy/input/benchmark/ner/policy/val.char.bmoes does not exist! Use test file instead
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - Arguments:
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - pretrain_path: /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - ckpt: policy_bmoes_bert_crf_bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - only_test: False
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - use_lstm: False
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - use_crf: True
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - tagscheme: bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - metric: micro_f1
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - dataset: policy
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - train_file: /home/liujian/VSCode/AIPolicy/input/benchmark/ner/policy/train.char.bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - val_file: /home/liujian/VSCode/AIPolicy/input/benchmark/ner/policy/test.char.bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - test_file: /home/liujian/VSCode/AIPolicy/input/benchmark/ner/policy/test.char.bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - tag2id_file: /home/liujian/VSCode/AIPolicy/input/benchmark/ner/policy/tag2id.bmoes
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - batch_size: 16
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - lr: 0.001
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - bert_lr: 3e-05
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - optimizer: adam
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - weight_decay: 0.0
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - warmup_step: 0
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - max_length: 256
+2020-10-27 16:32:55 - INFO - train_bert_crf.py - max_epoch: 20
+2020-10-27 16:37:58 - INFO - train_bert_crf.py - === Epoch 0 train ===
+INFO:train_bert_crf.py:=== Epoch 0 train ===
+2020-10-27 16:39:32 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 5, loss: 2.8673, acc: 0.0149, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 5, loss: 2.8673, acc: 0.0149, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-10-27 16:41:15 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 10, loss: 2.3993, acc: 0.0135, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 10, loss: 2.3993, acc: 0.0135, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-10-27 16:43:07 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 15, loss: 2.1380, acc: 0.0604, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 15, loss: 2.1380, acc: 0.0604, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-10-27 16:44:42 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 20, loss: 1.9413, acc: 0.1048, micro_p: 0.1538, micro_r: 0.0029, micro_f1: 0.0056
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 20, loss: 1.9413, acc: 0.1048, micro_p: 0.1538, micro_r: 0.0029, micro_f1: 0.0056
+2020-10-27 16:46:31 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 25, loss: 1.8079, acc: 0.1405, micro_p: 0.5811, micro_r: 0.0242, micro_f1: 0.0464
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 25, loss: 1.8079, acc: 0.1405, micro_p: 0.5811, micro_r: 0.0242, micro_f1: 0.0464
+2020-10-27 16:48:19 - INFO - train_bert_crf.py - Training...Epoches: 0, steps: 30, loss: 1.6646, acc: 0.2019, micro_p: 0.6557, micro_r: 0.0558, micro_f1: 0.1029
+INFO:train_bert_crf.py:Training...Epoches: 0, steps: 30, loss: 1.6646, acc: 0.2019, micro_p: 0.6557, micro_r: 0.0558, micro_f1: 0.1029
+2020-10-27 16:49:04 - INFO - train_bert_crf.py - === Epoch 0 val ===
+INFO:train_bert_crf.py:=== Epoch 0 val ===
+2020-10-27 16:50:10 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.5865248226950355, 'micro_p': 0.8423236514522822, 'micro_r': 0.35929203539823007, 'micro_f1': 0.5037220843672455}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.5865248226950355, 'micro_p': 0.8423236514522822, 'micro_r': 0.35929203539823007, 'micro_f1': 0.5037220843672455}.
+2020-10-27 16:50:10 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.5037220843672455 / 0
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.5037220843672455 / 0
+2020-10-27 16:50:10 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 16:50:50 - INFO - train_bert_crf.py - === Epoch 1 train ===
+INFO:train_bert_crf.py:=== Epoch 1 train ===
+2020-10-27 16:51:57 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 35, loss: 0.7723, acc: 0.6084, micro_p: 0.7532, micro_r: 0.2648, micro_f1: 0.3919
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 35, loss: 0.7723, acc: 0.6084, micro_p: 0.7532, micro_r: 0.2648, micro_f1: 0.3919
+2020-10-27 16:53:33 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 40, loss: 0.6972, acc: 0.5816, micro_p: 0.7903, micro_r: 0.3463, micro_f1: 0.4816
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 40, loss: 0.6972, acc: 0.5816, micro_p: 0.7903, micro_r: 0.3463, micro_f1: 0.4816
+2020-10-27 16:55:15 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 45, loss: 0.6449, acc: 0.6208, micro_p: 0.8148, micro_r: 0.3991, micro_f1: 0.5358
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 45, loss: 0.6449, acc: 0.6208, micro_p: 0.8148, micro_r: 0.3991, micro_f1: 0.5358
+2020-10-27 16:57:01 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 50, loss: 0.6224, acc: 0.6260, micro_p: 0.7914, micro_r: 0.4152, micro_f1: 0.5446
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 50, loss: 0.6224, acc: 0.6260, micro_p: 0.7914, micro_r: 0.4152, micro_f1: 0.5446
+2020-10-27 16:58:40 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 55, loss: 0.5884, acc: 0.6506, micro_p: 0.7902, micro_r: 0.4502, micro_f1: 0.5736
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 55, loss: 0.5884, acc: 0.6506, micro_p: 0.7902, micro_r: 0.4502, micro_f1: 0.5736
+2020-10-27 17:00:37 - INFO - train_bert_crf.py - Training...Epoches: 1, steps: 60, loss: 0.5795, acc: 0.6679, micro_p: 0.7777, micro_r: 0.4776, micro_f1: 0.5918
+INFO:train_bert_crf.py:Training...Epoches: 1, steps: 60, loss: 0.5795, acc: 0.6679, micro_p: 0.7777, micro_r: 0.4776, micro_f1: 0.5918
+2020-10-27 17:02:06 - INFO - train_bert_crf.py - === Epoch 1 val ===
+INFO:train_bert_crf.py:=== Epoch 1 val ===
+2020-10-27 17:03:12 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.7843971631205674, 'micro_p': 0.843400447427293, 'micro_r': 0.6672566371681415, 'micro_f1': 0.7450592885375493}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.7843971631205674, 'micro_p': 0.843400447427293, 'micro_r': 0.6672566371681415, 'micro_f1': 0.7450592885375493}.
+2020-10-27 17:03:12 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.7450592885375493 / 0.5037220843672455
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.7450592885375493 / 0.5037220843672455
+2020-10-27 17:03:12 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 17:03:49 - INFO - train_bert_crf.py - === Epoch 2 train ===
+INFO:train_bert_crf.py:=== Epoch 2 train ===
+2020-10-27 17:04:14 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 65, loss: 0.4765, acc: 0.7600, micro_p: 0.7385, micro_r: 0.5581, micro_f1: 0.6358
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 65, loss: 0.4765, acc: 0.7600, micro_p: 0.7385, micro_r: 0.5581, micro_f1: 0.6358
+2020-10-27 17:05:59 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 70, loss: 0.3250, acc: 0.7840, micro_p: 0.8406, micro_r: 0.6388, micro_f1: 0.7259
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 70, loss: 0.3250, acc: 0.7840, micro_p: 0.8406, micro_r: 0.6388, micro_f1: 0.7259
+2020-10-27 17:07:45 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 75, loss: 0.3110, acc: 0.8102, micro_p: 0.8541, micro_r: 0.6595, micro_f1: 0.7443
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 75, loss: 0.3110, acc: 0.8102, micro_p: 0.8541, micro_r: 0.6595, micro_f1: 0.7443
+2020-10-27 17:09:34 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 80, loss: 0.3040, acc: 0.8144, micro_p: 0.8472, micro_r: 0.6627, micro_f1: 0.7437
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 80, loss: 0.3040, acc: 0.8144, micro_p: 0.8472, micro_r: 0.6627, micro_f1: 0.7437
+2020-10-27 17:11:17 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 85, loss: 0.3003, acc: 0.8111, micro_p: 0.8493, micro_r: 0.6675, micro_f1: 0.7475
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 85, loss: 0.3003, acc: 0.8111, micro_p: 0.8493, micro_r: 0.6675, micro_f1: 0.7475
+2020-10-27 17:12:50 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 90, loss: 0.2880, acc: 0.8168, micro_p: 0.8554, micro_r: 0.6826, micro_f1: 0.7593
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 90, loss: 0.2880, acc: 0.8168, micro_p: 0.8554, micro_r: 0.6826, micro_f1: 0.7593
+2020-10-27 17:14:24 - INFO - train_bert_crf.py - Training...Epoches: 2, steps: 95, loss: 0.2850, acc: 0.8230, micro_p: 0.8504, micro_r: 0.6863, micro_f1: 0.7596
+INFO:train_bert_crf.py:Training...Epoches: 2, steps: 95, loss: 0.2850, acc: 0.8230, micro_p: 0.8504, micro_r: 0.6863, micro_f1: 0.7596
+2020-10-27 17:14:53 - INFO - train_bert_crf.py - === Epoch 2 val ===
+INFO:train_bert_crf.py:=== Epoch 2 val ===
+2020-10-27 17:15:57 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8226950354609929, 'micro_p': 0.8652173913043478, 'micro_r': 0.7044247787610619, 'micro_f1': 0.7765853658536586}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8226950354609929, 'micro_p': 0.8652173913043478, 'micro_r': 0.7044247787610619, 'micro_f1': 0.7765853658536586}.
+2020-10-27 17:15:57 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.7765853658536586 / 0.7450592885375493
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.7765853658536586 / 0.7450592885375493
+2020-10-27 17:15:57 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 17:16:34 - INFO - train_bert_crf.py - === Epoch 3 train ===
+INFO:train_bert_crf.py:=== Epoch 3 train ===
+2020-10-27 17:18:06 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 100, loss: 0.1714, acc: 0.8959, micro_p: 0.8906, micro_r: 0.7468, micro_f1: 0.8124
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 100, loss: 0.1714, acc: 0.8959, micro_p: 0.8906, micro_r: 0.7468, micro_f1: 0.8124
+2020-10-27 17:19:44 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 105, loss: 0.1709, acc: 0.8875, micro_p: 0.8929, micro_r: 0.7599, micro_f1: 0.8210
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 105, loss: 0.1709, acc: 0.8875, micro_p: 0.8929, micro_r: 0.7599, micro_f1: 0.8210
+2020-10-27 17:21:09 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 110, loss: 0.1679, acc: 0.8895, micro_p: 0.9050, micro_r: 0.7744, micro_f1: 0.8346
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 110, loss: 0.1679, acc: 0.8895, micro_p: 0.9050, micro_r: 0.7744, micro_f1: 0.8346
+2020-10-27 17:22:58 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 115, loss: 0.1708, acc: 0.8952, micro_p: 0.9065, micro_r: 0.7834, micro_f1: 0.8405
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 115, loss: 0.1708, acc: 0.8952, micro_p: 0.9065, micro_r: 0.7834, micro_f1: 0.8405
+2020-10-27 17:24:32 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 120, loss: 0.1732, acc: 0.8922, micro_p: 0.9026, micro_r: 0.7749, micro_f1: 0.8339
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 120, loss: 0.1732, acc: 0.8922, micro_p: 0.9026, micro_r: 0.7749, micro_f1: 0.8339
+2020-10-27 17:26:16 - INFO - train_bert_crf.py - Training...Epoches: 3, steps: 125, loss: 0.1669, acc: 0.8985, micro_p: 0.9047, micro_r: 0.7859, micro_f1: 0.8411
+INFO:train_bert_crf.py:Training...Epoches: 3, steps: 125, loss: 0.1669, acc: 0.8985, micro_p: 0.9047, micro_r: 0.7859, micro_f1: 0.8411
+2020-10-27 17:27:33 - INFO - train_bert_crf.py - === Epoch 3 val ===
+INFO:train_bert_crf.py:=== Epoch 3 val ===
+2020-10-27 17:28:39 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.874113475177305, 'micro_p': 0.8613861386138614, 'micro_r': 0.7699115044247787, 'micro_f1': 0.8130841121495327}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.874113475177305, 'micro_p': 0.8613861386138614, 'micro_r': 0.7699115044247787, 'micro_f1': 0.8130841121495327}.
+2020-10-27 17:28:39 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8130841121495327 / 0.7765853658536586
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8130841121495327 / 0.7765853658536586
+2020-10-27 17:28:39 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 17:29:16 - INFO - train_bert_crf.py - === Epoch 4 train ===
+INFO:train_bert_crf.py:=== Epoch 4 train ===
+2020-10-27 17:29:58 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 130, loss: 0.0937, acc: 0.9542, micro_p: 0.9189, micro_r: 0.8571, micro_f1: 0.8870
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 130, loss: 0.0937, acc: 0.9542, micro_p: 0.9189, micro_r: 0.8571, micro_f1: 0.8870
+2020-10-27 17:31:48 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 135, loss: 0.1009, acc: 0.9383, micro_p: 0.9182, micro_r: 0.8218, micro_f1: 0.8673
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 135, loss: 0.1009, acc: 0.9383, micro_p: 0.9182, micro_r: 0.8218, micro_f1: 0.8673
+2020-10-27 17:33:29 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 140, loss: 0.0978, acc: 0.9372, micro_p: 0.9158, micro_r: 0.8276, micro_f1: 0.8695
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 140, loss: 0.0978, acc: 0.9372, micro_p: 0.9158, micro_r: 0.8276, micro_f1: 0.8695
+2020-10-27 17:35:17 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 145, loss: 0.1105, acc: 0.9338, micro_p: 0.9194, micro_r: 0.8308, micro_f1: 0.8729
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 145, loss: 0.1105, acc: 0.9338, micro_p: 0.9194, micro_r: 0.8308, micro_f1: 0.8729
+2020-10-27 17:36:53 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 150, loss: 0.1098, acc: 0.9321, micro_p: 0.9179, micro_r: 0.8327, micro_f1: 0.8732
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 150, loss: 0.1098, acc: 0.9321, micro_p: 0.9179, micro_r: 0.8327, micro_f1: 0.8732
+2020-10-27 17:38:41 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 155, loss: 0.1141, acc: 0.9335, micro_p: 0.9110, micro_r: 0.8366, micro_f1: 0.8722
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 155, loss: 0.1141, acc: 0.9335, micro_p: 0.9110, micro_r: 0.8366, micro_f1: 0.8722
+2020-10-27 17:40:09 - INFO - train_bert_crf.py - Training...Epoches: 4, steps: 160, loss: 0.1149, acc: 0.9325, micro_p: 0.9125, micro_r: 0.8347, micro_f1: 0.8719
+INFO:train_bert_crf.py:Training...Epoches: 4, steps: 160, loss: 0.1149, acc: 0.9325, micro_p: 0.9125, micro_r: 0.8347, micro_f1: 0.8719
+2020-10-27 17:40:16 - INFO - train_bert_crf.py - === Epoch 4 val ===
+INFO:train_bert_crf.py:=== Epoch 4 val ===
+2020-10-27 17:41:24 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.849645390070922, 'micro_p': 0.8382642998027613, 'micro_r': 0.7522123893805309, 'micro_f1': 0.792910447761194}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.849645390070922, 'micro_p': 0.8382642998027613, 'micro_r': 0.7522123893805309, 'micro_f1': 0.792910447761194}.
+2020-10-27 17:41:24 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.792910447761194 / 0.8130841121495327
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.792910447761194 / 0.8130841121495327
+2020-10-27 17:41:24 - INFO - train_bert_crf.py - === Epoch 5 train ===
+INFO:train_bert_crf.py:=== Epoch 5 train ===
+2020-10-27 17:43:18 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 165, loss: 0.1209, acc: 0.9442, micro_p: 0.9022, micro_r: 0.8157, micro_f1: 0.8568
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 165, loss: 0.1209, acc: 0.9442, micro_p: 0.9022, micro_r: 0.8157, micro_f1: 0.8568
+2020-10-27 17:44:57 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 170, loss: 0.1169, acc: 0.9326, micro_p: 0.9283, micro_r: 0.8298, micro_f1: 0.8763
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 170, loss: 0.1169, acc: 0.9326, micro_p: 0.9283, micro_r: 0.8298, micro_f1: 0.8763
+2020-10-27 17:46:44 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 175, loss: 0.1131, acc: 0.9297, micro_p: 0.9205, micro_r: 0.8361, micro_f1: 0.8763
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 175, loss: 0.1131, acc: 0.9297, micro_p: 0.9205, micro_r: 0.8361, micro_f1: 0.8763
+2020-10-27 17:48:18 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 180, loss: 0.1113, acc: 0.9374, micro_p: 0.9200, micro_r: 0.8530, micro_f1: 0.8852
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 180, loss: 0.1113, acc: 0.9374, micro_p: 0.9200, micro_r: 0.8530, micro_f1: 0.8852
+2020-10-27 17:49:59 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 185, loss: 0.1155, acc: 0.9299, micro_p: 0.9243, micro_r: 0.8433, micro_f1: 0.8819
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 185, loss: 0.1155, acc: 0.9299, micro_p: 0.9243, micro_r: 0.8433, micro_f1: 0.8819
+2020-10-27 17:51:46 - INFO - train_bert_crf.py - Training...Epoches: 5, steps: 190, loss: 0.1120, acc: 0.9331, micro_p: 0.9245, micro_r: 0.8494, micro_f1: 0.8854
+INFO:train_bert_crf.py:Training...Epoches: 5, steps: 190, loss: 0.1120, acc: 0.9331, micro_p: 0.9245, micro_r: 0.8494, micro_f1: 0.8854
+2020-10-27 17:52:25 - INFO - train_bert_crf.py - === Epoch 5 val ===
+INFO:train_bert_crf.py:=== Epoch 5 val ===
+2020-10-27 17:53:30 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8861702127659574, 'micro_p': 0.8458646616541353, 'micro_r': 0.7964601769911505, 'micro_f1': 0.820419325432999}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8861702127659574, 'micro_p': 0.8458646616541353, 'micro_r': 0.7964601769911505, 'micro_f1': 0.820419325432999}.
+2020-10-27 17:53:30 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.820419325432999 / 0.8130841121495327
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.820419325432999 / 0.8130841121495327
+2020-10-27 17:53:30 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 17:54:09 - INFO - train_bert_crf.py - === Epoch 6 train ===
+INFO:train_bert_crf.py:=== Epoch 6 train ===
+2020-10-27 17:55:14 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 195, loss: 0.0844, acc: 0.9517, micro_p: 0.9363, micro_r: 0.8761, micro_f1: 0.9052
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 195, loss: 0.0844, acc: 0.9517, micro_p: 0.9363, micro_r: 0.8761, micro_f1: 0.9052
+2020-10-27 17:56:56 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 200, loss: 0.0864, acc: 0.9387, micro_p: 0.9204, micro_r: 0.8609, micro_f1: 0.8896
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 200, loss: 0.0864, acc: 0.9387, micro_p: 0.9204, micro_r: 0.8609, micro_f1: 0.8896
+2020-10-27 17:58:31 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 205, loss: 0.0732, acc: 0.9508, micro_p: 0.9416, micro_r: 0.8818, micro_f1: 0.9107
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 205, loss: 0.0732, acc: 0.9508, micro_p: 0.9416, micro_r: 0.8818, micro_f1: 0.9107
+2020-10-27 18:00:14 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 210, loss: 0.0715, acc: 0.9541, micro_p: 0.9417, micro_r: 0.8898, micro_f1: 0.9150
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 210, loss: 0.0715, acc: 0.9541, micro_p: 0.9417, micro_r: 0.8898, micro_f1: 0.9150
+2020-10-27 18:01:51 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 215, loss: 0.0748, acc: 0.9552, micro_p: 0.9367, micro_r: 0.8939, micro_f1: 0.9148
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 215, loss: 0.0748, acc: 0.9552, micro_p: 0.9367, micro_r: 0.8939, micro_f1: 0.9148
+2020-10-27 18:03:31 - INFO - train_bert_crf.py - Training...Epoches: 6, steps: 220, loss: 0.0758, acc: 0.9531, micro_p: 0.9378, micro_r: 0.8921, micro_f1: 0.9144
+INFO:train_bert_crf.py:Training...Epoches: 6, steps: 220, loss: 0.0758, acc: 0.9531, micro_p: 0.9378, micro_r: 0.8921, micro_f1: 0.9144
+2020-10-27 18:05:01 - INFO - train_bert_crf.py - === Epoch 6 val ===
+INFO:train_bert_crf.py:=== Epoch 6 val ===
+2020-10-27 18:06:08 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8953900709219859, 'micro_p': 0.8595825426944972, 'micro_r': 0.8017699115044248, 'micro_f1': 0.8296703296703296}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8953900709219859, 'micro_p': 0.8595825426944972, 'micro_r': 0.8017699115044248, 'micro_f1': 0.8296703296703296}.
+2020-10-27 18:06:08 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8296703296703296 / 0.820419325432999
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8296703296703296 / 0.820419325432999
+2020-10-27 18:06:08 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 18:06:48 - INFO - train_bert_crf.py - === Epoch 7 train ===
+INFO:train_bert_crf.py:=== Epoch 7 train ===
+2020-10-27 18:07:13 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 225, loss: 0.0408, acc: 0.9769, micro_p: 0.9545, micro_r: 0.9403, micro_f1: 0.9474
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 225, loss: 0.0408, acc: 0.9769, micro_p: 0.9545, micro_r: 0.9403, micro_f1: 0.9474
+2020-10-27 18:09:11 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 230, loss: 0.0568, acc: 0.9700, micro_p: 0.9545, micro_r: 0.9203, micro_f1: 0.9371
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 230, loss: 0.0568, acc: 0.9700, micro_p: 0.9545, micro_r: 0.9203, micro_f1: 0.9371
+2020-10-27 18:10:55 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 235, loss: 0.0522, acc: 0.9714, micro_p: 0.9557, micro_r: 0.9224, micro_f1: 0.9388
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 235, loss: 0.0522, acc: 0.9714, micro_p: 0.9557, micro_r: 0.9224, micro_f1: 0.9388
+2020-10-27 18:12:28 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 240, loss: 0.0519, acc: 0.9740, micro_p: 0.9578, micro_r: 0.9274, micro_f1: 0.9423
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 240, loss: 0.0519, acc: 0.9740, micro_p: 0.9578, micro_r: 0.9274, micro_f1: 0.9423
+2020-10-27 18:14:07 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 245, loss: 0.0497, acc: 0.9747, micro_p: 0.9601, micro_r: 0.9267, micro_f1: 0.9431
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 245, loss: 0.0497, acc: 0.9747, micro_p: 0.9601, micro_r: 0.9267, micro_f1: 0.9431
+2020-10-27 18:15:37 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 250, loss: 0.0477, acc: 0.9751, micro_p: 0.9624, micro_r: 0.9295, micro_f1: 0.9457
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 250, loss: 0.0477, acc: 0.9751, micro_p: 0.9624, micro_r: 0.9295, micro_f1: 0.9457
+2020-10-27 18:17:20 - INFO - train_bert_crf.py - Training...Epoches: 7, steps: 255, loss: 0.0442, acc: 0.9757, micro_p: 0.9626, micro_r: 0.9312, micro_f1: 0.9466
+INFO:train_bert_crf.py:Training...Epoches: 7, steps: 255, loss: 0.0442, acc: 0.9757, micro_p: 0.9626, micro_r: 0.9312, micro_f1: 0.9466
+2020-10-27 18:17:46 - INFO - train_bert_crf.py - === Epoch 7 val ===
+INFO:train_bert_crf.py:=== Epoch 7 val ===
+2020-10-27 18:18:49 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.9024822695035462, 'micro_p': 0.8555758683729433, 'micro_r': 0.8283185840707965, 'micro_f1': 0.841726618705036}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.9024822695035462, 'micro_p': 0.8555758683729433, 'micro_r': 0.8283185840707965, 'micro_f1': 0.841726618705036}.
+2020-10-27 18:18:49 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.841726618705036 / 0.8296703296703296
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.841726618705036 / 0.8296703296703296
+2020-10-27 18:18:49 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 18:19:28 - INFO - train_bert_crf.py - === Epoch 8 train ===
+INFO:train_bert_crf.py:=== Epoch 8 train ===
+2020-10-27 18:20:51 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 260, loss: 0.0307, acc: 0.9822, micro_p: 0.9774, micro_r: 0.9628, micro_f1: 0.9700
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 260, loss: 0.0307, acc: 0.9822, micro_p: 0.9774, micro_r: 0.9628, micro_f1: 0.9700
+2020-10-27 18:22:36 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 265, loss: 0.0348, acc: 0.9815, micro_p: 0.9632, micro_r: 0.9510, micro_f1: 0.9571
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 265, loss: 0.0348, acc: 0.9815, micro_p: 0.9632, micro_r: 0.9510, micro_f1: 0.9571
+2020-10-27 18:24:22 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 270, loss: 0.0333, acc: 0.9839, micro_p: 0.9698, micro_r: 0.9529, micro_f1: 0.9613
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 270, loss: 0.0333, acc: 0.9839, micro_p: 0.9698, micro_r: 0.9529, micro_f1: 0.9613
+2020-10-27 18:26:01 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 275, loss: 0.0373, acc: 0.9824, micro_p: 0.9687, micro_r: 0.9469, micro_f1: 0.9577
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 275, loss: 0.0373, acc: 0.9824, micro_p: 0.9687, micro_r: 0.9469, micro_f1: 0.9577
+2020-10-27 18:27:32 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 280, loss: 0.0353, acc: 0.9841, micro_p: 0.9709, micro_r: 0.9508, micro_f1: 0.9607
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 280, loss: 0.0353, acc: 0.9841, micro_p: 0.9709, micro_r: 0.9508, micro_f1: 0.9607
+2020-10-27 18:29:22 - INFO - train_bert_crf.py - Training...Epoches: 8, steps: 285, loss: 0.0355, acc: 0.9842, micro_p: 0.9708, micro_r: 0.9509, micro_f1: 0.9607
+INFO:train_bert_crf.py:Training...Epoches: 8, steps: 285, loss: 0.0355, acc: 0.9842, micro_p: 0.9708, micro_r: 0.9509, micro_f1: 0.9607
+2020-10-27 18:30:28 - INFO - train_bert_crf.py - === Epoch 8 val ===
+INFO:train_bert_crf.py:=== Epoch 8 val ===
+2020-10-27 18:31:39 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.89822695035461, 'micro_p': 0.856353591160221, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8393501805054152}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.89822695035461, 'micro_p': 0.856353591160221, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8393501805054152}.
+2020-10-27 18:31:39 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8393501805054152 / 0.841726618705036
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8393501805054152 / 0.841726618705036
+2020-10-27 18:31:39 - INFO - train_bert_crf.py - === Epoch 9 train ===
+INFO:train_bert_crf.py:=== Epoch 9 train ===
+2020-10-27 18:32:24 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 290, loss: 0.0301, acc: 0.9945, micro_p: 0.9797, micro_r: 0.9732, micro_f1: 0.9764
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 290, loss: 0.0301, acc: 0.9945, micro_p: 0.9797, micro_r: 0.9732, micro_f1: 0.9764
+2020-10-27 18:34:24 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 295, loss: 0.0243, acc: 0.9875, micro_p: 0.9819, micro_r: 0.9679, micro_f1: 0.9749
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 295, loss: 0.0243, acc: 0.9875, micro_p: 0.9819, micro_r: 0.9679, micro_f1: 0.9749
+2020-10-27 18:36:05 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 300, loss: 0.0272, acc: 0.9841, micro_p: 0.9839, micro_r: 0.9608, micro_f1: 0.9722
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 300, loss: 0.0272, acc: 0.9841, micro_p: 0.9839, micro_r: 0.9608, micro_f1: 0.9722
+2020-10-27 18:37:39 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 305, loss: 0.0255, acc: 0.9847, micro_p: 0.9841, micro_r: 0.9607, micro_f1: 0.9722
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 305, loss: 0.0255, acc: 0.9847, micro_p: 0.9841, micro_r: 0.9607, micro_f1: 0.9722
+2020-10-27 18:39:21 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 310, loss: 0.0268, acc: 0.9856, micro_p: 0.9817, micro_r: 0.9628, micro_f1: 0.9722
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 310, loss: 0.0268, acc: 0.9856, micro_p: 0.9817, micro_r: 0.9628, micro_f1: 0.9722
+2020-10-27 18:41:05 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 315, loss: 0.0267, acc: 0.9859, micro_p: 0.9808, micro_r: 0.9639, micro_f1: 0.9723
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 315, loss: 0.0267, acc: 0.9859, micro_p: 0.9808, micro_r: 0.9639, micro_f1: 0.9723
+2020-10-27 18:42:46 - INFO - train_bert_crf.py - Training...Epoches: 9, steps: 320, loss: 0.0253, acc: 0.9872, micro_p: 0.9828, micro_r: 0.9658, micro_f1: 0.9742
+INFO:train_bert_crf.py:Training...Epoches: 9, steps: 320, loss: 0.0253, acc: 0.9872, micro_p: 0.9828, micro_r: 0.9658, micro_f1: 0.9742
+2020-10-27 18:42:56 - INFO - train_bert_crf.py - === Epoch 9 val ===
+INFO:train_bert_crf.py:=== Epoch 9 val ===
+2020-10-27 18:44:00 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8946808510638298, 'micro_p': 0.8584729981378026, 'micro_r': 0.815929203539823, 'micro_f1': 0.8366606170598911}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8946808510638298, 'micro_p': 0.8584729981378026, 'micro_r': 0.815929203539823, 'micro_f1': 0.8366606170598911}.
+2020-10-27 18:44:00 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8366606170598911 / 0.841726618705036
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8366606170598911 / 0.841726618705036
+2020-10-27 18:44:00 - INFO - train_bert_crf.py - === Epoch 10 train ===
+INFO:train_bert_crf.py:=== Epoch 10 train ===
+2020-10-27 18:45:57 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 325, loss: 0.0297, acc: 0.9853, micro_p: 0.9817, micro_r: 0.9615, micro_f1: 0.9715
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 325, loss: 0.0297, acc: 0.9853, micro_p: 0.9817, micro_r: 0.9615, micro_f1: 0.9715
+2020-10-27 18:47:50 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 330, loss: 0.0277, acc: 0.9830, micro_p: 0.9714, micro_r: 0.9577, micro_f1: 0.9645
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 330, loss: 0.0277, acc: 0.9830, micro_p: 0.9714, micro_r: 0.9577, micro_f1: 0.9645
+2020-10-27 18:49:26 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 335, loss: 0.0270, acc: 0.9865, micro_p: 0.9754, micro_r: 0.9648, micro_f1: 0.9701
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 335, loss: 0.0270, acc: 0.9865, micro_p: 0.9754, micro_r: 0.9648, micro_f1: 0.9701
+2020-10-27 18:51:06 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 340, loss: 0.0243, acc: 0.9875, micro_p: 0.9792, micro_r: 0.9679, micro_f1: 0.9735
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 340, loss: 0.0243, acc: 0.9875, micro_p: 0.9792, micro_r: 0.9679, micro_f1: 0.9735
+2020-10-27 18:52:46 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 345, loss: 0.0229, acc: 0.9875, micro_p: 0.9799, micro_r: 0.9674, micro_f1: 0.9736
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 345, loss: 0.0229, acc: 0.9875, micro_p: 0.9799, micro_r: 0.9674, micro_f1: 0.9736
+2020-10-27 18:54:27 - INFO - train_bert_crf.py - Training...Epoches: 10, steps: 350, loss: 0.0223, acc: 0.9883, micro_p: 0.9803, micro_r: 0.9685, micro_f1: 0.9744
+INFO:train_bert_crf.py:Training...Epoches: 10, steps: 350, loss: 0.0223, acc: 0.9883, micro_p: 0.9803, micro_r: 0.9685, micro_f1: 0.9744
+2020-10-27 18:55:12 - INFO - train_bert_crf.py - === Epoch 10 val ===
+INFO:train_bert_crf.py:=== Epoch 10 val ===
+2020-10-27 18:56:17 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8978723404255319, 'micro_p': 0.8648148148148148, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8452488687782805}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8978723404255319, 'micro_p': 0.8648148148148148, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8452488687782805}.
+2020-10-27 18:56:17 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8452488687782805 / 0.841726618705036
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8452488687782805 / 0.841726618705036
+2020-10-27 18:56:17 - INFO - train_bert_crf.py - Best ckpt and saved.
+INFO:train_bert_crf.py:Best ckpt and saved.
+2020-10-27 18:56:53 - INFO - train_bert_crf.py - === Epoch 11 train ===
+INFO:train_bert_crf.py:=== Epoch 11 train ===
+2020-10-27 18:58:01 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 355, loss: 0.0132, acc: 0.9935, micro_p: 0.9958, micro_r: 0.9676, micro_f1: 0.9815
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 355, loss: 0.0132, acc: 0.9935, micro_p: 0.9958, micro_r: 0.9676, micro_f1: 0.9815
+2020-10-27 18:59:44 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 360, loss: 0.0138, acc: 0.9911, micro_p: 0.9894, micro_r: 0.9705, micro_f1: 0.9798
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 360, loss: 0.0138, acc: 0.9911, micro_p: 0.9894, micro_r: 0.9705, micro_f1: 0.9798
+2020-10-27 19:01:37 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 365, loss: 0.0124, acc: 0.9928, micro_p: 0.9916, micro_r: 0.9741, micro_f1: 0.9828
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 365, loss: 0.0124, acc: 0.9928, micro_p: 0.9916, micro_r: 0.9741, micro_f1: 0.9828
+2020-10-27 19:03:15 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 370, loss: 0.0161, acc: 0.9933, micro_p: 0.9907, micro_r: 0.9763, micro_f1: 0.9835
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 370, loss: 0.0161, acc: 0.9933, micro_p: 0.9907, micro_r: 0.9763, micro_f1: 0.9835
+2020-10-27 19:04:58 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 375, loss: 0.0199, acc: 0.9895, micro_p: 0.9850, micro_r: 0.9693, micro_f1: 0.9771
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 375, loss: 0.0199, acc: 0.9895, micro_p: 0.9850, micro_r: 0.9693, micro_f1: 0.9771
+2020-10-27 19:06:34 - INFO - train_bert_crf.py - Training...Epoches: 11, steps: 380, loss: 0.0195, acc: 0.9894, micro_p: 0.9851, micro_r: 0.9706, micro_f1: 0.9778
+INFO:train_bert_crf.py:Training...Epoches: 11, steps: 380, loss: 0.0195, acc: 0.9894, micro_p: 0.9851, micro_r: 0.9706, micro_f1: 0.9778
+2020-10-27 19:07:48 - INFO - train_bert_crf.py - === Epoch 11 val ===
+INFO:train_bert_crf.py:=== Epoch 11 val ===
+2020-10-27 19:08:52 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.9010638297872341, 'micro_p': 0.8474264705882353, 'micro_r': 0.815929203539823, 'micro_f1': 0.8313796212804329}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.9010638297872341, 'micro_p': 0.8474264705882353, 'micro_r': 0.815929203539823, 'micro_f1': 0.8313796212804329}.
+2020-10-27 19:08:52 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8313796212804329 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8313796212804329 / 0.8452488687782805
+2020-10-27 19:08:52 - INFO - train_bert_crf.py - === Epoch 12 train ===
+INFO:train_bert_crf.py:=== Epoch 12 train ===
+2020-10-27 19:09:15 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 385, loss: 0.0060, acc: 1.0000, micro_p: 1.0000, micro_r: 1.0000, micro_f1: 1.0000
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 385, loss: 0.0060, acc: 1.0000, micro_p: 1.0000, micro_r: 1.0000, micro_f1: 1.0000
+2020-10-27 19:10:56 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 390, loss: 0.0119, acc: 0.9933, micro_p: 0.9890, micro_r: 0.9890, micro_f1: 0.9890
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 390, loss: 0.0119, acc: 0.9933, micro_p: 0.9890, micro_r: 0.9890, micro_f1: 0.9890
+2020-10-27 19:12:42 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 395, loss: 0.0156, acc: 0.9916, micro_p: 0.9866, micro_r: 0.9818, micro_f1: 0.9842
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 395, loss: 0.0156, acc: 0.9916, micro_p: 0.9866, micro_r: 0.9818, micro_f1: 0.9842
+2020-10-27 19:14:23 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 400, loss: 0.0157, acc: 0.9899, micro_p: 0.9870, micro_r: 0.9759, micro_f1: 0.9814
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 400, loss: 0.0157, acc: 0.9899, micro_p: 0.9870, micro_r: 0.9759, micro_f1: 0.9814
+2020-10-27 19:16:03 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 405, loss: 0.0159, acc: 0.9909, micro_p: 0.9860, micro_r: 0.9782, micro_f1: 0.9821
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 405, loss: 0.0159, acc: 0.9909, micro_p: 0.9860, micro_r: 0.9782, micro_f1: 0.9821
+2020-10-27 19:17:42 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 410, loss: 0.0149, acc: 0.9914, micro_p: 0.9874, micro_r: 0.9788, micro_f1: 0.9831
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 410, loss: 0.0149, acc: 0.9914, micro_p: 0.9874, micro_r: 0.9788, micro_f1: 0.9831
+2020-10-27 19:19:40 - INFO - train_bert_crf.py - Training...Epoches: 12, steps: 415, loss: 0.0152, acc: 0.9919, micro_p: 0.9873, micro_r: 0.9802, micro_f1: 0.9838
+INFO:train_bert_crf.py:Training...Epoches: 12, steps: 415, loss: 0.0152, acc: 0.9919, micro_p: 0.9873, micro_r: 0.9802, micro_f1: 0.9838
+2020-10-27 19:20:02 - INFO - train_bert_crf.py - === Epoch 12 val ===
+INFO:train_bert_crf.py:=== Epoch 12 val ===
+2020-10-27 19:21:10 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.9024822695035462, 'micro_p': 0.8568807339449541, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8414414414414414}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.9024822695035462, 'micro_p': 0.8568807339449541, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8414414414414414}.
+2020-10-27 19:21:10 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8414414414414414 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8414414414414414 / 0.8452488687782805
+2020-10-27 19:21:10 - INFO - train_bert_crf.py - === Epoch 13 train ===
+INFO:train_bert_crf.py:=== Epoch 13 train ===
+2020-10-27 19:22:35 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 420, loss: 0.0154, acc: 0.9945, micro_p: 0.9925, micro_r: 0.9852, micro_f1: 0.9888
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 420, loss: 0.0154, acc: 0.9945, micro_p: 0.9925, micro_r: 0.9852, micro_f1: 0.9888
+2020-10-27 19:24:29 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 425, loss: 0.0129, acc: 0.9935, micro_p: 0.9818, micro_r: 0.9744, micro_f1: 0.9781
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 425, loss: 0.0129, acc: 0.9935, micro_p: 0.9818, micro_r: 0.9744, micro_f1: 0.9781
+2020-10-27 19:26:08 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 430, loss: 0.0122, acc: 0.9928, micro_p: 0.9832, micro_r: 0.9764, micro_f1: 0.9798
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 430, loss: 0.0122, acc: 0.9928, micro_p: 0.9832, micro_r: 0.9764, micro_f1: 0.9798
+2020-10-27 19:27:56 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 435, loss: 0.0119, acc: 0.9944, micro_p: 0.9869, micro_r: 0.9805, micro_f1: 0.9837
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 435, loss: 0.0119, acc: 0.9944, micro_p: 0.9869, micro_r: 0.9805, micro_f1: 0.9837
+2020-10-27 19:29:41 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 440, loss: 0.0126, acc: 0.9929, micro_p: 0.9860, micro_r: 0.9798, micro_f1: 0.9829
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 440, loss: 0.0126, acc: 0.9929, micro_p: 0.9860, micro_r: 0.9798, micro_f1: 0.9829
+2020-10-27 19:31:17 - INFO - train_bert_crf.py - Training...Epoches: 13, steps: 445, loss: 0.0130, acc: 0.9922, micro_p: 0.9870, micro_r: 0.9799, micro_f1: 0.9834
+INFO:train_bert_crf.py:Training...Epoches: 13, steps: 445, loss: 0.0130, acc: 0.9922, micro_p: 0.9870, micro_r: 0.9799, micro_f1: 0.9834
+2020-10-27 19:32:28 - INFO - train_bert_crf.py - === Epoch 13 val ===
+INFO:train_bert_crf.py:=== Epoch 13 val ===
+2020-10-27 19:33:35 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.900709219858156, 'micro_p': 0.8659217877094972, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8439201451905626}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.900709219858156, 'micro_p': 0.8659217877094972, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8439201451905626}.
+2020-10-27 19:33:35 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8439201451905626 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8439201451905626 / 0.8452488687782805
+2020-10-27 19:33:35 - INFO - train_bert_crf.py - === Epoch 14 train ===
+INFO:train_bert_crf.py:=== Epoch 14 train ===
+2020-10-27 19:34:22 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 450, loss: 0.0114, acc: 0.9987, micro_p: 0.9868, micro_r: 0.9933, micro_f1: 0.9900
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 450, loss: 0.0114, acc: 0.9987, micro_p: 0.9868, micro_r: 0.9933, micro_f1: 0.9900
+2020-10-27 19:36:08 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 455, loss: 0.0129, acc: 0.9962, micro_p: 0.9880, micro_r: 0.9861, micro_f1: 0.9870
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 455, loss: 0.0129, acc: 0.9962, micro_p: 0.9880, micro_r: 0.9861, micro_f1: 0.9870
+2020-10-27 19:38:03 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 460, loss: 0.0142, acc: 0.9942, micro_p: 0.9902, micro_r: 0.9773, micro_f1: 0.9837
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 460, loss: 0.0142, acc: 0.9942, micro_p: 0.9902, micro_r: 0.9773, micro_f1: 0.9837
+2020-10-27 19:39:46 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 465, loss: 0.0147, acc: 0.9933, micro_p: 0.9891, micro_r: 0.9763, micro_f1: 0.9827
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 465, loss: 0.0147, acc: 0.9933, micro_p: 0.9891, micro_r: 0.9763, micro_f1: 0.9827
+2020-10-27 19:41:26 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 470, loss: 0.0141, acc: 0.9920, micro_p: 0.9852, micro_r: 0.9744, micro_f1: 0.9798
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 470, loss: 0.0141, acc: 0.9920, micro_p: 0.9852, micro_r: 0.9744, micro_f1: 0.9798
+2020-10-27 19:42:57 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 475, loss: 0.0145, acc: 0.9919, micro_p: 0.9841, micro_r: 0.9751, micro_f1: 0.9796
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 475, loss: 0.0145, acc: 0.9919, micro_p: 0.9841, micro_r: 0.9751, micro_f1: 0.9796
+2020-10-27 19:44:27 - INFO - train_bert_crf.py - Training...Epoches: 14, steps: 480, loss: 0.0144, acc: 0.9917, micro_p: 0.9839, micro_r: 0.9756, micro_f1: 0.9797
+INFO:train_bert_crf.py:Training...Epoches: 14, steps: 480, loss: 0.0144, acc: 0.9917, micro_p: 0.9839, micro_r: 0.9756, micro_f1: 0.9797
+2020-10-27 19:44:37 - INFO - train_bert_crf.py - === Epoch 14 val ===
+INFO:train_bert_crf.py:=== Epoch 14 val ===
+2020-10-27 19:45:41 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8957446808510638, 'micro_p': 0.8519195612431444, 'micro_r': 0.8247787610619469, 'micro_f1': 0.8381294964028776}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8957446808510638, 'micro_p': 0.8519195612431444, 'micro_r': 0.8247787610619469, 'micro_f1': 0.8381294964028776}.
+2020-10-27 19:45:41 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8381294964028776 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8381294964028776 / 0.8452488687782805
+2020-10-27 19:45:42 - INFO - train_bert_crf.py - === Epoch 15 train ===
+INFO:train_bert_crf.py:=== Epoch 15 train ===
+2020-10-27 19:47:24 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 485, loss: 0.0145, acc: 0.9940, micro_p: 0.9816, micro_r: 0.9816, micro_f1: 0.9816
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 485, loss: 0.0145, acc: 0.9940, micro_p: 0.9816, micro_r: 0.9816, micro_f1: 0.9816
+2020-10-27 19:49:06 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 490, loss: 0.0135, acc: 0.9921, micro_p: 0.9833, micro_r: 0.9745, micro_f1: 0.9789
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 490, loss: 0.0135, acc: 0.9921, micro_p: 0.9833, micro_r: 0.9745, micro_f1: 0.9789
+2020-10-27 19:50:55 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 495, loss: 0.0144, acc: 0.9930, micro_p: 0.9861, micro_r: 0.9765, micro_f1: 0.9813
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 495, loss: 0.0144, acc: 0.9930, micro_p: 0.9861, micro_r: 0.9765, micro_f1: 0.9813
+2020-10-27 19:52:40 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 500, loss: 0.0133, acc: 0.9933, micro_p: 0.9879, micro_r: 0.9796, micro_f1: 0.9837
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 500, loss: 0.0133, acc: 0.9933, micro_p: 0.9879, micro_r: 0.9796, micro_f1: 0.9837
+2020-10-27 19:54:15 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 505, loss: 0.0140, acc: 0.9917, micro_p: 0.9881, micro_r: 0.9775, micro_f1: 0.9828
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 505, loss: 0.0140, acc: 0.9917, micro_p: 0.9881, micro_r: 0.9775, micro_f1: 0.9828
+2020-10-27 19:55:51 - INFO - train_bert_crf.py - Training...Epoches: 15, steps: 510, loss: 0.0161, acc: 0.9905, micro_p: 0.9859, micro_r: 0.9781, micro_f1: 0.9820
+INFO:train_bert_crf.py:Training...Epoches: 15, steps: 510, loss: 0.0161, acc: 0.9905, micro_p: 0.9859, micro_r: 0.9781, micro_f1: 0.9820
+2020-10-27 19:56:42 - INFO - train_bert_crf.py - === Epoch 15 val ===
+INFO:train_bert_crf.py:=== Epoch 15 val ===
+2020-10-27 19:57:46 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8921985815602836, 'micro_p': 0.8342342342342343, 'micro_r': 0.8194690265486726, 'micro_f1': 0.8267857142857143}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8921985815602836, 'micro_p': 0.8342342342342343, 'micro_r': 0.8194690265486726, 'micro_f1': 0.8267857142857143}.
+2020-10-27 19:57:46 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8267857142857143 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8267857142857143 / 0.8452488687782805
+2020-10-27 19:57:46 - INFO - train_bert_crf.py - === Epoch 16 train ===
+INFO:train_bert_crf.py:=== Epoch 16 train ===
+2020-10-27 19:58:45 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 515, loss: 0.0034, acc: 1.0000, micro_p: 1.0000, micro_r: 1.0000, micro_f1: 1.0000
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 515, loss: 0.0034, acc: 1.0000, micro_p: 1.0000, micro_r: 1.0000, micro_f1: 1.0000
+2020-10-27 20:00:35 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 520, loss: 0.0132, acc: 0.9936, micro_p: 0.9912, micro_r: 0.9842, micro_f1: 0.9877
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 520, loss: 0.0132, acc: 0.9936, micro_p: 0.9912, micro_r: 0.9842, micro_f1: 0.9877
+2020-10-27 20:02:12 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 525, loss: 0.0158, acc: 0.9903, micro_p: 0.9912, micro_r: 0.9771, micro_f1: 0.9841
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 525, loss: 0.0158, acc: 0.9903, micro_p: 0.9912, micro_r: 0.9771, micro_f1: 0.9841
+2020-10-27 20:04:04 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 530, loss: 0.0150, acc: 0.9890, micro_p: 0.9929, micro_r: 0.9776, micro_f1: 0.9852
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 530, loss: 0.0150, acc: 0.9890, micro_p: 0.9929, micro_r: 0.9776, micro_f1: 0.9852
+2020-10-27 20:05:47 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 535, loss: 0.0156, acc: 0.9886, micro_p: 0.9934, micro_r: 0.9757, micro_f1: 0.9844
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 535, loss: 0.0156, acc: 0.9886, micro_p: 0.9934, micro_r: 0.9757, micro_f1: 0.9844
+2020-10-27 20:07:23 - INFO - train_bert_crf.py - Training...Epoches: 16, steps: 540, loss: 0.0154, acc: 0.9896, micro_p: 0.9920, micro_r: 0.9774, micro_f1: 0.9846
+INFO:train_bert_crf.py:Training...Epoches: 16, steps: 540, loss: 0.0154, acc: 0.9896, micro_p: 0.9920, micro_r: 0.9774, micro_f1: 0.9846
+2020-10-27 20:08:39 - INFO - train_bert_crf.py - === Epoch 16 val ===
+INFO:train_bert_crf.py:=== Epoch 16 val ===
+2020-10-27 20:09:43 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.900354609929078, 'micro_p': 0.8579335793357934, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8401084010840109}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.900354609929078, 'micro_p': 0.8579335793357934, 'micro_r': 0.8230088495575221, 'micro_f1': 0.8401084010840109}.
+2020-10-27 20:09:43 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8401084010840109 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8401084010840109 / 0.8452488687782805
+2020-10-27 20:09:43 - INFO - train_bert_crf.py - === Epoch 17 train ===
+INFO:train_bert_crf.py:=== Epoch 17 train ===
+2020-10-27 20:10:04 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 545, loss: 0.0114, acc: 0.9964, micro_p: 0.9848, micro_r: 0.9848, micro_f1: 0.9848
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 545, loss: 0.0114, acc: 0.9964, micro_p: 0.9848, micro_r: 0.9848, micro_f1: 0.9848
+2020-10-27 20:11:41 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 550, loss: 0.0069, acc: 0.9965, micro_p: 0.9952, micro_r: 0.9857, micro_f1: 0.9904
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 550, loss: 0.0069, acc: 0.9965, micro_p: 0.9952, micro_r: 0.9857, micro_f1: 0.9904
+2020-10-27 20:13:23 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 555, loss: 0.0082, acc: 0.9960, micro_p: 0.9947, micro_r: 0.9842, micro_f1: 0.9894
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 555, loss: 0.0082, acc: 0.9960, micro_p: 0.9947, micro_r: 0.9842, micro_f1: 0.9894
+2020-10-27 20:15:01 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 560, loss: 0.0085, acc: 0.9948, micro_p: 0.9946, micro_r: 0.9821, micro_f1: 0.9883
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 560, loss: 0.0085, acc: 0.9948, micro_p: 0.9946, micro_r: 0.9821, micro_f1: 0.9883
+2020-10-27 20:16:48 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 565, loss: 0.0094, acc: 0.9935, micro_p: 0.9933, micro_r: 0.9788, micro_f1: 0.9860
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 565, loss: 0.0094, acc: 0.9935, micro_p: 0.9933, micro_r: 0.9788, micro_f1: 0.9860
+2020-10-27 20:18:31 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 570, loss: 0.0111, acc: 0.9926, micro_p: 0.9896, micro_r: 0.9789, micro_f1: 0.9842
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 570, loss: 0.0111, acc: 0.9926, micro_p: 0.9896, micro_r: 0.9789, micro_f1: 0.9842
+2020-10-27 20:20:17 - INFO - train_bert_crf.py - Training...Epoches: 17, steps: 575, loss: 0.0111, acc: 0.9932, micro_p: 0.9887, micro_r: 0.9789, micro_f1: 0.9838
+INFO:train_bert_crf.py:Training...Epoches: 17, steps: 575, loss: 0.0111, acc: 0.9932, micro_p: 0.9887, micro_r: 0.9789, micro_f1: 0.9838
+2020-10-27 20:20:41 - INFO - train_bert_crf.py - === Epoch 17 val ===
+INFO:train_bert_crf.py:=== Epoch 17 val ===
+2020-10-27 20:21:42 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8865248226950354, 'micro_p': 0.8441558441558441, 'micro_r': 0.8053097345132744, 'micro_f1': 0.8242753623188405}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8865248226950354, 'micro_p': 0.8441558441558441, 'micro_r': 0.8053097345132744, 'micro_f1': 0.8242753623188405}.
+2020-10-27 20:21:42 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8242753623188405 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8242753623188405 / 0.8452488687782805
+2020-10-27 20:21:43 - INFO - train_bert_crf.py - === Epoch 18 train ===
+INFO:train_bert_crf.py:=== Epoch 18 train ===
+2020-10-27 20:22:55 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 580, loss: 0.0083, acc: 0.9971, micro_p: 0.9925, micro_r: 0.9888, micro_f1: 0.9907
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 580, loss: 0.0083, acc: 0.9971, micro_p: 0.9925, micro_r: 0.9888, micro_f1: 0.9907
+2020-10-27 20:24:33 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 585, loss: 0.0125, acc: 0.9897, micro_p: 0.9881, micro_r: 0.9699, micro_f1: 0.9789
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 585, loss: 0.0125, acc: 0.9897, micro_p: 0.9881, micro_r: 0.9699, micro_f1: 0.9789
+2020-10-27 20:26:14 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 590, loss: 0.0187, acc: 0.9873, micro_p: 0.9872, micro_r: 0.9655, micro_f1: 0.9762
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 590, loss: 0.0187, acc: 0.9873, micro_p: 0.9872, micro_r: 0.9655, micro_f1: 0.9762
+2020-10-27 20:27:50 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 595, loss: 0.0187, acc: 0.9874, micro_p: 0.9862, micro_r: 0.9676, micro_f1: 0.9768
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 595, loss: 0.0187, acc: 0.9874, micro_p: 0.9862, micro_r: 0.9676, micro_f1: 0.9768
+2020-10-27 20:29:35 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 600, loss: 0.0198, acc: 0.9864, micro_p: 0.9830, micro_r: 0.9661, micro_f1: 0.9745
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 600, loss: 0.0198, acc: 0.9864, micro_p: 0.9830, micro_r: 0.9661, micro_f1: 0.9745
+2020-10-27 20:31:25 - INFO - train_bert_crf.py - Training...Epoches: 18, steps: 605, loss: 0.0180, acc: 0.9873, micro_p: 0.9847, micro_r: 0.9674, micro_f1: 0.9760
+INFO:train_bert_crf.py:Training...Epoches: 18, steps: 605, loss: 0.0180, acc: 0.9873, micro_p: 0.9847, micro_r: 0.9674, micro_f1: 0.9760
+2020-10-27 20:32:28 - INFO - train_bert_crf.py - === Epoch 18 val ===
+INFO:train_bert_crf.py:=== Epoch 18 val ===
+2020-10-27 20:33:30 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8843971631205674, 'micro_p': 0.8733205374280231, 'micro_r': 0.8053097345132744, 'micro_f1': 0.8379373848987108}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8843971631205674, 'micro_p': 0.8733205374280231, 'micro_r': 0.8053097345132744, 'micro_f1': 0.8379373848987108}.
+2020-10-27 20:33:30 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8379373848987108 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8379373848987108 / 0.8452488687782805
+2020-10-27 20:33:30 - INFO - train_bert_crf.py - === Epoch 19 train ===
+INFO:train_bert_crf.py:=== Epoch 19 train ===
+2020-10-27 20:34:20 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 610, loss: 0.0091, acc: 0.9833, micro_p: 0.9819, micro_r: 0.9760, micro_f1: 0.9790
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 610, loss: 0.0091, acc: 0.9833, micro_p: 0.9819, micro_r: 0.9760, micro_f1: 0.9790
+2020-10-27 20:35:48 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 615, loss: 0.0069, acc: 0.9910, micro_p: 0.9916, micro_r: 0.9814, micro_f1: 0.9865
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 615, loss: 0.0069, acc: 0.9910, micro_p: 0.9916, micro_r: 0.9814, micro_f1: 0.9865
+2020-10-27 20:37:17 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 620, loss: 0.0097, acc: 0.9932, micro_p: 0.9901, micro_r: 0.9853, micro_f1: 0.9877
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 620, loss: 0.0097, acc: 0.9932, micro_p: 0.9901, micro_r: 0.9853, micro_f1: 0.9877
+2020-10-27 20:39:04 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 625, loss: 0.0109, acc: 0.9928, micro_p: 0.9898, micro_r: 0.9840, micro_f1: 0.9869
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 625, loss: 0.0109, acc: 0.9928, micro_p: 0.9898, micro_r: 0.9840, micro_f1: 0.9869
+2020-10-27 20:41:00 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 630, loss: 0.0114, acc: 0.9927, micro_p: 0.9885, micro_r: 0.9810, micro_f1: 0.9848
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 630, loss: 0.0114, acc: 0.9927, micro_p: 0.9885, micro_r: 0.9810, micro_f1: 0.9848
+2020-10-27 20:42:52 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 635, loss: 0.0120, acc: 0.9932, micro_p: 0.9883, micro_r: 0.9812, micro_f1: 0.9847
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 635, loss: 0.0120, acc: 0.9932, micro_p: 0.9883, micro_r: 0.9812, micro_f1: 0.9847
+2020-10-27 20:44:23 - INFO - train_bert_crf.py - Training...Epoches: 19, steps: 640, loss: 0.0122, acc: 0.9926, micro_p: 0.9884, micro_r: 0.9813, micro_f1: 0.9848
+INFO:train_bert_crf.py:Training...Epoches: 19, steps: 640, loss: 0.0122, acc: 0.9926, micro_p: 0.9884, micro_r: 0.9813, micro_f1: 0.9848
+2020-10-27 20:44:31 - INFO - train_bert_crf.py - === Epoch 19 val ===
+INFO:train_bert_crf.py:=== Epoch 19 val ===
+2020-10-27 20:45:36 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8829787234042553, 'micro_p': 0.8558052434456929, 'micro_r': 0.8088495575221238, 'micro_f1': 0.8316651501364878}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8829787234042553, 'micro_p': 0.8558052434456929, 'micro_r': 0.8088495575221238, 'micro_f1': 0.8316651501364878}.
+2020-10-27 20:45:36 - INFO - train_bert_crf.py - Metric micro_f1 current / best: 0.8316651501364878 / 0.8452488687782805
+INFO:train_bert_crf.py:Metric micro_f1 current / best: 0.8316651501364878 / 0.8452488687782805
+2020-10-27 20:45:36 - INFO - train_bert_crf.py - Best micro_f1 on val set: 0.845249
+INFO:train_bert_crf.py:Best micro_f1 on val set: 0.845249
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Evaluation result: {'acc': 0.8978723404255319, 'micro_p': 0.8648148148148148, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8452488687782805}.
+INFO:train_bert_crf.py:Evaluation result: {'acc': 0.8978723404255319, 'micro_p': 0.8648148148148148, 'micro_r': 0.8265486725663717, 'micro_f1': 0.8452488687782805}.
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Test set results:
+INFO:train_bert_crf.py:Test set results:
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Accuracy: 0.8978723404255319
+INFO:train_bert_crf.py:Accuracy: 0.8978723404255319
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Micro precision: 0.8648148148148148
+INFO:train_bert_crf.py:Micro precision: 0.8648148148148148
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Micro recall: 0.8265486725663717
+INFO:train_bert_crf.py:Micro recall: 0.8265486725663717
+2020-10-27 20:46:52 - INFO - train_bert_crf.py - Micro F1: 0.8452488687782805
+INFO:train_bert_crf.py:Micro F1: 0.8452488687782805
