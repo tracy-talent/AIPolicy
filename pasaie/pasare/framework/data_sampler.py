@@ -6,7 +6,13 @@ from torch.utils.data import WeightedRandomSampler
 def get_sampler(train_path,
                 rel2id,
                 sampler_type):
-
+    """
+        Get a self-defined sampler for train-files.
+    :param train_path: str, path of train-files
+    :param rel2id: dict, a rel2id dictionary
+    :param sampler_type: str, select sampler type
+    :return:
+    """
     data = []
     labels = []
     with open(train_path, 'r', encoding='utf8') as fin:
