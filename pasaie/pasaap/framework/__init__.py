@@ -6,4 +6,4 @@ __all__ = [
     'parse_corpus'
 ]
 
-from .article_parsing import parse_corpus
+from .article_parser import parse_corpus
