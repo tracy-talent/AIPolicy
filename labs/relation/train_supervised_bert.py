@@ -13,6 +13,7 @@ import os
 import argparse
 import logging
 import configparser
+import datetime
 
 
 parser = argparse.ArgumentParser()
@@ -26,11 +27,13 @@ parser.add_argument('--only_test', action='store_true',
         help='Only run test')
 parser.add_argument('--mask_entity', action='store_true', 
         help='Mask entity mentions')
+parser.add_argument('--use_sampler', action='store_true',
+                    help='Use sampler')
 
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='none', choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10'], 
+parser.add_argument('--dataset', default='none', choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'], 
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -66,13 +69,14 @@ config.read(os.path.join(project_path, 'config.ini'))
 
 # logger
 os.makedirs(config['path']['re_log'], exist_ok=True)
-logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}.log')) 
+os.makedirs(os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}'), exist_ok=True)
+logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}', f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log')) 
 
 # tensorboard
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 os.makedirs(config['path']['re_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['re_tb'], f'{args.dataset}_bert_{args.pooler}/{make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length)}')
+tb_logdir = os.path.join(config['path']['re_tb'], f'{args.dataset}_bert_{args.pooler}/{make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length)}', datetime.datetime.now().strftime('%y-%m-%d-%H-%M-%S'))
 if os.path.exists(tb_logdir):
     raise Exception(f'path {tb_logdir} exists!')
 
@@ -83,7 +87,7 @@ if len(args.ckpt) == 0:
 ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}.pth.tar')
 
 if args.dataset != 'none':
-    if args.dataset != 'policy':
+    if 'policy' not in args.dataset:
         pasare.download(args.dataset, root_path=root_path)
     args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
     args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
@@ -98,7 +102,7 @@ if args.dataset != 'none':
         args.metric = 'micro_f1'
 else:
     if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.rel2id_file)):
-        raise Exception('--train_file, --val_file, --test_file and --rel2id_file are not specified or files do not exist. Or specify --dataset')
+        raise Exception(f'--train_file, --val_file, --test_file and --rel2id_file are not specified for dataset `{args.dataset}` or files do not exist. Or specify --dataset')
 
 logging.info('Arguments:')
 for arg in vars(args):
@@ -126,7 +130,10 @@ else:
 
 # Define the model
 model = pasaie.pasare.model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
-
+if args.use_sampler:
+    sampler = pasaie.pasare.framework.get_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
+else:
+    sampler = None
 # Define the whole training framework
 framework = pasaie.pasare.framework.SentenceRE(
     train_path=args.train_file,
@@ -140,7 +147,8 @@ framework = pasaie.pasare.framework.SentenceRE(
     max_epoch=args.max_epoch,
     lr=args.lr,
     opt=args.optimizer,
-    warmup_step=args.warmup_step
+    warmup_step=args.warmup_step,
+    sampler=sampler
 )
 
 # Train the model
