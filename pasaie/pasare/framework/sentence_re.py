@@ -22,7 +22,8 @@ class SentenceRE(nn.Module):
                  lr=0.1, 
                  weight_decay=1e-5, 
                  warmup_step=300,
-                 opt='sgd'):
+                 opt='sgd',
+                 sampler=None):
     
         super().__init__()
         self.max_epoch = max_epoch
@@ -33,7 +34,9 @@ class SentenceRE(nn.Module):
                 model.rel2id,
                 model.sentence_encoder.tokenize,
                 batch_size,
-                shuffle=True)
+                shuffle=True,
+                sampler=sampler
+            )
 
         if val_path != None:
             self.val_loader = SentenceRELoader(

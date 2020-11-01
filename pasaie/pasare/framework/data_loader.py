@@ -102,14 +102,17 @@ class SentenceREDataset(data.Dataset):
         return result
     
 def SentenceRELoader(path, rel2id, tokenizer, batch_size, 
-        shuffle, num_workers=8, collate_fn=SentenceREDataset.collate_fn, **kwargs):
+        shuffle, num_workers=8, collate_fn=SentenceREDataset.collate_fn, sampler=None, **kwargs):
+    if sampler:
+        shuffle =False
     dataset = SentenceREDataset(path = path, rel2id = rel2id, tokenizer = tokenizer, kwargs=kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
             pin_memory=True,
             num_workers=num_workers,
-            collate_fn=collate_fn)
+            collate_fn=collate_fn,
+            sampler=sampler)
     return data_loader
 
 class BagREDataset(data.Dataset):
