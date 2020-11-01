@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from transformers import BertModel, BertTokenizer
 from .base_encoder import BaseEncoder
+import torch.nn.functional as F
+
 
 class BERTEncoder(nn.Module):
     def __init__(self, max_length, pretrain_path, blank_padding=True, mask_entity=False):
@@ -118,7 +120,8 @@ class BERTEntityEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        self.hidden_size = self.bert.config.hidden_size * 2
+        self.hidden_size = self.bert.config.hidden_size * 3
+        self.conv = nn.Conv2d(1, 768, kernel_size=(5, 768))     # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
     def forward(self, token, pos1, pos2, att_mask):
@@ -139,7 +142,10 @@ class BERTEntityEncoder(nn.Module):
         onehot_tail = onehot_tail.scatter_(1, pos2, 1)
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
-        x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
+        # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
+        context_conv = F.relu(self.conv(hidden.unsqueeze(1))).squeeze(3)
+        context_hidden = F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)
+        x = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
         x = self.linear(x)
         return x
 
