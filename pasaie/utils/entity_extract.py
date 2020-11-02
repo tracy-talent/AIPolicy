@@ -194,6 +194,36 @@ def extract_kvpairs_in_bmoes(bmoes_seq, word_seq):
 
 
 # 取实体最后一个词对应的分类结果，作为实体类型，应用于多任务中
+def extract_kvpairs_in_bmoes_by_endtag(bioes_seq, word_seq, attr_seq):
+    assert len(bioes_seq) == len(word_seq) == len(attr_seq)
+    pairs = list()
+    v = ""
+    spos = -1
+    for i in range(len(bioes_seq)):
+        word = word_seq[i]
+        bioes = bioes_seq[i]
+        attr = attr_seq[i]
+        if bioes == "O":
+            v = ""
+        elif bioes == "S":
+            v = word
+            pairs.append((i, attr, v))
+            v = ""
+        elif bioes == "B":
+            v = word
+            spos = i
+        elif bioes == "M":
+            if v != "": 
+                v += word
+        elif bioes == "E":
+            if v != "":
+                v += word
+                pairs.append((spos, attr, v))
+            v = ""
+    return pairs
+
+
+# 取实体最后一个词对应的分类结果，作为实体类型，应用于多任务中
 def extract_kvpairs_in_bioes_by_endtag(bioes_seq, word_seq, attr_seq):
     assert len(bioes_seq) == len(word_seq) == len(attr_seq)
     pairs = list()

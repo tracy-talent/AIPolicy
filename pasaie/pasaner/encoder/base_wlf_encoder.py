@@ -125,19 +125,18 @@ class BaseWLFEncoder(nn.Module):
         ], dim=-1) # (B, L, EMBED)
         return inputs_embed
     
-    def tokenize(self, text):
+    def tokenize(self, *items):
         """
         Args:
-            item: input instance, including sentence, entity positions, etc.
-            is_token: if is_token == True, sentence becomes an array of token
+            items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
         Return:
             index number of tokens and positions             
         """
-        if isinstance(text, list) or isinstance(text, tuple):
-            sentence = text
+        if isinstance(items[0], list) or isinstance(items[0], tuple):
+            sentence = items[0]
             is_token = True
         else:
-            sentence = text
+            sentence = items[0]
             is_token = False
 
         # Sentence -> token

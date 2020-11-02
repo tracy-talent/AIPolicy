@@ -22,6 +22,8 @@ import configparser
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
         help='Pre-trained ckpt path / model name (hugginface)')
+parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -46,6 +48,8 @@ parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
 parser.add_argument('--tag2id_file', default='', type=str,
         help='Relation to ID file')
+parser.add_argument('--compress_seq', default=True, type=bool,
+        help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
 parser.add_argument('--batch_size', default=64, type=int,
@@ -77,7 +81,7 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = 'bert'
+    model_name = args.bert_name
     if args.use_lstm:
         model_name += '_lstm'
     if args.use_crf:
@@ -104,10 +108,10 @@ ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}.pth.tar')
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    args.train_file = os.path.join(config['path']['ner_dataset'], dataset, f'train.char.{args.tagscheme}')
-    args.val_file = os.path.join(config['path']['ner_dataset'], dataset, f'val.char.{args.tagscheme}')
-    args.test_file = os.path.join(config['path']['ner_dataset'], dataset, f'test.char.{args.tagscheme}')
-    args.tag2id_file = os.path.join(config['path']['ner_dataset'], dataset, f'tag2id.{args.tagscheme}')
+    args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
+    args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'val.char.{args.tagscheme}')
+    args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
+    args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
         logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
@@ -129,6 +133,7 @@ tag2id = load_vocab(args.tag2id_file)
 sequence_encoder = pasaner.encoder.BERTEncoder(
     max_length=args.max_length,
     pretrain_path=args.pretrain_path,
+    bert_name=args.bert_name,
     blank_padding=True
 )
 
@@ -149,6 +154,7 @@ framework = pasaner.framework.Model_CRF(
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    compress_seq=args.compress_seq,
     tagscheme=args.tagscheme,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
@@ -158,6 +164,7 @@ framework = pasaner.framework.Model_CRF(
     warmup_step=args.warmup_step,
     opt=args.optimizer
 )
+# framework.load_state_dict(torch.load(ckpt)['state_dict'])
 
 # Train the model
 if not args.only_test:

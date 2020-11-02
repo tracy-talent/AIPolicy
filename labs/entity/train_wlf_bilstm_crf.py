@@ -54,6 +54,8 @@ parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
 parser.add_argument('--custom_dict', default='', type=str,
         help='user custom dict for tokenizer toolkit')
+parser.add_argument('--compress_seq', default=True, type=bool,
+        help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
 parser.add_argument('--batch_size', default=64, type=int,
@@ -155,6 +157,7 @@ sequence_encoder = pasaner.encoder.BaseWLFEncoder(
 model = pasaner.model.BILSTM_CRF(
     sequence_encoder=sequence_encoder, 
     tag2id=tag2id, 
+    compress_seq=args.compress_seq,
     use_lstm=args.use_lstm, 
     use_crf=args.use_crf
 )
@@ -168,6 +171,7 @@ framework = pasaner.framework.Model_CRF(
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    compress_seq=args.compress_seq,
     tagscheme=args.tagscheme, 
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,

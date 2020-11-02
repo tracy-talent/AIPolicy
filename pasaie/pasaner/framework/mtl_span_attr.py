@@ -27,6 +27,7 @@ class MTL_Span_Attr(nn.Module):
                 ckpt, 
                 logger, 
                 tb_logdir, 
+                compress_seq=True,
                 tagscheme='bio',
                 batch_size=32, 
                 max_epoch=100, 
@@ -51,9 +52,9 @@ class MTL_Span_Attr(nn.Module):
                 span2id=model.span2id,
                 attr2id=model.attr2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=True
+                shuffle=True,
+                compress_seq=compress_seq
             )
 
         if val_path != None:
@@ -62,9 +63,9 @@ class MTL_Span_Attr(nn.Module):
                 span2id=model.span2id,
                 attr2id=model.attr2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=False
+                shuffle=False,
+                compress_seq=compress_seq
             )
         
         if test_path != None:
@@ -73,9 +74,9 @@ class MTL_Span_Attr(nn.Module):
                 span2id=model.span2id,
                 attr2id=model.attr2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=False
+                shuffle=False,
+                compress_seq=compress_seq
             )
 
         # Model
@@ -97,19 +98,12 @@ class MTL_Span_Attr(nn.Module):
             {'params': encoder_params, 'lr':bert_lr},
             {'params': other_params, 'lr':lr}
         ]
-        # param_i = 0
-        # while param_i < len(grouped_params):
-        #     if len(grouped_params[param_i]['params']) > 0:
-        #         param_i += 1
-        #     else:
-        #         grouped_params.pop(param_i)
         if opt == 'sgd':
             self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
         elif opt == 'adam':
             self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
         elif opt == 'adamw': # Optimizer for BERT
-            # from transformers import AdamW 
-            from torch.optim import AdamW # torch 1.6 begin providing AdamW
+            from transformers import AdamW 
             params = list(self.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             adamw_grouped_params = [
@@ -134,12 +128,6 @@ class MTL_Span_Attr(nn.Module):
                     'lr': lr,
                 }
             ]
-            # param_i = 0
-            # while param_i < len(adamw_grouped_params):
-            #     if len(adamw_grouped_params[param_i]['params']) > 0:
-            #         param_i += 1
-            #     else:
-            #         adamw_grouped_params.pop(param_i)
             self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
@@ -170,6 +158,7 @@ class MTL_Span_Attr(nn.Module):
         if neg_spanid == -1:
             raise Exception("span negative tag not in 'O'")
         neg_attrid = self.train_loader.dataset.neg_attrid
+        end_spanid = self.model.span2id['E']
 
         for epoch in range(self.max_epoch):
             self.train()
@@ -189,7 +178,7 @@ class MTL_Span_Attr(nn.Module):
                         except:
                             pass
                 args = data[2:]
-                logits_span, logits_attr = self.parallel_model(*args)
+                logits_span, logits_attr = self.parallel_model(data[0], *args)
                 outputs_seq_span = data[0]
                 outputs_seq_attr = data[1]
                 inputs_seq, inputs_mask = data[2], data[-1]
@@ -198,7 +187,7 @@ class MTL_Span_Attr(nn.Module):
 
                 if self.model.crf_span is None:
                     loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                    loss_span = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
                     preds_seq_span = logits_span.argmax(dim=-1) # B * S
                 else:
                     log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
@@ -210,7 +199,8 @@ class MTL_Span_Attr(nn.Module):
 
                 if self.model.crf_attr is None:
                     loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
-                    loss_attr = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                    tag_masks = (preds_seq_span == end_spanid).float()
+                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / (torch.sum(tag_masks, dim=-1) + 1e-5) # B
                     preds_seq_attr = logits_attr.argmax(dim=-1) # B * S
                 else:
                     log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
@@ -242,8 +232,8 @@ class MTL_Span_Attr(nn.Module):
 
                     pred_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(pred_seq_span_tag, pred_seq_attr_tag)]
                     gold_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(gold_seq_span_tag, gold_seq_attr_tag)]
-                    pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(pred_seq_tag, char_seq)
-                    gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(gold_seq_tag, char_seq)
+                    pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
+                    gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
 
                     preds_kvpairs.append(pred_kvpairs)
                     golds_kvpairs.append(gold_kvpairs)
@@ -335,7 +325,7 @@ class MTL_Span_Attr(nn.Module):
                         except:
                             pass
                 args = data[2:]
-                logits_span, logits_attr = self.parallel_model(*args)
+                logits_span, logits_attr = self.parallel_model(data[0], *args)
                 outputs_seq_span = data[0]
                 outputs_seq_attr = data[1]
                 inputs_seq, inputs_mask = data[2], data[-1]
@@ -379,8 +369,8 @@ class MTL_Span_Attr(nn.Module):
 
                     pred_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(pred_seq_span_tag, pred_seq_attr_tag)]
                     gold_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(gold_seq_span_tag, gold_seq_attr_tag)]
-                    pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(pred_seq_tag, char_seq)
-                    gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(gold_seq_tag, char_seq)
+                    pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
+                    gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
 
                     preds_kvpairs.append(pred_kvpairs)
                     golds_kvpairs.append(gold_kvpairs)

@@ -12,11 +12,12 @@ class BILSTMEncoder(BaseEncoder):
                 hidden_size=230, 
                 word_size=50, 
                 word2vec=None, 
+                compress_seq=True,
                 blank_padding=True, 
                 batch_first=True):
         """
         Args:
-            pretrain_path: path of pretrain model
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
         """
         super(BILSTMEncoder, self).__init__(token2id, max_length, hidden_size, word_size, word2vec, blank_padding)
         self.bilstm = nn.LSTM(input_size=self.input_size, 
@@ -24,6 +25,7 @@ class BILSTMEncoder(BaseEncoder):
                             num_layers=1, 
                             bidirectional=True, 
                             batch_first=batch_first)
+        self.compress_seq = compress_seq
         self.batch_first = batch_first
 
     def forward(self, seqs, att_mask):
@@ -35,12 +37,15 @@ class BILSTMEncoder(BaseEncoder):
             (B, H), representations for sentences
         """
         seqs_embedding = self.word_embedding(seqs)
-        seqs_length = att_mask.sum(dim=-1)
-        seqs_embedding_packed = pack_padded_sequence(seqs_embedding, seqs_length, batch_first=self.batch_first)
-        seqs_hiddens_packed, _ = self.bilstm(seqs_embedding_packed)
-        seqs_hiddens, _ = pack_padded_sequence(seqs_hiddens_packed, batch_first=self.batch_first)
-        # seqs_hiddens = self.bilstm(seqs_embedding)
+        if self.compress_seq:
+            seqs_length = att_mask.sum(dim=-1).detach().cpu()
+            seqs_embedding_packed = pack_padded_sequence(seqs_embedding, seqs_length, batch_first=self.batch_first)
+            seqs_hiddens_packed, _ = self.bilstm(seqs_embedding_packed)
+            seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first)
+        else:
+            seqs_hiddens, _ = self.bilstm(seqs_embedding)
+        seqs_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
         return seqs_hiddens
     
-    def tokenize(self, text):
-        return super().tokenize(text)
+    def tokenize(self, *items):
+        return super().tokenize(items)

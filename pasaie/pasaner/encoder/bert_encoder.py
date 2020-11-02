@@ -6,19 +6,37 @@
 """
 
 import logging
+
 import torch
 import torch.nn as nn
+from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer
 from transformers import BertModel, BertTokenizer
 
+
 class BERTEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, blank_padding=True):
+    def __init__(self, max_length, pretrain_path, bert_name, blank_padding=True):
         """
         Args:
-            pretrain_path: path of pretrain model
+            max_length (int): max length of sequence
+            pretrain_path (str): path of pretrain model
+            bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert
+            blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
         super(BERTEncoder, self).__init__()
-        self.bert = BertModel.from_pretrained(pretrain_path)
-        self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+
+        self.bert_name = bert_name
+        if 'roberta' in bert_name:
+            self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
+            self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
+        elif 'bert' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        # add missed tokens in vocab.txt
+        num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
+        print(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
+        self.bert.resize_token_embeddings(len(self.tokenizer))
+
         self.hidden_size = self.bert.config.hidden_size
         self.max_length = max_length
         self.blank_padding = blank_padding
@@ -31,25 +49,40 @@ class BERTEncoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
-        seq_out, _ = self.bert(seqs, attention_mask=att_mask)
+        if 'roberta' in self.bert_name:
+            seq_out = self.bert(seqs, attention_mask=att_mask)[1][1]
+        else:
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask)
         return seq_out
     
-    def tokenize(self, text):
-        if isinstance(text, list) or isinstance(text, tuple):
-            sentence = text
+    def tokenize(self, *items): # items = (tokens, spans, [attrs, optional])
+        """
+        Args:
+            items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
+        Returns:
+            indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
+            att_mask (torch.tensor): token mask ids, (1, L)
+        """
+        if isinstance(items[0], list) or isinstance(items[0], tuple):
+            sentence = items[0]
             is_token = True
         else:
-            sentence = text
+            sentence = items[0]
             is_token = False
         
         if is_token:
-            # tokens = self.tokenizer.tokenize(''.join(sentence))
-            tokens = sentence
+            items[0].insert(0, '[CLS]')
+            items[0].append('[SEP]')
+            items[1].insert(0, 'O')
+            items[1].append('O')
+            if len(items) > 2:
+                items[2].insert(0, 'null')
+                items[2].append('null')
+            tokens = items[0]
         else:
-            tokens = self.tokenizer.tokenize(sentence)
+            tokens = ['[CLS]'] + self.tokenizer.tokenize(sentence) + ['SEP']
         
-        re_tokens = ['[CLS]'] + tokens + ['[SEP]']
-        indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
         avail_len = torch.tensor([len(indexed_tokens)])
 
         if self.blank_padding:

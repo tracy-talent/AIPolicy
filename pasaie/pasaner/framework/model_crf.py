@@ -7,6 +7,7 @@
 
 from ...metrics import Mean, micro_p_r_f1_score
 from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes
+# from .data_loader import SingleNERDataLoader
 from .data_loader import SingleNERDataLoader
 
 import torch
@@ -27,6 +28,7 @@ class Model_CRF(nn.Module):
                 ckpt, 
                 logger, 
                 tb_logdir, 
+                compress_seq=True,
                 tagscheme='bio', 
                 batch_size=32, 
                 max_epoch=100, 
@@ -50,9 +52,9 @@ class Model_CRF(nn.Module):
                 path=train_path,
                 tag2id=model.tag2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=True
+                shuffle=True,
+                compress_seq=compress_seq
             )
 
         if val_path != None:
@@ -60,9 +62,9 @@ class Model_CRF(nn.Module):
                 path=val_path,
                 tag2id=model.tag2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=False
+                shuffle=False,
+                compress_seq=compress_seq
             )
         
         if test_path != None:
@@ -70,9 +72,9 @@ class Model_CRF(nn.Module):
                 path=test_path,
                 tag2id=model.tag2id,
                 tokenizer=model.sequence_encoder.tokenize,
-                is_bert_encoder=self.is_bert_encoder,
                 batch_size=batch_size,
-                shuffle=False
+                shuffle=False,
+                compress_seq=compress_seq
             )
 
         # Model
@@ -95,19 +97,12 @@ class Model_CRF(nn.Module):
             {'params': bert_params, 'lr':bert_lr},
             {'params': other_params, 'lr':lr}
         ]
-        #param_i = 0
-        #while param_i < len(grouped_params):
-        #    if len(grouped_params[param_i]['params']) > 0:
-        #        param_i += 1
-        #    else:
-        #        grouped_params.pop(param_i)
         if opt == 'sgd':
             self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
         elif opt == 'adam':
             self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
         elif opt == 'adamw': # Optimizer for BERT
             from transformers import AdamW
-            from torch.optim import AdamW # torch 1.6 begin providing AdamW
             params = list(self.parallel_model.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             adamw_grouped_params = [
@@ -132,12 +127,6 @@ class Model_CRF(nn.Module):
                     'lr': lr,
                 }
             ]
-            # param_i = 0
-            # while param_i < len(adamw_grouped_params):
-            #     if len(adamw_grouped_params[param_i]['params']) > 0:
-            #         param_i += 1
-            #     else:
-            #         adamw_grouped_params.pop(param_i)
             self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
@@ -217,9 +206,6 @@ class Model_CRF(nn.Module):
                     pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][:seqlen][spos:tpos]]
                     gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][:seqlen][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
-                    # print(char_seq)
-                    # print(gold_seq_tag)
-                    # print()
 
                     pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(pred_seq_tag, char_seq)
                     gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(gold_seq_tag, char_seq)

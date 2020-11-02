@@ -217,7 +217,7 @@ def construct_span2id_and_attr2id(tag2id_file, span2id_file, attr2id_file):
         spanset.remove('O')
         for span in spanset:
             span_attr_file[0].write(span + '\n')
-        span_attr_file[0].wrtie('O')
+        span_attr_file[0].write('O')
         for attr in attrset:
             span_attr_file[1].write(attr + '\n')
         span_attr_file[1].write('null')

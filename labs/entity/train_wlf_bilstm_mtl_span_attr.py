@@ -34,7 +34,7 @@ parser.add_argument('--share_lstm', action='store_true',
         share_lstm and (span_use_lstm/attr_use_lstm) are mutually exclusive')
 parser.add_argument('--span_use_lstm', action='store_true', 
         help='whether use lstm for span sequence after encoder')
-parser.add_argument('--attr_use_crf', action='store_true', 
+parser.add_argument('--attr_use_lstm', action='store_true', 
         help='whether use lstm for attr sequence after encoder')
 parser.add_argument('--span_use_crf', action='store_true', 
         help='whether use crf for span sequence decode')
@@ -64,6 +64,8 @@ parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
 parser.add_argument('--custom_dict', default='', type=str,
         help='user custom dict for tokenizer toolkit')
+parser.add_argument('--compress_seq', default=True, type=bool,
+        help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
 parser.add_argument('--batch_size', default=64, type=int,
@@ -174,6 +176,7 @@ model = pasaner.model.BILSTM_CRF_Span_Attr(
     sequence_encoder=sequence_encoder, 
     span2id=span2id,
     attr2id=attr2id,
+    compress_seq=args.compress_seq,
     share_lstm=args.share_lstm, # False
     span_use_lstm=args.span_use_lstm, # True
     attr_use_lstm=args.attr_use_lstm, # True
@@ -190,6 +193,7 @@ framework = pasaner.framework.MTL_Span_Attr(
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    compress_seq=args.compress_seq,
     tagscheme=args.tagscheme,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,

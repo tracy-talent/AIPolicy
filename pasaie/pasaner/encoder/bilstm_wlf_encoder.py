@@ -15,11 +15,12 @@ class BILSTM_WLF_Encoder(BaseWLFEncoder):
                 char2vec=None, 
                 word2vec=None, 
                 custom_dict=None,
+                compress_seq=True,
                 blank_padding=True, 
                 batch_first=True):
         """
         Args:
-            pretrain_path: path of pretrain model
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
         """
         super(BILSTM_WLFEncoder, self).__init__(char2id, word2id, max_length, hidden_size, char_size, word_size, char2vec, word2vec, custom_dict, blank_padding)
         self.bilstm = nn.LSTM(input_size=self.input_size, 
@@ -27,6 +28,7 @@ class BILSTM_WLF_Encoder(BaseWLFEncoder):
                             num_layers=1, 
                             bidirectional=True, 
                             batch_first=batch_first)
+        self.compress_seq = compress_seq
         self.batch_first = batch_first
 
     def forward(self, seqs_char, seqs_word, att_mask):
@@ -43,12 +45,15 @@ class BILSTM_WLF_Encoder(BaseWLFEncoder):
             self.char_embedding(seqs_char),
             self.word_embedding(seqs_word)
         ], dim=-1) # (B, L, EMBED)
-        inputs_length = att_mask.sum(dim=-1)
-        inputs_embedding_packed = pack_padded_sequence(inputs_embedding, inputs_length, batch_first=self.batch_first)
-        inputs_hiddens_packed, _ = self.bilstm(inputs_embedding_packed)
-        inputs_hiddens, _ = pack_padded_sequence(inputs_hiddens_packed, batch_first=self.batch_first)
-        # inputs_hiddens = self.bilstm(inputs_embed)
+        if self.compress_seq:
+            inputs_length = att_mask.sum(dim=-1).detach().cpu()
+            inputs_embedding_packed = pack_padded_sequence(inputs_embedding, inputs_length, batch_first=self.batch_first)
+            inputs_hiddens_packed, _ = self.bilstm(inputs_embedding_packed)
+            inputs_hiddens, _ = pad_packed_sequence(inputs_hiddens_packed, batch_first=self.batch_first)
+        else:
+            inputs_hiddens, _ = self.bilstm(inputs_embed)
+        inputs_hiddens = torch.add(*inputs_hiddens.chunk(2, dim=-1))
         return inputs_hiddens
     
-    def tokenize(self, text):
-        return super().tokenize(text)
+    def tokenize(self, *items):
+        return super().tokenize(items)

@@ -15,12 +15,13 @@ from ...utils.entity_extract import *
 
 
 class BILSTM_CRF_Span_Attr(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=True, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
             span2id (dict): map from span(et. B, I, O) to id
             attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
             share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
             span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
             span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
@@ -31,11 +32,11 @@ class BILSTM_CRF_Span_Attr(nn.Module):
         
         super(BILSTM_CRF_Span_Attr, self).__init__()
         self.batch_first = batch_first
+        self.compress_seq = compress_seq
         self.tagscheme = tagscheme
         self.sequence_encoder = sequence_encoder
-        self.lstm_num = lstm_num
-        self.mlp_span = nn.Linear(sequence_encoder.hidden_size * 2, len(span2id))
-        self.mlp_attr = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
+        self.mlp_span = nn.Linear(sequence_encoder.hidden_size, len(span2id))
+        self.mlp_attr = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
         self.softmax = nn.Softmax(dim=-1)
         self.span2id = span2id
         self.id2span = {}
@@ -114,40 +115,68 @@ class BILSTM_CRF_Span_Attr(nn.Module):
         return text, pos_attr_entities
 
 
-    def forward(self, *args):
+    def forward(self, span_labels, *args):
+        if not hasattr(self, '_flattened'):
+            if self.share_bilstm is not None:
+                self.share_bilstm.flatten_parameters()
+            if self.span_bilstm is not None:
+                self.span_bilstm.flatten_parameters()
+            if self.attr_bilstm is not None:
+                self.attr_bilstm.flatten_parameters()
+            setattr(self, '_flattened', True)
         rep = self.sequence_encoder(*args) # B, S, D
-        span_seqs_hiddens = torch.cat([rep, rep], dim=-1) # keep the same dimension with bilstm hiddens
-        attr_seqs_hiddens = torch.cat([rep, rep], dim=-1) # keep the same dimension with bilstm hiddens
-        if share_bilstm is not None:
-            att_mask = args[-1]
-            seqs_length = att_mask.sum(dim=-1)
-            seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
-            seqs_hiddens_packed, _ = self.span_bilstm(seqs_rep_packed)
-            seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
-            # span_seqs_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
+        # span_seqs_hiddens = torch.cat([rep, rep], dim=-1) # keep the same dimension with bilstm hiddens
+        # attr_seqs_hiddens = torch.cat([rep, rep], dim=-1) # keep the same dimension with bilstm hiddens
+        span_seqs_hiddens = rep
+        attr_seqs_hiddens = rep
+        if self.share_bilstm is not None:
+            if self.compress_seq:
+                att_mask = args[-1]
+                seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
+                seqs_hiddens_packed, _ = self.share_bilstm(seqs_rep_packed)
+                span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+            else:
+                span_seqs_hiddens, _ = self.share_bilstm(rep)
+            span_seqs_hiddens = torch.add(*span_seqs_hiddens.chunk(2, dim=-1))
             attr_seqs_hiddens = span_seqs_hiddens
         else:
-            if span_bilstm is not None:
-                att_mask = args[-1]
-                seqs_length = att_mask.sum(dim=-1)
-                seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
-                seqs_hiddens_packed, _ = self.span_bilstm(seqs_rep_packed)
-                seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
-                # span_seqs_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
-                # span_seqs_hiddens = self.span_bilstm(rep)
-                if attr_bilstm is not None:
+            if self.span_bilstm is not None:
+                if self.compress_seq:
+                    att_mask = args[-1]
+                    seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                    seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
+                    seqs_hiddens_packed, _ = self.span_bilstm(seqs_rep_packed)
+                    span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+                else:
+                    span_seqs_hiddens, _ = self.span_bilstm(rep)
+                span_seqs_hiddens = torch.add(*span_seqs_hiddens.chunk(2, dim=-1))
+                if self.attr_bilstm is not None:
+                    if self.compress_seq:
+                        seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
+                        attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+                    else:
+                        attr_seqs_hiddens = self.attr_bilstm(rep)
+                    attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
+            elif self.attr_bilstm is not None:
+                if self.compress_seq:
+                    att_mask = args[-1]
+                    seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                    seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
                     seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
-                    seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
-                    # attr_seqs_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
-                    # attr_seqs_hiddens = self.attr_bilstm(rep)
-            elif attr_bilstm is not None:
-                att_mask = args[-1]
-                seqs_length = att_mask.sum(dim=-1)
-                seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
-                seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
-                seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
-                # attr_seqs_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
-                # attr_seqs_hiddens = self.attr_bilstm(rep)
+                    attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
+                else:
+                    attr_seqs_hiddens = self.attr_bilstm(rep)
+                attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
+
+        span_bid, span_eid = self.span2id['B'], self.span2id['E']
+        spos = -1
+        for i in range(span_labels.size(0)):
+            for j in range(span_labels.size(1)):
+                if span_labels[i][j].item() == span_bid:
+                    spos = j
+                elif span_labels[i][j].item() == span_eid:
+                    attr_seqs_hiddens[i][j] = torch.mean(attr_seqs_hiddens[i][spos:j+1], dim=0)
 
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr = self.mlp_attr(attr_seqs_hiddens) # B, S, V
