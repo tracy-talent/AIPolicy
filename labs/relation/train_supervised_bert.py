@@ -70,25 +70,27 @@ config.read(os.path.join(project_path, 'config.ini'))
 # logger
 os.makedirs(config['path']['re_log'], exist_ok=True)
 os.makedirs(os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}'), exist_ok=True)
-logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}', f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log')) 
+logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}', f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log'))
 
 # tensorboard
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 os.makedirs(config['path']['re_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['re_tb'], f'{args.dataset}_bert_{args.pooler}/{make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length)}', datetime.datetime.now().strftime('%y-%m-%d-%H-%M-%S'))
-if os.path.exists(tb_logdir):
-    raise Exception(f'path {tb_logdir} exists!')
+tb_logdir = os.path.join(config['path']['re_tb'], f'{args.dataset}_bert_{args.pooler}/{make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length)}')
 
 # Some basic settings
 os.makedirs(config['path']['re_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = '{}_{}_{}'.format(args.dataset, 'bert', args.pooler)
 ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}.pth.tar')
+ckpt_cnt = 1
+while os.path.exists(ckpt):
+    ckpt = ckpt.replace('.pth.tar', f'{ckpt_cnt}.pth.tar')
+    ckpt_cnt += 1
 
 if args.dataset != 'none':
     if 'policy' not in args.dataset:
-        pasare.download(args.dataset, root_path=root_path)
+        pasare.download(args.dataset, root_path=config['path']['input'])
     args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
     args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
     args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test.txt'.format(args.dataset))

@@ -6,6 +6,8 @@ import torch
 from torch import nn, optim
 from .data_loader import SentenceRELoader
 from torch.utils.tensorboard import SummaryWriter
+import datetime
+
 
 class SentenceRE(nn.Module):
 
@@ -15,7 +17,7 @@ class SentenceRE(nn.Module):
                  val_path, 
                  test_path,
                  ckpt,
-                 logger, 
+                 logger,
                  tb_logdir,
                  batch_size=32, 
                  max_epoch=100, 
@@ -102,7 +104,7 @@ class SentenceRE(nn.Module):
         # logger
         self.logger = logger
         # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir)
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
     def train_model(self, metric='acc'):
         best_metric = 0
