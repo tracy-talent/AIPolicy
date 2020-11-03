@@ -26,7 +26,7 @@ def search_target_sentences(file_path):
         line = line.strip()
         if ((any([title in line[:10] for title in possible_titles + sub_titles]) and any(
                 [content in line[:15] for content in possible_title_content])) or any(
-                [exp in line for exp in stable_expression])) and all(not (s in line[:10]) for s in exclusion):
+            [exp in line for exp in stable_expression])) and all(not (s in line[:10]) for s in exclusion):
             if is_target_span:
                 target_sentences.append('\n')
             is_target_span = True
@@ -44,7 +44,7 @@ def search_target_sentences(file_path):
 def accuracy_of_pattern_match(src_dir, tgt_dir, exclusion_path):
     src_files_num = len([file for file in os.listdir(src_dir) if file.endswith('.txt')])
     tgt_files_num = len([file for file in os.listdir(tgt_dir) if file.endswith('.txt')])
-    exclusion_num = len([line for line in open(exclusion_path, 'r', encoding='utf8')])
+    exclusion_num = len([line for line in open(exclusion_path, 'r', encoding='utf8') if line.strip()])   # mismatched-files
     acc = (tgt_files_num + exclusion_num) / src_files_num
     return acc
 
@@ -99,12 +99,12 @@ def num_of_article_contains_specific_str(src_dir, specific_regex):
 
 
 if __name__ == '__main__':
-    # search_acc = accuracy_of_pattern_match(src_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\clean-jiangbei1',
-    #                                 tgt_dir=r'C:\NLP-Github\PolicyMining\article_parsing\output\target',
-    #                                 exclusion_path=r'C:\NLP-Github\PolicyMining\article_parsing\output\no_content.txt')
-    # print("Sentence search accuracy: {}".format(search_acc))
+    search_acc = accuracy_of_pattern_match(src_dir=r'C:\NLP-Github\AIPolicy\input\benchmark\article_parsing\raw-policy',
+                                           tgt_dir=r'C:\NLP-Github\AIPolicy\output\article_parsing\raw-policy\preprocessed-articles',
+                                           exclusion_path=r'C:\NLP-Github\AIPolicy\input\benchmark\article_parsing\no_content.txt')
+    print("Sentence search accuracy: {}".format(search_acc))
 
-    specific_num, ratio, specific_list = num_of_article_contains_specific_str(
-        src_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\clean-jiangbei1',
-        specific_regex='(条件之一)|(下列.*之一)')
-    print(specific_num, '\n', ratio, '\n', specific_list)
+    # specific_num, ratio, specific_list = num_of_article_contains_specific_str(
+    #     src_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\clean-jiangbei1',
+    #     specific_regex='(条件之一)|(下列.*之一)')
+    # print(specific_num, '\n', ratio, '\n', specific_list)

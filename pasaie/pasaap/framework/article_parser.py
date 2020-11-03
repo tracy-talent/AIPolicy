@@ -5,9 +5,15 @@
 import json
 import os
 import shutil
+import sys
+import configparser
+sys.path.append('../../..')
 from pasaie.pasaap.tools import search_target_sentences, cut_sent, simple_sentence_filter, plot_tree
 from pasaie.metrics import Mean
 
+project_path = '/'.join(os.path.abspath(__file__).replace('\\', '/').split('/')[:-4])
+config = configparser.ConfigParser()
+config.read(os.path.join(project_path, 'config.ini'))
 avg_sent_len = Mean()
 max_sent_len = 0
 
@@ -194,9 +200,9 @@ def parse_corpus(corpus_dir,
         else:
             target_sentences[filename] = sentences
 
-    with open(os.path.join(output_dir, 'mismatched-files.txt'), 'w', encoding='utf8') as fout:
-        for filename in miss_list:
-            fout.write(filename + '\n')
+    mismatched_dict = {"mismatched_list": miss_list}
+    with open(os.path.join(output_dir, 'mismatched-files.json'), 'w', encoding='utf8') as fout:
+        json.dump(mismatched_dict, fout, indent=1, ensure_ascii=False)
 
     target_dir = os.path.join(output_dir, "preprocessed-articles")
     if is_rawtext and os.path.exists(target_dir):
@@ -310,19 +316,16 @@ def parse_sentence(input_sentence, filter_func=simple_sentence_filter):
 
 
 if __name__ == '__main__':
+    input_path = os.path.join(config['path']['input'], 'benchmark', 'article_parsing')
+    output_path = os.path.join(config['path']['output'], 'article_parsing', 'raw-policy')
+    os.makedirs(input_path, exist_ok=True)
+    os.makedirs(output_path, exist_ok=True)
 
-    # save_as_json(output_file=r'C:\NLP-Github\PolicyMining\article_parsing\output\tree.json')
-    # tree = LogicTree(root=None, json_path=r'C:\NLP-Github\PolicyMining\article_parsing\output\tree.json')
-    # tree_dict = tree.root.convert_to_nested_dict()
-    # plot_tree(tree_dict, name='tree')
-    # parse_corpus(corpus_dir=r'C:\NLP-Github\AIPolicy\input\AP\clean-jiangbei1',
-    #              output_dir=r'C:\NLP-Github\AIPolicy\output\AP',
-    #              is_rawtext=True)
-    parse_corpus(corpus_dir=r'C:\NLP-Github\AIPolicy\output\AP\preprocessed-articles',
-                 output_dir=r'C:\NLP-Github\AIPolicy\output\AP',
-                 is_rawtext=False)
-    for file in os.listdir(r'C:\NLP-Github\AIPolicy\output\AP\logic_tree'):
-        abs_path = os.path.join(r'C:\NLP-Github\AIPolicy\output\AP\logic_tree', file)
-        tree = LogicTree(root=None, json_path=abs_path)
-        tree.save_as_png(output_dir=r'C:\NLP-Github\AIPolicy\output\AP\png', filename=file)
+    parse_corpus(corpus_dir=os.path.join(input_path, 'raw-policy'),
+                 output_dir=output_path,
+                 is_rawtext=True)
+    # parse_corpus(corpus_dir=os.path.join(output_path, 'preprocessed-articles'),
+    #              output_dir=output_path,
+    #              is_rawtext=False)
+
 
