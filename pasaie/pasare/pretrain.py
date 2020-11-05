@@ -11,7 +11,7 @@ from ..tokenization.utils import load_vocab
 import configparser
 
 root_url = "https://thunlp.oss-cn-qingdao.aliyuncs.com/"
-project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
+project_path = '/'.join(os.path.abspath(__file__).replace('\\', '/').split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 default_root_path = config['path']['re_ckpt']
@@ -111,6 +111,18 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
     print(ckpt)
     if model_name == 'policy_bert_entity' or model_name == 'policy_bert':
         rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'policy/policy_rel2id.json')))
+        if 'entity' in model_name:
+            sentence_encoder = encoder.BERTEntityEncoder(
+                max_length=256, pretrain_path=pretrain_path, blank_padding=True)
+        else:
+            sentence_encoder = encoder.BERTEncoder(
+                max_length=256, pretrain_path=pretrain_path, blank_padding=True)
+        relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
+        relation_model.eval()
+        return relation_model
+    elif model_name in ['test-policy_bert_entity', 'test-policy_bert']:
+        rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'test-policy/test-policy_rel2id.json')))
         if 'entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
                 max_length=256, pretrain_path=pretrain_path, blank_padding=True)

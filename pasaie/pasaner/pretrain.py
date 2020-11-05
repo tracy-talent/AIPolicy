@@ -13,7 +13,7 @@ import configparser
 from . import encoder, model
 from ..tokenization.utils import load_vocab
 
-project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
+project_path = '/'.join(os.path.abspath(__file__).replace('\\', '/').split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 default_root_path = config['path']['ner_ckpt']

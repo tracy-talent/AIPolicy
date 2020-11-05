@@ -86,6 +86,9 @@ class LogicNode:
                 sub_dict[str_idx] = node.sent
         return nested_dict
 
+    def clean_children(self):
+        self.children = {}
+
 
 class LogicTree:
 
