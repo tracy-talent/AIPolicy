@@ -3,7 +3,9 @@ from __future__ import division
 from __future__ import print_function
 
 __all__ = [
-    'parse_corpus'
+    'parse_corpus',
+    'LogicTree',
+    'LogicNode'
 ]
 
-from .article_parser import parse_corpus
+from .article_parser import parse_corpus, LogicTree, LogicNode
