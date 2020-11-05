@@ -1,4 +1,10 @@
+.gitignore
 /input
 /output
 /github
 temp.py
+test/test.py
+*.pyc
+.ipynb_checkpoints
+.idea
+
