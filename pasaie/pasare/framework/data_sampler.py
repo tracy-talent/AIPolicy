@@ -23,7 +23,7 @@ def get_sampler(train_path,
 
     if sampler_type == "WeightedRandomSampler":
         # Attention: minimum label index must be 0
-        label_weight = [1.0 / len(np.where(labels == l)[0])**0.5 for l in np.unique(labels)]
+        label_weight = [1.0 / len(np.where(labels == l)[0]) ** 0.5 for l in np.unique(labels)]
         weights = [label_weight[l] for l in labels]
         return WeightedRandomSampler(weights=weights,
                                      num_samples=len(labels),

@@ -14,7 +14,7 @@ from pasaie.utils import get_logger
 import configparser
 
 logger = get_logger(sys.argv)
-project_path = '/'.join(os.path.abspath(__file__).split('/')[:-4])
+project_path = '/'.join(os.path.abspath(__file__).replace('\\', '/').split('/')[:-4])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
@@ -132,8 +132,8 @@ def merge_files(filepath1, filepath2):
 
 
 if __name__ == '__main__':
-    train_test_split(r'/home/liujian/qmc_policy/rawdata/re-cleaned/train-merge-val.txt',
-                     output_name='test-noval',
+    train_test_split(os.path.join(config['path']['input'], 'benchmark', 'relation', 'rawdata', 'train-merge-val.txt'),
+                     output_name='test-policy',
                      use_val=True,
                      rel_direction=False,
                      max_samples_num=None,
