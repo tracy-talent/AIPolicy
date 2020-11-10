@@ -48,7 +48,7 @@ parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
 parser.add_argument('--tag2id_file', default='', type=str,
         help='Relation to ID file')
-parser.add_argument('--compress_seq', default=True, type=bool,
+parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
@@ -111,7 +111,7 @@ if args.dataset != 'none':
     args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
     args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'val.char.{args.tagscheme}')
     args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
-    args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}')
+    args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}.all')
     if not os.path.exists(args.test_file):
         logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file

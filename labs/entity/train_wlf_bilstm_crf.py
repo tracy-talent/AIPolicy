@@ -18,6 +18,7 @@ import numpy as np
 import json
 import os
 import argparse
+import configparser
 import logging
 
 
@@ -54,7 +55,7 @@ parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
 parser.add_argument('--custom_dict', default='', type=str,
         help='user custom dict for tokenizer toolkit')
-parser.add_argument('--compress_seq', default=True, type=bool,
+parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
@@ -88,10 +89,11 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     model_name = 'wlf'
+#     model_name = ''
     if args.use_lstm:
-        model_name += '_lstm'
+        model_name = '_lstm' if model_name != '' else 'lstm'
     if args.use_crf:
-        model_name += '_crf'
+        model_name += '_crf' if model_name != '' else 'crf'
     return model_name
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
@@ -142,14 +144,21 @@ else:
     word2id, word2vec = load_wordvec(args.word2vec_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BaseWLFEncoder(
-    char2id=char2id,
-    word2id=word2id,
+# sequence_encoder = pasaner.encoder.BaseWLFEncoder(
+#     char2id=char2id,
+#     word2id=word2id,
+#     max_length=args.max_length,
+#     hidden_size=char2vec.shape[-1] + word2vec.shape[-1],
+#     char2vec=char2vec,
+#     word2vec=word2vec,
+#     custom_dict=args.custom_dict,
+#     blank_padding=True
+# )
+sequence_encoder = pasaner.encoder.BaseEncoder(
+    token2id=char2id,
     max_length=args.max_length,
-    hidden_size=char2vec.shape[-1] + word2vec.shape[-1],
-    char2vec=char2vec,
-    word2vec=word2vec,
-    custom_dict=args.custom_dict,
+    hidden_size=char2vec.shape[-1],
+    word2vec=char2vec,
     blank_padding=True
 )
 

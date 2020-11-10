@@ -169,14 +169,15 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                     attr_seqs_hiddens = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
 
-        span_bid, span_eid = self.span2id['B'], self.span2id['E']
-        spos = -1
-        for i in range(span_labels.size(0)):
-            for j in range(span_labels.size(1)):
-                if span_labels[i][j].item() == span_bid:
-                    spos = j
-                elif span_labels[i][j].item() == span_eid:
-                    attr_seqs_hiddens[i][j] = torch.mean(attr_seqs_hiddens[i][spos:j+1], dim=0)
+        if span_labels is not None:
+            span_bid, span_eid = self.span2id['B'], self.span2id['E']
+            spos = -1
+            for i in range(span_labels.size(0)):
+                for j in range(span_labels.size(1)):
+                    if span_labels[i][j].item() == span_bid:
+                        spos = j
+                    elif span_labels[i][j].item() == span_eid:
+                        attr_seqs_hiddens[i][j] = torch.mean(attr_seqs_hiddens[i][spos:j+1], dim=0)
 
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr = self.mlp_attr(attr_seqs_hiddens) # B, S, V

@@ -177,7 +177,7 @@ class MultiNERDataset(data.Dataset):
         length = seqs[0].size(1)
         if length >= len(items[1]):
             labels_span = [self.span2id[tag] for tag in items[1]]
-            labels_span.extend([self.tag2id['O']] * (length - len(items[1])))
+            labels_span.extend([self.span2id['O']] * (length - len(items[1])))
             labels_attr = [self.attr2id[tag] for tag in items[2]]
             labels_attr.extend([self.attr2id['null']] * (length - len(items[2])))
         else:
@@ -364,15 +364,6 @@ class XLNetMultiNERDataset(data.Dataset):
     def __getitem__(self, index):
         items = self.data[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
         seqs = list(self.tokenizer(*items, **self.kwargs))
-
-        length = seqs[0].size(1)
-        if length > len(items[1]):
-            labels = [self.tag2id['O']] * (length - len(items[1]))
-            labels.extend([self.tag2id[tag] for tag in items[1]])
-        else:
-            labels = [self.tag2id[tag] for tag in items[1][:length]]
-            labels[-2] = self.tag2id['O']
-            labels[-1] = self.tag2id['O']
 
         length = seqs[0].size(1)
         if length >= len(items[1]):

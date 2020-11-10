@@ -7,4 +7,3 @@ test/test.py
 *.pyc
 .ipynb_checkpoints
 .idea
-

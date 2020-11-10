@@ -66,70 +66,85 @@ class XLNetEncoder(nn.Module):
         
         re_items = [[] for i in range(len(items))]
         if is_token:
-            # re_items[0].append('▁')
-            # re_items[1].append('O')
-            # if len(re_items) > 2:
-            #     re_items[2].append('null')
-            # spos = 0
-            # for i in range(len(items[0])):
-            #     if items[1][i][0] == 'S':
-            #         if i > spos:
-            #             tokens = self.tokenizer.tokenize(''.join(items[0][spos:i]))[1:]
-            #             re_items[0].extend(tokens)
-            #             re_items[1].extend(['O'] * len(tokens))
-            #             if len(re_items) > 2:
-            #                 re_items[2].extend(['null'] * len(tokens))
-            #         re_items[0].append(items[0][i])
-            #         re_items[1].append(items[1][i])
-            #         if len(re_items) > 2:
-            #             re_items[2].append(items[2][i])
-            #         spos = i + 1
-            #     elif items[1][i][0] == 'B':
-            #         if i > spos:
-            #             tokens = self.tokenizer.tokenize(''.join(items[0][spos:i]))[1:]
-            #             re_items[0].extend(tokens)
-            #             re_items[1].extend(['O'] * len(tokens))
-            #             if len(re_items) > 2:
-            #                 re_items[2].extend(['null'] * len(tokens))
-            #         spos = i
-            #     elif items[1][i][0] == 'E':
-            #         tokens = self.tokenizer.tokenize(''.join(items[0][spos:i+1]))[1:]
-            #         re_items[0].extend(tokens)
-            #         if len(tokens) == 1:
-            #             re_items[1].append('S' if len(re_items) > 2 else f'S-{items[1][i][2:]}')
-            #         else:
-            #             re_items[1].append('B' if len(re_items) > 2 else f'B-{items[1][i][2:]}')
-            #             re_items[1].extend(['M' if len(re_items) > 2 else f'M-{items[1][i][2:]}'] * (len(tokens) - 2))
-            #             re_items[1].append('E' if len(re_items) > 2 else f'E-{items[1][i][2:]}')
-            #         if len(re_items) > 2:
-            #             re_items[2].extend([items[2][i]] * len(tokens))
-            #         spos = i + 1
-            # if spos < len(items[0]):
-            #     tokens = self.tokenizer.tokenize(''.join(items[0][spos:len(items[0])]))[1:]
-            #     re_items[0].extend(tokens)
-            #     re_items[1].extend(['O'] * len(tokens))
-            #     if len(re_items) > 2:
-            #         re_items[2].extend(['null'] * len(tokens))
-            # re_items[0].extend(['<sep>', '<cls>'])
-            # re_items[1].extend(['O', 'O'])
-            # if len(re_items) > 2:
-            #     re_items.extend(['null', 'null'])
-            # for i in range(len(items)):
-            #     items[i].clear()
-            #     items[i].extend(re_items[i])
-            # tokens = items[0]
-            items[0].insert(0, '▁')
-            items[0].extend(['<sep>', '<cls>'])
-            items[1].insert(0, 'O')
-            items[1].extend(['O', 'O'])
-            if len(items) > 2:
-                items[2].insert(0, 'null')
-                items[2].extend(['null', 'null'])
+            re_items[0].append('▁')
+            re_items[1].append('O')
+            if len(re_items) > 2:
+                re_items[2].append('null')
+            spos = 0
+            for i in range(len(items[0])):
+                if items[1][i][0] == 'S':
+                    if i > spos:
+                        tokens = self.tokenizer.tokenize(''.join(items[0][spos:i]))
+                        if tokens[0] == '▁':
+                            tokens = tokens[1:]
+                        elif tokens[0][0] == '▁':
+                            tokens[0] = tokens[0][1:]
+                        re_items[0].extend(tokens)
+                        re_items[1].extend(['O'] * len(tokens))
+                        if len(re_items) > 2:
+                            re_items[2].extend(['null'] * len(tokens))
+                    re_items[0].append(items[0][i])
+                    re_items[1].append(items[1][i])
+                    if len(re_items) > 2:
+                        re_items[2].append(items[2][i])
+                    spos = i + 1
+                elif items[1][i][0] == 'B':
+                    if i > spos:
+                        tokens = self.tokenizer.tokenize(''.join(items[0][spos:i]))
+                        if tokens[0] == '▁':
+                            tokens = tokens[1:]
+                        elif tokens[0][0] == '▁':
+                            tokens[0] = tokens[0][1:]
+                        re_items[0].extend(tokens)
+                        re_items[1].extend(['O'] * len(tokens))
+                        if len(re_items) > 2:
+                            re_items[2].extend(['null'] * len(tokens))
+                    spos = i
+                elif items[1][i][0] == 'E':
+                    tokens = self.tokenizer.tokenize(''.join(items[0][spos:i+1]))
+                    if tokens[0] == '▁':
+                        tokens = tokens[1:]
+                    elif tokens[0][0] == '▁':
+                        tokens[0] = tokens[0][1:]
+                    re_items[0].extend(tokens)
+                    if len(tokens) == 1:
+                        re_items[1].append('S' if len(re_items) > 2 else f'S-{items[1][i][2:]}')
+                    else:
+                        re_items[1].append('B' if len(re_items) > 2 else f'B-{items[1][i][2:]}')
+                        re_items[1].extend(['M' if len(re_items) > 2 else f'M-{items[1][i][2:]}'] * (len(tokens) - 2))
+                        re_items[1].append('E' if len(re_items) > 2 else f'E-{items[1][i][2:]}')
+                    if len(re_items) > 2:
+                        re_items[2].extend([items[2][i]] * len(tokens))
+                    spos = i + 1
+            if spos < len(items[0]):
+                tokens = self.tokenizer.tokenize(''.join(items[0][spos:len(items[0])]))
+                if tokens[0] == '▁':
+                    tokens = tokens[1:]
+                elif tokens[0][0] == '▁':
+                    tokens[0] = tokens[0][1:]
+                re_items[0].extend(tokens)
+                re_items[1].extend(['O'] * len(tokens))
+                if len(re_items) > 2:
+                    re_items[2].extend(['null'] * len(tokens))
+            re_items[0].extend(['<sep>', '<cls>'])
+            re_items[1].extend(['O', 'O'])
+            if len(re_items) > 2:
+                re_items.extend(['null', 'null'])
+            for i in range(len(items)):
+                items[i].clear()
+                items[i].extend(re_items[i])
             tokens = items[0]
+            # items[0].insert(0, '▁')
+            # items[0].extend(['<sep>', '<cls>'])
+            # items[1].insert(0, 'O')
+            # items[1].extend(['O', 'O'])
+            # if len(items) > 2:
+            #     items[2].insert(0, 'null')
+            #     items[2].extend(['null', 'null'])
+            # tokens = items[0]
         else:
             tokens = self.tokenizer.tokenize(sentence).extend(['<sep>', '<cls>'])
-        # print(tokens)
-        
+
         if self.blank_padding:
             if len(tokens) < self.max_length:
                 indexed_tokens = [self.tokenizer.convert_tokens_to_ids('<pad>')] * (self.max_length - len(tokens))

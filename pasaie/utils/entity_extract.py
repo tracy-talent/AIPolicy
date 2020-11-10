@@ -1,3 +1,12 @@
+"""
+ Author: liujian
+ Date: 2020-11-03 10:21:15
+ Last Modified by: liujian
+ Last Modified time: 2020-11-03 10:21:15
+"""
+
+from collections import defaultdict
+
 ######################################
 ####### extract_kvpairs_by_tagscheme #######
 ######################################
@@ -249,5 +258,44 @@ def extract_kvpairs_in_bioes_by_endtag(bioes_seq, word_seq, attr_seq):
             if v != "":
                 v += word
                 pairs.append((spos, attr, v))
+            v = ""
+    return pairs
+
+
+# 选实体类别频率最高的类别作为实体类别
+def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
+    assert len(bioes_seq) == len(word_seq) == len(attr_seq)
+    pairs = list()
+    v = ""
+    spos = -1
+    for i in range(len(bioes_seq)):
+        word = word_seq[i]
+        bioes = bioes_seq[i]
+        attr = attr_seq[i]
+        if bioes == "O":
+            v = ""
+        elif bioes == "S":
+            v = word
+            pairs.append((i, attr, v))
+            v = ""
+        elif bioes == "B":
+            v = word
+            spos = i
+        elif bioes == "M":
+            if v != "": 
+                v += word
+        elif bioes == "E":
+            if v != "":
+                v += word
+                vote = defaultdict(lambda: 0)
+                for j in range(spos, i + 1):
+                    vote[attr_seq[j]] += 1
+                freq_attr = 'null'
+                freq = 0
+                for k in vote:
+                    if vote[k] > freq:
+                        freq = vote[k]
+                        freq_attr = k
+                pairs.append((spos, freq_attr, v))
             v = ""
     return pairs

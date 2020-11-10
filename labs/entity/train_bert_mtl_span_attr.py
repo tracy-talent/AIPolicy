@@ -24,6 +24,8 @@ import configparser
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
         help='Pre-trained ckpt path / model name (hugginface)')
+parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -57,7 +59,7 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--compress_seq', default=True, type=bool,
+parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
@@ -150,6 +152,7 @@ attr2id = load_vocab(args.attr2id_file)
 sequence_encoder = pasaner.encoder.BERTEncoder(
     max_length=args.max_length,
     pretrain_path=args.pretrain_path,
+    bert_name=args.bert_name,
     blank_padding=True
 )
 
@@ -185,7 +188,7 @@ framework = pasaner.framework.MTL_Span_Attr(
     warmup_step=args.warmup_step, 
     opt=args.optimizer
 )
-framework.load_state_dict(torch.load(ckpt)['state_dict'])
+# framework.load_state_dict(torch.load(ckpt)['state_dict'])
 
 # Train the model
 if not args.only_test:
