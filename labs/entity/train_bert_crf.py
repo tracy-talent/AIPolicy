@@ -48,7 +48,7 @@ parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
 parser.add_argument('--tag2id_file', default='', type=str,
         help='Relation to ID file')
-parser.add_argument('--compress_seq', default=True, type=bool,
+parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters

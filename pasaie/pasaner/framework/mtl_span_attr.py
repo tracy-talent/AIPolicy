@@ -11,6 +11,7 @@ from .data_loader import MultiNERDataLoader
 
 import torch
 from torch import nn, optim
+from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 import os
@@ -35,6 +36,7 @@ class MTL_Span_Attr(nn.Module):
                 bert_lr=3e-5,
                 weight_decay=1e-5,
                 warmup_step=300,
+                max_grad_norm=5.0,
                 opt='sgd'):
 
         super(MTL_Span_Attr, self).__init__()
@@ -44,6 +46,7 @@ class MTL_Span_Attr(nn.Module):
             self.is_bert_encoder = False
         self.max_epoch = max_epoch
         self.tagscheme = tagscheme
+        self.max_grad_norm = max_grad_norm
 
         # Load Data
         if train_path != None:
@@ -152,13 +155,14 @@ class MTL_Span_Attr(nn.Module):
     def train_model(self, metric='micro_f1'):
         best_metric = 0
         global_step = 0
-        neg_spanid = -1
+        span_negid = -1
         if 'O' in self.model.span2id:
-            neg_spanid = self.model.span2id['O']
-        if neg_spanid == -1:
+            span_negid = self.model.span2id['O']
+        if span_negid == -1:
             raise Exception("span negative tag not in 'O'")
-        neg_attrid = self.train_loader.dataset.neg_attrid
-        end_spanid = self.model.span2id['E']
+        attr_negid = self.model.attr2id['null']
+        span_eid = self.model.span2id['E']
+        span_sid = self.model.span2id['S']
 
         for epoch in range(self.max_epoch):
             self.train()
@@ -194,20 +198,21 @@ class MTL_Span_Attr(nn.Module):
                     loss_span = -log_likelihood / inputs_seq_len # B
                     preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
                     for pred_seq_span in preds_seq_span:
-                        pred_seq_span.extend([neg_spanid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
+                        pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
                     preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
 
                 if self.model.crf_attr is None:
                     loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
-                    tag_masks = (preds_seq_span == end_spanid).float()
-                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / (torch.sum(tag_masks, dim=-1) + 1e-5) # B
-                    preds_seq_attr = logits_attr.argmax(dim=-1) # B * S
+                    tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
+                    # tag_masks = (outputs_seq_attr != attr_negid).float()
+                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
+                    preds_seq_attr = F.softmax(logits_attr, dim=-1).argmax(dim=-1) # B * S
                 else:
                     log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
                     loss_attr = -log_likelihood / inputs_seq_len # B
                     preds_seq_attr = self.model.crf_attr.decode(logits_attr, mask=inputs_mask) # List[List[int]]
                     for pred_seq_attr in preds_seq_attr:
-                        pred_seq_attr.extend([neg_attrid] * (outputs_seq_attr.size(1) - len(pred_seq_attr)))
+                        pred_seq_attr.extend([attr_negid] * (outputs_seq_attr.size(1) - len(pred_seq_attr)))
                     preds_seq_attr = torch.tensor(preds_seq_attr).to(outputs_seq_attr.device) # B * S
                 loss = loss_span + loss_attr # 多任务loss汇总
 
@@ -230,8 +235,6 @@ class MTL_Span_Attr(nn.Module):
                     gold_seq_attr_tag = [self.model.id2attr[aid] for aid in outputs_seq_attr[i][:seqlen][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
 
-                    pred_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(pred_seq_span_tag, pred_seq_attr_tag)]
-                    gold_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(gold_seq_span_tag, gold_seq_attr_tag)]
                     pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
                     gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
 
@@ -248,18 +251,17 @@ class MTL_Span_Attr(nn.Module):
                     for label in pred:
                         if label in gold:
                             hits += 1
-                span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != neg_spanid) * inputs_mask).sum()
-                attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != neg_attrid) * inputs_mask).sum()
-                loss = loss.mean()
+                span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
+                attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != attr_negid) * inputs_mask).sum()
 
                 # Log
-                avg_loss.update(loss, bs)
-                avg_span_acc.update(span_acc, ((outputs_seq_span != neg_spanid) * inputs_mask).sum())
-                avg_attr_acc.update(attr_acc, ((outputs_seq_attr != neg_attrid) * inputs_mask).sum())
+                avg_loss.update(loss.sum(), bs)
+                avg_span_acc.update(span_acc, ((outputs_seq_span != span_negid) * inputs_mask).sum())
+                avg_attr_acc.update(attr_acc, ((outputs_seq_attr != attr_negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
                 global_step += 1
-                if global_step % 10 == 0:
+                if global_step % 5 == 0:
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, span_acc: {avg_span_acc.avg:.4f}, attr_acc: {avg_attr_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
@@ -274,7 +276,9 @@ class MTL_Span_Attr(nn.Module):
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
 
                 # Optimize
+                loss = loss.mean()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.scheduler is not None:
                     self.scheduler.step()
@@ -303,12 +307,12 @@ class MTL_Span_Attr(nn.Module):
 
     def eval_model(self, eval_loader):
         self.eval()
-        neg_spanid = -1
+        span_negid = -1
         if 'O' in self.model.span2id:
-            neg_spanid = self.model.span2id['O']
-        if neg_spanid == -1:
+            span_negid = self.model.span2id['O']
+        if span_negid == -1:
             raise Exception("span negative tag not in 'O'")
-        neg_attrid = self.train_loader.dataset.neg_attrid
+        attr_negid = self.model.attr2id['null']
         
         preds_kvpairs = []
         golds_kvpairs = []
@@ -325,7 +329,7 @@ class MTL_Span_Attr(nn.Module):
                         except:
                             pass
                 args = data[2:]
-                logits_span, logits_attr = self.parallel_model(data[0], *args)
+                logits_span, logits_attr = self.parallel_model(None, *args)
                 outputs_seq_span = data[0]
                 outputs_seq_attr = data[1]
                 inputs_seq, inputs_mask = data[2], data[-1]
@@ -337,15 +341,16 @@ class MTL_Span_Attr(nn.Module):
                 else:
                     preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
                     for pred_seq_span in preds_seq_span:
-                        pred_seq_span.extend([neg_spanid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
+                        pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
                     preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
 
+                _, logits_attr = self.parallel_model(preds_seq_span, *args)
                 if self.model.crf_attr is None:
                     preds_seq_attr = logits_attr.argmax(dim=-1) # B
                 else:
                     preds_seq_attr = self.model.crf_attr.decode(logits_attr, mask=inputs_mask)
                     for pred_seq_attr in preds_seq_attr:
-                        pred_seq_attr.extend([neg_attrid] * (outputs_seq_attr.size(1) - len(pred_seq_attr)))
+                        pred_seq_attr.extend([attr_negid] * (outputs_seq_attr.size(1) - len(pred_seq_attr)))
                     preds_seq_attr = torch.tensor(preds_seq_attr).to(outputs_seq_attr.device) # B * S
 
                 # get token sequence
@@ -385,12 +390,12 @@ class MTL_Span_Attr(nn.Module):
                     for label in pred:
                         if label in gold:
                             hits += 1
-                span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != neg_spanid) * inputs_mask).sum()
-                attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != neg_attrid) * inputs_mask).sum()
+                span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
+                attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != attr_negid) * inputs_mask).sum()
 
                 # Log
-                avg_span_acc.update(span_acc, ((outputs_seq_span != neg_spanid) * inputs_mask).sum())
-                avg_attr_acc.update(attr_acc, ((outputs_seq_attr != neg_attrid) * inputs_mask).sum())
+                avg_span_acc.update(span_acc, ((outputs_seq_span != span_negid) * inputs_mask).sum())
+                avg_attr_acc.update(attr_acc, ((outputs_seq_attr != attr_negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
                 if (ith + 1) % 10 == 0:

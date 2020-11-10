@@ -2,3 +2,5 @@
 /output
 /github
 temp.py
+*.pyc
+__pycache__/*

@@ -36,6 +36,7 @@ class Model_CRF(nn.Module):
                 bert_lr=3e-5,
                 weight_decay=1e-5,
                 warmup_step=300,
+                max_grad_norm=5.0,
                 opt='adam'):
 
         super(Model_CRF, self).__init__()
@@ -45,6 +46,7 @@ class Model_CRF(nn.Module):
             self.is_bert_encoder = False
         self.max_epoch = max_epoch
         self.tagscheme = tagscheme
+        self.max_grad_norm = max_grad_norm
 
         # Load Data
         if train_path != None:
@@ -248,9 +250,7 @@ class Model_CRF(nn.Module):
                 # Optimize
                 loss = loss.mean()
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(self.model.parameters(), 5.0)
-                # for name, param in self.model.named_parameters():
-                    # print(name, param.grad, param)
+                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.scheduler is not None:
                     self.scheduler.step()

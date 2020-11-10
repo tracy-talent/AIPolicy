@@ -9,8 +9,8 @@ import logging
 
 import torch
 import torch.nn as nn
-from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer
-from transformers import BertModel, BertTokenizer
+from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import BertModel, AlbertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
@@ -25,9 +25,14 @@ class BERTEncoder(nn.Module):
         super(BERTEncoder, self).__init__()
 
         self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         if 'roberta' in bert_name:
-            self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
-            self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
+            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
         elif 'bert' in bert_name:
             # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
             self.bert = BertModel.from_pretrained(pretrain_path)
@@ -50,7 +55,8 @@ class BERTEncoder(nn.Module):
             (B, H), representations for sentences
         """
         if 'roberta' in self.bert_name:
-            seq_out = self.bert(seqs, attention_mask=att_mask)[1][1]
+            # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
         else:
             seq_out, _ = self.bert(seqs, attention_mask=att_mask)
         return seq_out

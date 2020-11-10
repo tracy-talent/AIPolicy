@@ -25,4 +25,5 @@ __all__ = [
     'extract_kvpairs_in_bioes',
     'extract_kvpairs_in_bmoes',
     'extract_kvpairs_in_bmoes_by_endtag',
+    'extract_kvpairs_in_bmoes_by_vote'
 ]

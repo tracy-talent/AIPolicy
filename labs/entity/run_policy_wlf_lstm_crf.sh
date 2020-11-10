@@ -3,6 +3,7 @@ python train_wlf_bilstm_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --metric micro_f1 \
     --dataset policy \
+    --compress_seq \
     --char2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
     --tagscheme bmoes \

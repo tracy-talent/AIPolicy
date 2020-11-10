@@ -64,7 +64,7 @@ parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
 parser.add_argument('--custom_dict', default='', type=str,
         help='user custom dict for tokenizer toolkit')
-parser.add_argument('--compress_seq', default=True, type=bool,
+parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters

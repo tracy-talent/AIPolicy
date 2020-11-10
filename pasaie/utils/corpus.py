@@ -717,7 +717,7 @@ def paint_relation_hist(corpus_relation, data_path):
         corpus_relation (list[list[dict]]): entity list of every article
         data_path (str): file save path of relation type histogram
     """
-    relation_type_stats = {}
+    relation_type_stats = defaultdict(lambda: 0)
     for rel in corpus_relation:
         if len(rel) == 0:
             continue
@@ -726,8 +726,8 @@ def paint_relation_hist(corpus_relation, data_path):
     plt.figure()
     plt.xticks(range(len(relation_type_stats)), relation_type_stats.keys(), rotation=90)
     plt.bar(x=range(len(relation_type_stats)), height=relation_type_stats.values())
-    plt.savefig(os.path.join(data_path, 'relation_hist.jpg'))
-    plt.show()
+    plt.savefig(os.path.join(data_path, 'relation_hist.jpg'), bbox_inches='tight')
+    # plt.show()
 
 
 def paint_entity_hist(corpus_entity, data_path):
@@ -746,5 +746,5 @@ def paint_entity_hist(corpus_entity, data_path):
     plt.figure()
     plt.xticks(range(len(entity_type_stats)), entity_type_stats.keys(), rotation=90)
     plt.bar(x=range(len(entity_type_stats)), height=entity_type_stats.values())
-    plt.savefig(os.path.join(data_path, 'entity_hist.jpg'))
-    plt.show()
+    plt.savefig(os.path.join(data_path, 'entity_hist.jpg'), bbox_inches='tight')
+    # plt.show()
