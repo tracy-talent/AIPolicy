@@ -120,8 +120,9 @@ class BERTEntityEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        self.hidden_size = self.bert.config.hidden_size * 3
-        self.conv = nn.Conv2d(1, 768, kernel_size=(5, 768))     # add a convolution layer to extract the global information of sentence
+        bert_hidden_size = self.bert.config.hidden_size
+        self.hidden_size = bert_hidden_size * 3
+        self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
     def forward(self, token, pos1, pos2, att_mask):
