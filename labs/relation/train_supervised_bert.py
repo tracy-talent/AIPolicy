@@ -11,7 +11,6 @@ import json
 # from pasare import encoder, model, framework
 import os
 import argparse
-import logging
 import configparser
 import datetime
 
@@ -43,6 +42,8 @@ parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
 parser.add_argument('--rel2id_file', default='', type=str,
         help='Relation to ID file')
+parser.add_argument('--compress_seq', action='store_true', 
+        help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
 parser.add_argument('--batch_size', default=64, type=int,
@@ -91,12 +92,12 @@ while os.path.exists(ckpt):
 if args.dataset != 'none':
     if 'policy' not in args.dataset:
         pasare.download(args.dataset, root_path=config['path']['input'])
-    args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
-    args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
-    args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test.txt'.format(args.dataset))
-    args.rel2id_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_rel2id.json'.format(args.dataset))
+    args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train_undirected.txt'.format(args.dataset))
+    args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val_undirected.txt'.format(args.dataset))
+    args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test_undirected.txt'.format(args.dataset))
+    args.rel2id_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_rel2id_undirected.json'.format(args.dataset))
     if not os.path.exists(args.test_file):
-        logging.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
+        logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
     if args.dataset == 'wiki80' or args.dataset == 'fewrel':
         args.metric = 'acc'
@@ -106,9 +107,9 @@ else:
     if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.rel2id_file)):
         raise Exception(f'--train_file, --val_file, --test_file and --rel2id_file are not specified for dataset `{args.dataset}` or files do not exist. Or specify --dataset')
 
-logging.info('Arguments:')
+logger.info('Arguments:')
 for arg in vars(args):
-    logging.info('{}: {}'.format(arg, getattr(args, arg)))
+    logger.info('{}: {}'.format(arg, getattr(args, arg)))
 
 rel2id = json.load(open(args.rel2id_file))
 
@@ -145,6 +146,7 @@ framework = pasaie.pasare.framework.SentenceRE(
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    compress_seq=args.compress_seq,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
     lr=args.lr,
@@ -162,8 +164,8 @@ framework.load_state_dict(torch.load(ckpt)['state_dict'])
 result = framework.eval_model(framework.test_loader)
 
 # Print the result
-logging.info('Test set results:')
-logging.info('Accuracy: {}'.format(result['acc']))
-logging.info('Micro precision: {}'.format(result['micro_p']))
-logging.info('Micro recall: {}'.format(result['micro_r']))
-logging.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Test set results:')
+logger.info('Accuracy: {}'.format(result['acc']))
+logger.info('Micro precision: {}'.format(result['micro_p']))
+logger.info('Micro recall: {}'.format(result['micro_r']))
+logger.info('Micro F1: {}'.format(result['micro_f1']))

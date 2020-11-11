@@ -19,6 +19,7 @@ class SentenceRE(nn.Module):
                  ckpt,
                  logger,
                  tb_logdir,
+                 compress_seq=True,
                  batch_size=32,
                  max_epoch=100,
                  lr=0.1,
@@ -37,6 +38,7 @@ class SentenceRE(nn.Module):
                 model.sentence_encoder.tokenize,
                 batch_size,
                 shuffle=True,
+                compress_seq=compress_seq,
                 sampler=sampler
             )
 
@@ -46,7 +48,9 @@ class SentenceRE(nn.Module):
                 model.rel2id,
                 model.sentence_encoder.tokenize,
                 batch_size,
-                shuffle=False)
+                compress_seq=compress_seq,
+                shuffle=False
+            )
 
         if test_path != None:
             self.test_loader = SentenceRELoader(
@@ -54,7 +58,9 @@ class SentenceRE(nn.Module):
                 model.rel2id,
                 model.sentence_encoder.tokenize,
                 batch_size,
-                shuffle=False)
+                compress_seq=compress_seq,
+                shuffle=False
+            )
 
         # Model
         self.model = model

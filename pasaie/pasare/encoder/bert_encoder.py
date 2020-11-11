@@ -20,6 +20,11 @@ class BERTEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        # add possible missed tokens in vocab.txt
+        num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
+        logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
+        self.bert.resize_token_embeddings(len(self.tokenizer))
+
         self.hidden_size = self.bert.config.hidden_size
 
     def forward(self, token, att_mask):
@@ -120,6 +125,11 @@ class BERTEntityEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert = BertModel.from_pretrained(pretrain_path)
         self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        # add possible missed tokens in vocab.txt
+        num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
+        logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
+        self.bert.resize_token_embeddings(len(self.tokenizer))
+
         bert_hidden_size = self.bert.config.hidden_size
         self.hidden_size = bert_hidden_size * 3
         self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence

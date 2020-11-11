@@ -1,8 +1,25 @@
 import torch
 import torch.utils.data as data
 import os, random, json, logging
+from functools import partial
 import numpy as np
 import sklearn.metrics
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+
+
+def compress_sequence(seqs, lengths):
+    """compress padding in batch
+
+    Args:
+        seqs (torch.LongTensor->(B, L)): batch seqs, sorted by seq's actual length in decreasing order
+        lengths (torch.LongTensor->(B)): length of every seq in batch in decreasing order
+
+    Returns:
+        torch.LongTensor: compressed batch seqs
+    """
+    packed_seqs = pack_padded_sequence(input=seqs, lengths=lengths.detach().cpu().numpy(), batch_first=True)
+    seqs, _ = pad_packed_sequence(sequence=packed_seqs, batch_first=True)
+    return seqs
 
 
 class SentenceREDataset(data.Dataset):
@@ -44,22 +61,32 @@ class SentenceREDataset(data.Dataset):
     def __len__(self):
         return len(self.data)
 
+
     def __getitem__(self, index):
         item = self.data[index]
         seq = list(self.tokenizer(item, **self.kwargs))
         res = [self.rel2id[item['relation']]] + seq
-        return [self.rel2id[item['relation']]] + seq  # label, seq1, seq2, ...
+        return [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
+
 
     @classmethod
-    def collate_fn(cls, data):
-        data = list(zip(*data))
-        labels = data[0]
-        seqs = data[1:]
-        batch_labels = torch.tensor(labels).long()  # (B)
-        batch_seqs = []
-        for seq in seqs:
-            batch_seqs.append(torch.cat(seq, 0))  # (B, L)
-        return [batch_labels] + batch_seqs
+    def collate_fn(cls, compress_seq, data):
+        seqs = list(zip(*data))
+        if compress_seq:
+            seqs_len = torch.cat(seqs[-1], dim=0).sum(dim=-1) # (B)
+            sorted_length_indices = seqs_len.argsort(descending=True) 
+            original_indices = sorted_length_indices.argsort(descending=False)
+            seqs_len = seqs_len[sorted_length_indices]
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
+                    seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)[original_indices]
+        else:
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+
+        return seqs
+        
 
     def eval(self, pred_result, use_name=False):
         """
@@ -128,7 +155,7 @@ class SentenceREDataset(data.Dataset):
 
 
 def SentenceRELoader(path, rel2id, tokenizer, batch_size,
-                     shuffle, num_workers=8, collate_fn=SentenceREDataset.collate_fn, sampler=None, **kwargs):
+                     shuffle, compress_seq=True, num_workers=16, collate_fn=SentenceREDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
     dataset = SentenceREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, kwargs=kwargs)
@@ -137,7 +164,7 @@ def SentenceRELoader(path, rel2id, tokenizer, batch_size,
                                   shuffle=shuffle,
                                   pin_memory=True,
                                   num_workers=num_workers,
-                                  collate_fn=collate_fn,
+                                  collate_fn=partial(collate_fn, compress_seq),
                                   sampler=sampler)
     return data_loader
 
