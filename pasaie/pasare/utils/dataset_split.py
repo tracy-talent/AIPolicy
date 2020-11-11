@@ -50,20 +50,28 @@ def train_test_split(corpus_dir,
     with open(corpus_dir, 'r', encoding='utf8') as fin:
         relation_indices = defaultdict(list)
         rel2id = {}
+        tag2id = {}
         samples = []
         total_num = 0
         for idx, line in enumerate(fin.readlines()):
             dic = json.loads(line)
             total_num += 1
             relation_name = dic['relation']
+            tag_head, tag_tail = dic['h']['entity'], dic['t']['entity']
             if rel_direction is False:
                 relation_name = relation_name.split('(')[0]
                 dic['relation'] = relation_name
             relation_indices[relation_name].append(idx)
 
             samples.append(dic)
+            # create rel2id
             if relation_name not in rel2id:
                 rel2id[relation_name] = len(rel2id.keys())
+            # create tag2id
+            if tag_head not in tag2id:
+                tag2id[tag_head] = len(tag2id)
+            if tag_tail not in tag2id:
+                tag2id[tag_tail] = len(tag2id)
 
         train_indices, val_indices, test_indices = [], [], []
         for rel, indices_list in relation_indices.items():
@@ -115,9 +123,13 @@ def train_test_split(corpus_dir,
                     for each_sample in corresponding_samples:
                         fout.write(json.dumps(each_sample, ensure_ascii=False) + '\n')
 
-        # write rel2id file
+        # save rel2id file
         with open(r'{}/{}_rel2id.json'.format(output_dir, output_name), 'w', encoding='utf8') as fout:
             json.dump(rel2id, fout, indent=1, ensure_ascii=False)
+
+        # save tag2id file
+        with open('{}/{}_tag2id.json'.format(output_dir, output_name), 'w', encoding='utf8') as fout:
+            json.dump(tag2id, fout, indent=1, ensure_ascii=False)
 
 
 def merge_files(filepath1, filepath2):

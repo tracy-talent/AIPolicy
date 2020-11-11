@@ -149,7 +149,7 @@ class SentenceREDataset(data.Dataset):
                 cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
             tmp_category_result[k] = cate_f1
         tmp_category_result = {k: v for k, v in sorted(tmp_category_result.items(), key=lambda x: x[1])}
-        result['cate-f1'] = tmp_category_result
+        result['category-f1'] = tmp_category_result
         # logging.info('Evaluation result: {}.'.format(result))
         return result
 

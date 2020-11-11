@@ -63,7 +63,7 @@ class BERTEncoder(nn.Module):
             rev = True
         else:
             rev = False
-        
+
         if not is_token:
             sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
             ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
@@ -89,7 +89,7 @@ class BERTEncoder(nn.Module):
         pos2 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
         pos1 = min(self.max_length - 1, pos1)
         pos2 = min(self.max_length - 1, pos2)
-        
+
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
         avai_len = len(indexed_tokens)
 
@@ -112,7 +112,7 @@ class BERTEncoder(nn.Module):
 
 
 class BERTEntityEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, blank_padding=True, mask_entity=False):
+    def __init__(self, max_length, pretrain_path, tag2id=None, blank_padding=True, mask_entity=False):
         """
         Args:
             max_length: max length of sentence
@@ -134,6 +134,8 @@ class BERTEntityEncoder(nn.Module):
         self.hidden_size = bert_hidden_size * 3
         self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
+        # for type boarder
+        self.tag2id = tag2id
 
     def forward(self, token, pos1, pos2, att_mask):
         """
@@ -176,6 +178,8 @@ class BERTEntityEncoder(nn.Module):
             is_token = True
         pos_head = item['h']['pos']
         pos_tail = item['t']['pos']
+        tag_head = item['h']['entity']
+        tag_tail = item['t']['entity']
 
         pos_min = pos_head
         pos_max = pos_tail
@@ -185,7 +189,7 @@ class BERTEntityEncoder(nn.Module):
             rev = True
         else:
             rev = False
-        
+
         if not is_token:
             sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
             ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
@@ -200,18 +204,33 @@ class BERTEntityEncoder(nn.Module):
             sent2 = self.tokenizer.tokenize(' '.join(sentence[pos_max[1]:]))
 
         if self.mask_entity:
-            ent0 = ['[unused5]'] if not rev else ['[unused6]']
-            ent1 = ['[unused6]'] if not rev else ['[unused5]']
+            ent0 = ['[unused1]'] if not rev else ['[unused2]']
+            ent1 = ['[unused2]'] if not rev else ['[unused1]']
         else:
-            ent0 = ['[unused1]'] + ent0 + ['[unused2]'] if not rev else ['[unused3]'] + ent0 + ['[unused4]']
-            ent1 = ['[unused3]'] + ent1 + ['[unused4]'] if not rev else ['[unused1]'] + ent1 + ['[unused2]']
+            if self.tag2id:
+                if not rev:
+                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
+                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
+                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2)]
+                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1)]
+                else:
+                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2)]
+                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1)]
+                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
+                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
+
+                ent0 = ent0_left_boundary + ent0 + ent0_right_boundary
+                ent1 = ent1_left_boundary + ent1 + ent1_right_boundary
+            else:
+                ent0 = [f'[unused3]'] + ent0 + ['[unused4]'] if not rev else ['[unused5]'] + ent0 + ['[unused6]']
+                ent1 = ['[unused5]'] + ent1 + ['[unused6]'] if not rev else ['[unused3]'] + ent1 + ['[unused4]']
 
         re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
         pos1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
         pos2 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
         pos1 = min(self.max_length - 1, pos1)
         pos2 = min(self.max_length - 1, pos2)
-        
+
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
         avai_len = len(indexed_tokens) # 序列实际长度
 
