@@ -3,6 +3,7 @@ import sys
 import torch
 import json
 import os
+import re
 import argparse
 import configparser
 import datetime
@@ -25,8 +26,12 @@ parser.add_argument('--mask_entity', action='store_true',
                     help='Mask entity mentions')
 parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
-parser.add_argument('--embed_entity_type', default=True,
+parser.add_argument('--embed_entity_type', action='store_true',
                     help='Embed entity-type information in RE training process')
+parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb'],
+        help='embedding adversarial perturbation')
+parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
+        help='loss function')
 
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
@@ -67,31 +72,35 @@ project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
-# logger
-os.makedirs(config['path']['re_log'], exist_ok=True)
-os.makedirs(os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}'), exist_ok=True)
-logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], f'{args.dataset}_bert_{args.pooler}',
-                                           f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log'))
-
-
-# tensorboard
+# construct save path name
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
+def make_model_name():
+    model_name = 'bert_' + args.pooler + '_' + args.loss
+    if len(args.adv) > 0:
+        model_name += '_' + args.adv
+model_name = make_model_name()
 
+# logger
+os.makedirs(config['path']['re_log'], exist_ok=True)
+os.makedirs(os.path.join(config['path']['re_log'], args.dataset, model_name), exist_ok=True)
+logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], args.dataset, model_name, 
+                                        f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log'))
 
+# tensorboard
 os.makedirs(config['path']['re_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['re_tb'],
-                         f'{args.dataset}_bert_{args.pooler}/{make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length)}')
+tb_logdir = os.path.join(config['path']['re_tb'], args.dataset, model_name, 
+                    make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length))
 
 # Some basic settings
 os.makedirs(config['path']['re_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = '{}_{}_{}'.format(args.dataset, 'bert', args.pooler)
-ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}.pth.tar')
-ckpt_cnt = 1
+    args.ckpt = os.path.join(args.dataset, model_name)
+ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}0.pth.tar')
+ckpt_cnt = 0
 while os.path.exists(ckpt):
-    ckpt = ckpt.replace('.pth.tar', f'{ckpt_cnt}.pth.tar')
     ckpt_cnt += 1
+    ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
     if 'policy' not in args.dataset:
@@ -120,8 +129,8 @@ logger.info('Arguments:')
 for arg in vars(args):
     logger.info('{}: {}'.format(arg, getattr(args, arg)))
 
-tag2id = json.load(open(args.tag2id_file))
-rel2id = None if not args.embed_entity_type else json.load(open(args.rel2id_file))
+rel2id = json.load(open(args.rel2id_file))
+tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file))
 
 # Define the sentence encoder
 if args.pooler == 'entity':
@@ -165,7 +174,8 @@ framework = pasaie.pasare.framework.SentenceRE(
     warmup_step=args.warmup_step,
     sampler=sampler
 )
-
+if ckpt_cnt > 0:
+    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))['state_dict'])
 # Train the model
 if not args.only_test:
     framework.train_model('micro_f1')

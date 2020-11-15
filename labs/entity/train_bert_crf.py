@@ -89,10 +89,13 @@ def make_model_name():
     return model_name
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
+dataset_name = make_dataset_name()
+model_name = make_model_name()
 
 # logger
 os.makedirs(config['path']['ner_log'], exist_ok=True)
-logger = get_logger(sys.argv, os.path.abspath(os.path.join(config['path']['ner_log'], f'{make_dataset_name()}_{make_model_name()}.log'))) 
+tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, 
+                make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
 
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
@@ -103,7 +106,7 @@ if os.path.exists(tb_logdir):
 # Some basic settings
 os.makedirs(config['path']['ner_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{make_dataset_name()}_{make_model_name()}'
+    args.ckpt = f'{dataset_name}_{model_name}'
 ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}.pth.tar')
 
 if args.dataset != 'none':
