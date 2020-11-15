@@ -1,6 +1,6 @@
 from ...metrics import Mean
 from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
-from ...utils.adversarial import FGM, PGD, FreeLB
+from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
 
 import os, logging, json
 from tqdm import tqdm
@@ -126,7 +126,6 @@ class SentenceRE(nn.Module):
             self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
         else:
             self.adv = None
-        self.adv_name = adv
         # Cuda
         if torch.cuda.is_available():
             self.cuda()
@@ -136,57 +135,7 @@ class SentenceRE(nn.Module):
         self.logger = logger
         # tensorboard writer
         self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
-
-
-    def adversarial_perturbation(self, adv_name, K=3, rand_init_mag=0., label=None, *args):
-        if adv_name == 'fgm':
-            loss = self.criterion(self.parallel_model(*args), label).mean()
-            loss.backward() # 反向传播，得到正常的grad
-            # 对抗训练
-            self.adv.attack() # 在embedding上添加对抗扰动
-            loss_adv = self.criterion(self.parallel_model(*args), label).mean()
-            loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            self.adv.restore() # 恢复embedding参数
-        elif adv_name == 'pgd':
-            loss = self.criterion(self.parallel_model(*args), label).mean()
-            loss.backward()
-            self.adv.backup_grad()
-            # 对抗训练
-            self.adv.backup() # first attack时备份param.data，在第一次loss.backword()后以保证有梯度
-            for t in range(K):
-                self.adv.attack() # 在embedding上添加对抗扰动
-                if t != K-1:
-                    self.optimizer.zero_grad()
-                else:
-                    self.adv.restore_grad()
-                loss_adv = self.criterion(self.parallel_model(*args), label).mean()
-                loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            self.adv.restore() # 恢复embedding参数
-        elif adv_name == 'flb':
-            # embedding_size = self.model.sentence_encoder.bert_hidden_size
-            # delta = torch.zeros_like(tuple(args[0].size) + (embedding_size,)).uniform(-1, 1) * args[-1].unsqueeze(2)
-            # dims = args[-1].sum(-1) * embedding_size
-            # mag = rand_init_mag / torch.sqrt(dims)
-            # delta = delta * mag.view(-1, 1, 1)
-            # delta.requires_grad_()
-            # 对抗训练
-            grad = defaultdict(lambda: 0)
-            for t in range(1, K+1):
-                loss_adv = self.criterion(self.parallel_model(*args), label).mean()
-                loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-                for name, param in self.parallel_model.named_parameters():
-                    if param.requires_grad and param.grad is not None:
-                        grad[name] += param.grad / t
-                if t == 1:
-                    self.adv.backup() # first attack时备份param.data
-                self.adv.attack() # 在embedding上添加对抗扰动
-                self.parallel_model.zero_grad()
-            self.adv.restore() # 恢复embedding参数
-            # 梯度更新
-            for name, param in self.parallel_model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    param.grad = grad[name]
-
+        
 
     def train_model(self, metric='acc'):
         best_metric = 0
@@ -247,7 +196,7 @@ class SentenceRE(nn.Module):
                     loss = loss.mean()
                     loss.backward()
                 else:
-                    self.adversarial_perturbation(self.adv_name, 3, 0., label, *args)
+                    self.adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
                 if self.scheduler is not None:
                     self.scheduler.step()
                 self.optimizer.zero_grad()

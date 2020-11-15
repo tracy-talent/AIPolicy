@@ -8,6 +8,7 @@ from .seed import fix_seed
 from . import corpus, entity_tag, entity_extract
 from .entity_tag import convert_bio_to_bmoes, convert_bio_to_bmoe, convert_bio_to_bioes, convert_bio_to_bioe
 from .entity_extract import *
+from . import adversarial
 
 __all__ = [
     'get_logger',
@@ -25,5 +26,6 @@ __all__ = [
     'extract_kvpairs_in_bioes',
     'extract_kvpairs_in_bmoes',
     'extract_kvpairs_in_bmoes_by_endtag',
-    'extract_kvpairs_in_bmoes_by_vote'
+    'extract_kvpairs_in_bmoes_by_vote',
+    'adversarial'
 ]

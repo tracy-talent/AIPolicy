@@ -138,7 +138,7 @@ class FreeLB():
         for t in range(1, K+1):
             loss_adv = model(batch_input + delta, batch_label)
             loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            for name, param in self.parallel_model.named_parameters():
+            for name, param in model.named_parameters():
                 if param.requires_grad and param.grad is not None:
                     grad[name] += param.grad / t
             if t == 1:
@@ -147,7 +147,7 @@ class FreeLB():
             model.zero_grad()
         flb.restore() # 恢复embedding参数
         # 梯度下降，更新参数
-        for name, param in self.parallel_model.named_parameters():
+        for name, param in model.named_parameters():
             if param.requires_grad and param.grad is not None:
                 param.grad = grad[name]
         optimizer.step()
@@ -187,3 +187,63 @@ class FreeLB():
         if torch.norm(r) > epsilon:
             r = epsilon * r / torch.norm(r)
         return self.emb_backup[param_name] + r
+
+
+def adversarial_perturbation(adv, model, criterion, K=3, rand_init_mag=0., label=None, *args):
+    """adversarial perturbation process
+
+    Args:
+        adv (object): instance object of adversarial class
+        criterion (object): instance object of loss class
+        model (object): instance object of model class
+        K (int, optional): number of perturbation . Defaults to 3.
+        rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0..
+        label (torch.tensor, optional): labels. Defaults to None.
+    """
+    if adv.__class__.__name__ == 'FGM':
+        loss = criterion(model(*args), label).mean()
+        loss.backward() # 反向传播，得到正常的grad
+        # 对抗训练
+        adv.attack() # 在embedding上添加对抗扰动
+        loss_adv = criterion(model(*args), label).mean()
+        loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+        adv.restore() # 恢复embedding参数
+    elif adv.__class__.__name__ == 'PGD':
+        loss = criterion(model(*args), label).mean()
+        loss.backward()
+        adv.backup_grad()
+        # 对抗训练
+        adv.backup() # first attack时备份param.data，在第一次loss.backword()后以保证有梯度
+        for t in range(K):
+            adv.attack() # 在embedding上添加对抗扰动
+            if t != K-1:
+                model.zero_grad()
+            else:
+                adv.restore_grad()
+            loss_adv = criterion(model(*args), label).mean()
+            loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+        adv.restore() # 恢复embedding参数
+    elif adv.__class__.__name__ == 'FreeLB':
+        # embedding_size = self.model.sentence_encoder.bert_hidden_size
+        # delta = torch.zeros_like(tuple(args[0].size) + (embedding_size,)).uniform(-1, 1) * args[-1].unsqueeze(2)
+        # dims = args[-1].sum(-1) * embedding_size
+        # mag = rand_init_mag / torch.sqrt(dims)
+        # delta = delta * mag.view(-1, 1, 1)
+        # delta.requires_grad_()
+        # 对抗训练
+        grad = defaultdict(lambda: 0)
+        for t in range(1, K+1):
+            loss_adv = criterion(model(*args), label).mean()
+            loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+            for name, param in model.named_parameters():
+                if param.requires_grad and param.grad is not None:
+                    grad[name] += param.grad / t
+            if t == 1:
+                adv.backup() # first attack时备份param.data
+            adv.attack() # 在embedding上添加对抗扰动
+            model.zero_grad()
+        adv.restore() # 恢复embedding参数
+        # 梯度更新
+        for name, param in model.named_parameters():
+            if param.requires_grad and param.grad is not None:
+                param.grad = grad[name]
