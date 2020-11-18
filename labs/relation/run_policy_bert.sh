@@ -3,14 +3,17 @@ python train_supervised_bert.py \
     --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --pooler entity \
     --metric micro_f1 \
-    --dataset policy \
+    --dataset test-policy \
     --compress_seq \
-    --batch_size 32 \
-    --lr 3e-5 \
+    --loss dice \
+    --adv fgm \
+    --batch_size 12 \
+    --lr 1e-3 \
+    --bert_lr 2e-5 \
     --weight_decay 0 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 20 \
-    --optimizer adamw \
+    --optimizer adam \
     --use_sampler 
 

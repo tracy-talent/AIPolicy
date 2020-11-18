@@ -1,12 +1,12 @@
 from ...metrics import Mean
 from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
 from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
+from .data_loader import SentenceRELoader
 
 import os, logging, json
 from tqdm import tqdm
 import torch
 from torch import nn, optim
-from .data_loader import SentenceRELoader
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 
@@ -24,15 +24,21 @@ class SentenceRE(nn.Module):
                  compress_seq=True,
                  batch_size=32,
                  max_epoch=100,
-                 lr=0.1,
+                 lr=1e-3,
+                 bert_lr=2e-5,
                  weight_decay=1e-5,
                  warmup_step=300,
-                 opt='sgd',
+                 max_grad_norm=5.0,
                  adv='fgm',
                  loss='ce',
+                 opt='sgd',
                  sampler=None):
 
         super().__init__()
+        if 'bert' in model.sentence_encoder.__class__.__name__.lower():
+            self.is_bert_encoder = True
+        else:
+            self.is_bert_encoder = False
         self.max_epoch = max_epoch
         # Load data
         if train_path != None:
@@ -82,31 +88,65 @@ class SentenceRE(nn.Module):
         else:
             raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
         # Params and optimizer
-        params = self.parameters()
         self.lr = lr
+        self.bert_lr = bert_lr
+        if self.is_bert_encoder:
+            encoder_params = self.parallel_model.module.sentence_encoder.parameters()
+            bert_params_id = list(map(id, encoder_params))
+        else:
+            encoder_params = []
+            bert_params_id = []
+        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parallel_model.parameters()))
+        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parallel_model.parameters()))
+        grouped_params = [
+            {'params': bert_params, 'lr': bert_lr},
+            {'params': other_params, 'lr':lr}
+        ]
         if opt == 'sgd':
-            self.optimizer = optim.SGD(params, lr, weight_decay=weight_decay)
+            self.optimizer = optim.SGD(grouped_params, lr, weight_decay=weight_decay)
         elif opt == 'adam':
-            self.optimizer = optim.Adam(params, lr, weight_decay=weight_decay)
+            self.optimizer = optim.Adam(grouped_params, lr, weight_decay=weight_decay)
         elif opt == 'adamw':  # Optimizer for BERT
             from transformers import AdamW
-            params = list(self.named_parameters())
+            params = list(self.parallel_model.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-            grouped_params = [
+            adamw_grouped_params = [
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay)],
-                    'weight_decay': 0.01,
-                    'lr': lr,
-                    'ori_lr': lr
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay)],
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': bert_lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
                     'weight_decay': 0.0,
                     'lr': lr,
-                    'ori_lr': lr
                 }
             ]
-            self.optimizer = AdamW(grouped_params, correct_bias=True)  # original: correct_bias=False
+            # grouped_params = [
+            #     {
+            #         'params': [p for n, p in params if not any(nd in n for nd in no_decay)],
+            #         'weight_decay': weight_decay,
+            #         'lr': lr,
+            #         'ori_lr': lr
+            #     },
+            #     {
+            #         'params': [p for n, p in params if any(nd in n for nd in no_decay)],
+            #         'weight_decay': 0.0,
+            #         'lr': lr,
+            #         'ori_lr': lr
+            #     }
+            # ]
+            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True)  # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
@@ -117,7 +157,7 @@ class SentenceRE(nn.Module):
                                                              num_training_steps=training_steps)
         else:
             self.scheduler = None
-        # adversarial
+        # Adversarial
         if adv == 'fgm':
             self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
         elif adv == 'pgd':
@@ -164,18 +204,33 @@ class SentenceRE(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                loss = self.criterion(logits, label)  # B
-                score, pred = logits.max(-1)  # (B)
+                pred = logits.argmax(dim=-1)  # (B)
+                bs = label.size(0)
+
+                # Optimize
+                if self.adv is None:
+                    loss = self.criterion(logits, label)  # B
+                    loss = loss.mean()
+                    loss.backward()
+                else:
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
+                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                if self.scheduler is not None:
+                    self.scheduler.step()
+                self.optimizer.zero_grad()
+
+                # metrics
                 acc = (pred == label).long().sum().item()
                 label_pos = (label != negid).long().sum().item()
                 pred_pos = (pred != negid).long().sum().item()
                 true_pos = ((pred == label).long() * (label != negid).long()).sum().item()
-
-                # Log
-                avg_loss.update(loss.sum().item(), label.size(0))
-                avg_acc.update(acc, label.size(0))
+                avg_loss.update(loss.item() * bs, bs)
+                avg_acc.update(acc, bs)
                 prec.update(true_pos, pred_pos)
                 rec.update(true_pos, label_pos)
+
+                # log
                 global_step += 1
                 if global_step % 20 == 0:
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
@@ -190,16 +245,6 @@ class SentenceRE(nn.Module):
                     self.writer.add_scalar('train micro precision', prec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
-
-                # Optimize
-                if self.adv is None:
-                    loss = loss.mean()
-                    loss.backward()
-                else:
-                    self.adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
-                if self.scheduler is not None:
-                    self.scheduler.step()
-                self.optimizer.zero_grad()
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)

@@ -15,6 +15,8 @@ import torch
 import numpy as np
 import json
 import os
+import re
+import datetime
 import argparse
 import configparser
 
@@ -34,6 +36,8 @@ parser.add_argument('--use_crf', action='store_true',
         help='whether use crf for sequence decode')
 parser.add_argument('--tagscheme', default='bio', type=str,
         help='the sequence tag scheme')
+parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
+        help='embedding adversarial perturbation')
 
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
@@ -60,6 +64,8 @@ parser.add_argument('--bert_lr', default=3e-5, type=float,
         help='Bert Learning rate')
 parser.add_argument('--optimizer', default='adamw', type=str,
         help='optimizer:adam|sgd|adamw')
+parser.add_argument('--max_grad_norm', default=5.0, type=float,
+        help='max_grad_norm for gradient clip')
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
 parser.add_argument('--warmup_step', default=0, type=int,
@@ -93,21 +99,25 @@ dataset_name = make_dataset_name()
 model_name = make_model_name()
 
 # logger
-os.makedirs(config['path']['ner_log'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, 
-                make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
+os.makedirs(os.path.join(config['path']['ner_log'], dataset_name, model_name), exist_ok=True)
+logger = get_logger(sys.argv, os.path.join(config['path']['ner_log'], dataset_name, model_name, 
+                                f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log')) 
 
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['ner_tb'], f'{make_dataset_name()}_{make_model_name()}/{make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length)}')
-if os.path.exists(tb_logdir):
-    raise Exception(f'path {tb_logdir} exists!')
+tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
+# if os.path.exists(tb_logdir):
+#     raise Exception(f'path {tb_logdir} exists!')
 
 # Some basic settings
 os.makedirs(config['path']['ner_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{dataset_name}_{model_name}'
-ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}.pth.tar')
+    args.ckpt = f'{dataset_name}/{model_name}'
+ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}0.pth.tar')
+ckpt_cnt = 0
+while os.path.exists(ckpt):
+    ckpt_cnt += 1
+    ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
@@ -116,15 +126,16 @@ if args.dataset != 'none':
     args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
     args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
-        logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
+        logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
     elif not os.path.exists(args.val_file):
-        logger.warn("Val file {} does not exist! Use test file instead".format(args.val_file))
+        logger.warning("Val file {} does not exist! Use test file instead".format(args.val_file))
         args.val_file = args.test_file
 else:
     if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.tag2id_file)):
         raise Exception('--train_file, --val_file, --test_file and --tag2id_file are not specified or files do not exist. Or specify --dataset')
 
+logger.info(args)
 logger.info('Arguments:')
 for arg in vars(args):
     logger.info('{}: {}'.format(arg, getattr(args, arg)))
@@ -165,9 +176,13 @@ framework = pasaner.framework.Model_CRF(
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
     warmup_step=args.warmup_step,
+    adv=args.adv,
     opt=args.optimizer
 )
-# framework.load_state_dict(torch.load(ckpt)['state_dict'])
+
+# load model
+if ckpt_cnt > 0:
+    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))['state_dict'])
 
 # Train the model
 if not args.only_test:

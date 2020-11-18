@@ -7,7 +7,7 @@
 
 from ...metrics import Mean, micro_p_r_f1_score
 from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes
-# from .data_loader import SingleNERDataLoader
+from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
 from .data_loader import SingleNERDataLoader
 
 import torch
@@ -15,6 +15,7 @@ from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 
 import os
+from collections import defaultdict
 
 
 class Model_CRF(nn.Module):
@@ -37,6 +38,7 @@ class Model_CRF(nn.Module):
                 weight_decay=1e-5,
                 warmup_step=300,
                 max_grad_norm=5.0,
+                adv='fgm',
                 opt='adam'):
 
         super(Model_CRF, self).__init__()
@@ -139,6 +141,15 @@ class Model_CRF(nn.Module):
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
         else:
             self.scheduler = None
+        # Adversarial
+        if adv == 'fgm':
+            self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
+        elif adv == 'pgd':
+            self.adv = PGD(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        elif adv == 'flb':
+            self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        else:
+            self.adv = None
         # Cuda
         if torch.cuda.is_available():
             self.cuda()
@@ -182,17 +193,32 @@ class Model_CRF(nn.Module):
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
 
+                # prediction/ decode
                 if self.model.crf is None:
-                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
-                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                     preds_seq = logits.argmax(dim=-1) # B * S
                 else:
-                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
-                    loss = -log_likelihood / inputs_seq_len
                     preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
                     for pred_seq in preds_seq:
                         pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
+
+                # Optimize
+                if self.adv is None:
+                    if self.model.crf is None:
+                        loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                        loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                    else:
+                        log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                        loss = -log_likelihood / inputs_seq_len
+                    loss = loss.mean()
+                    loss.backward()
+                else:
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
+                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                if self.scheduler is not None:
+                    self.scheduler.step()
+                self.optimizer.zero_grad()
 
                 # get token sequence
                 preds_seq = preds_seq.detach().cpu().numpy()
@@ -228,7 +254,7 @@ class Model_CRF(nn.Module):
                 acc = ((outputs_seq == preds_seq) * (outputs_seq != negid) * inputs_mask).sum()
 
                 # Log
-                avg_loss.update(loss.sum(), bs)
+                avg_loss.update(loss.item() * bs, bs) # must call item to split it from tensor graph, otherwise gpu memory will overflow
                 avg_acc.update(acc, ((outputs_seq != negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
@@ -245,17 +271,6 @@ class Model_CRF(nn.Module):
                     self.writer.add_scalar('train micro precision', prec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
-
-                
-                # Optimize
-                loss = loss.mean()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
-                self.optimizer.zero_grad()
-                
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
@@ -311,6 +326,7 @@ class Model_CRF(nn.Module):
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
                 
                 # get token sequence
+                category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
                 preds_seq = preds_seq.detach().cpu().numpy()
                 outputs_seq = outputs_seq.detach().cpu().numpy()
                 inputs_seq = inputs_seq.detach().cpu().numpy()
@@ -336,11 +352,16 @@ class Model_CRF(nn.Module):
                 r_sum = 0
                 hits = 0
                 for pred, gold in zip(preds_kvpairs[-bs:], golds_kvpairs[-bs:]):
+                    for triple in gold:
+                        category_result[triple[1]][0] += 1
+                    for triple in pred:
+                        category_result[triple[1]][1] += 1
                     p_sum += len(pred)
                     r_sum += len(gold)
-                    for label in pred:
-                        if label in gold:
+                    for triple in pred:
+                        if triple in gold:
                             hits += 1
+                            category_result[triple[1]][2] += 1
                 acc = ((outputs_seq == preds_seq) * (outputs_seq != negid) * inputs_mask).sum()
                 avg_acc.update(acc, ((outputs_seq != negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
@@ -351,8 +372,18 @@ class Model_CRF(nn.Module):
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Evaluation...Batches: {ith + 1}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
+        for k, v in category_result.items():
+            v_golden, v_pred, v_correct = v
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
+            if cate_precision + cate_recall == 0:
+                cate_f1 = 0
+            else:
+                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'acc': avg_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1}
+        result = {'acc': round(avg_acc.avg, 4), 'micro_p': round(p, 4), 'micro_r': round(r, 4), 'micro_f1': round(f1, 4), 'category-p/r/f1':category_result}
         self.logger.info(f'Evaluation result: {result}.')
         return result
 

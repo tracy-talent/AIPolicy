@@ -723,6 +723,7 @@ def paint_relation_hist(corpus_relation, data_path):
             continue
         for d in rel:
             relation_type_stats[d['relation']] += 1
+    json.dump(relation_type_stats, open(os.path.join(data_path, 'relation_type_stats.json'), 'w', encoding='utf-8'), ensure_ascii=False)
     plt.figure()
     plt.xticks(range(len(relation_type_stats)), relation_type_stats.keys(), rotation=90)
     plt.bar(x=range(len(relation_type_stats)), height=relation_type_stats.values())
@@ -743,6 +744,7 @@ def paint_entity_hist(corpus_entity, data_path):
             continue
         for d in ent:
             entity_type_stats[d['entity']] += 1
+    json.dump(entity_type_stats, open(os.path.join(data_path, 'entity_type_stats.json'), 'w', encoding='utf-8'), ensure_ascii=False)
     plt.figure()
     plt.xticks(range(len(entity_type_stats)), entity_type_stats.keys(), rotation=90)
     plt.bar(x=range(len(entity_type_stats)), height=entity_type_stats.values())

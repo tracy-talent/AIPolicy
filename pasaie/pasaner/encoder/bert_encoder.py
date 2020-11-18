@@ -79,8 +79,9 @@ class BERTEncoder(nn.Module):
         if is_token:
             items[0].insert(0, '[CLS]')
             items[0].append('[SEP]')
-            items[1].insert(0, 'O')
-            items[1].append('O')
+            if len(items) > 1:
+                items[1].insert(0, 'O')
+                items[1].append('O')
             if len(items) > 2:
                 items[2].insert(0, 'null')
                 items[2].append('null')
@@ -92,9 +93,12 @@ class BERTEncoder(nn.Module):
         avail_len = torch.tensor([len(indexed_tokens)])
 
         if self.blank_padding:
-            while len(indexed_tokens) < self.max_length:
-                indexed_tokens.append(0)
-            indexed_tokens = indexed_tokens[:self.max_length]
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0) # (1, L)
 
         # attention mask

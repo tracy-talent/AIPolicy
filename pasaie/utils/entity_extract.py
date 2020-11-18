@@ -299,3 +299,16 @@ def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
                 pairs.append((spos, freq_attr, v))
             v = ""
     return pairs
+
+
+# extract entities by start and end positions
+def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
+    pairs = []
+    for i, s_tag in enumerate(start_seq):
+        if s_tag == neg_tag:
+            continue
+        for j, e_tag in enumerate(end_seq[i:]):
+            if s_tag == e_tag:
+                pairs.append((i, s_tag, ''.join(word_seq[i:j+1])))
+                break
+    return pairs

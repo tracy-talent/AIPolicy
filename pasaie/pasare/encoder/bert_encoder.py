@@ -222,7 +222,7 @@ class BERTEntityEncoder(nn.Module):
                 ent0 = ent0_left_boundary + ent0 + ent0_right_boundary
                 ent1 = ent1_left_boundary + ent1 + ent1_right_boundary
             else:
-                ent0 = [f'[unused3]'] + ent0 + ['[unused4]'] if not rev else ['[unused5]'] + ent0 + ['[unused6]']
+                ent0 = ['[unused3]'] + ent0 + ['[unused4]'] if not rev else ['[unused5]'] + ent0 + ['[unused6]']
                 ent1 = ['[unused5]'] + ent1 + ['[unused6]'] if not rev else ['[unused3]'] + ent1 + ['[unused4]']
 
         re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
@@ -240,9 +240,12 @@ class BERTEntityEncoder(nn.Module):
 
         # Padding
         if self.blank_padding:
-            while len(indexed_tokens) < self.max_length:
-                indexed_tokens.append(0)  # 0 is id for [PAD]
-            indexed_tokens = indexed_tokens[:self.max_length]
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)  # 0 is id for [PAD]
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0)  # (1, L)
 
         # Attention mask

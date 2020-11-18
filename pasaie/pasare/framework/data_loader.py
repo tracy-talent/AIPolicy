@@ -2,6 +2,7 @@ import torch
 import torch.utils.data as data
 import os, random, json, logging
 from functools import partial
+from collections import defaultdict
 import numpy as np
 import sklearn.metrics
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
@@ -42,32 +43,35 @@ class SentenceREDataset(data.Dataset):
 
         # Load the file
         f = open(path)
-        self.data = []
-        for line in f.readlines():
-            line = line.rstrip()
-            if len(line) > 0:
-                self.data.append(eval(line))
-        f.close()
+        self.corpus = []
+        with open(path, 'r', encoding='utf-8') as f:
+            for line in f.readlines():
+                line = line.rstrip()
+                if len(line) > 0:
+                    self.corpus.append(eval(line))
+        self.construct_data()
 
         self.weight = np.ones((len(self.rel2id)), dtype=np.float32)
-        for item in self.data:
+        for item in self.corpus:
             self.weight[self.rel2id[item['relation']]] += 1.0
         self.weight = 1.0 / (self.weight ** 0.05)
         self.weight = torch.from_numpy(self.weight)
 
         logging.info("Loaded sentence RE dataset {} with {} lines and {} relations.".format(path, len(self.data),
                                                                                             len(self.rel2id)))
+    def construct_data(self):
+        self.data = []
+        for index in range(len(self.corpus)):
+            item = self.corpus[index]
+            seq = list(self.tokenizer(item, **self.kwargs))
+            data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
+            self.data.append(data_item)
 
     def __len__(self):
         return len(self.data)
 
-
     def __getitem__(self, index):
-        item = self.data[index]
-        seq = list(self.tokenizer(item, **self.kwargs))
-        res = [self.rel2id[item['relation']]] + seq
-        return [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
-
+        return self.data[index]
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -104,7 +108,7 @@ class SentenceREDataset(data.Dataset):
         gold_positive = 0
         neg = -1
         id2rel = {v: k for k, v in self.rel2id.items()}
-        each_category_result = {}
+        category_result = defaultdict(lambda: [0, 0, 0])
         for name in ['NA', 'na', 'no_relation', 'Other', 'Others']:
             if name in self.rel2id:
                 if use_name:
@@ -114,19 +118,15 @@ class SentenceREDataset(data.Dataset):
                 break
         for i in range(total):
             if use_name:
-                golden = self.data[i]['relation']
+                golden = self.corpus[i]['relation']
             else:
-                golden = self.rel2id[self.data[i]['relation']]
+                golden = self.rel2id[self.corpus[i]['relation']]
 
-            if id2rel[golden] not in each_category_result:
-                each_category_result[id2rel[golden]] = [0, 0, 0]
-            if id2rel[pred_result[i]] not in each_category_result:
-                each_category_result[id2rel[pred_result[i]]] = [0, 0, 0]
-            each_category_result[id2rel[golden]][0] += 1
-            each_category_result[id2rel[pred_result[i]]][1] += 1
+            category_result[id2rel[golden]][0] += 1
+            category_result[id2rel[pred_result[i]]][1] += 1
             if golden == pred_result[i]:
                 correct += 1
-                each_category_result[id2rel[golden]][2] += 1
+                category_result[id2rel[golden]][2] += 1
                 if golden != neg:
                     correct_positive += 1
             if golden != neg:
@@ -134,22 +134,22 @@ class SentenceREDataset(data.Dataset):
             if pred_result[i] != neg:
                 pred_positive += 1
         acc = correct / total
-        micro_p = correct_positive / pred_positive if pred_positive > 0 else 0
-        micro_r = correct_positive / gold_positive if gold_positive > 0 else 0
-        micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if (micro_p + micro_r) > 0 else 0
+        micro_p = round(correct_positive / pred_positive, 4) if pred_positive > 0 else 0
+        micro_r = round(correct_positive / gold_positive, 4) if gold_positive > 0 else 0
+        micro_f1 = round(2 * micro_p * micro_r / (micro_p + micro_r), 4) if (micro_p + micro_r) > 0 else 0
         result = {'acc': acc, 'micro_p': micro_p, 'micro_r': micro_r, 'micro_f1': micro_f1}
-        tmp_category_result = {}
-        for k, v in each_category_result.items():
+        category_result = {}
+        for k, v in category_result.items():
             v_golden, v_pred, v_correct = v
-            cate_precision = 0 if v_pred == 0 else v_correct / v_pred
-            cate_recall = 0 if v_golden == 0 else v_correct / v_golden
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
             if cate_precision + cate_recall == 0:
                 cate_f1 = 0
             else:
                 cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
-            tmp_category_result[k] = cate_f1
-        tmp_category_result = {k: v for k, v in sorted(tmp_category_result.items(), key=lambda x: x[1])}
-        result['category-f1'] = tmp_category_result
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
+        result['category-p/r/f1'] = category_result
         # logging.info('Evaluation result: {}.'.format(result))
         return result
 

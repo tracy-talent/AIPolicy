@@ -10,6 +10,7 @@ import datetime
 
 sys.path.append('../..')
 from pasaie.utils import get_logger
+from pasaie.utils.sampler import get_relation_sampler
 import pasaie
 from pasaie import pasare
 
@@ -28,7 +29,7 @@ parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
 parser.add_argument('--embed_entity_type', action='store_true',
                     help='Embed entity-type information in RE training process')
-parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb'],
+parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
         help='loss function')
@@ -51,13 +52,19 @@ parser.add_argument('--compress_seq', action='store_true',
                     help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
+parser.add_argument('--dropout_rate', default=0.1, type=float,
+        help='dropout rate')
 parser.add_argument('--batch_size', default=64, type=int,
                     help='Batch size')
-parser.add_argument('--lr', default=2e-5, type=float,
+parser.add_argument('--lr', default=1e-3, type=float,
                     help='Learning rate')
+parser.add_argument('--bert_lr', default=2e-5, type=float,
+        help='Bert Learning rate')
 parser.add_argument('--optimizer', default='adam', type=str,
                     help='optimizer')
-parser.add_argument('--weight_decay', default=1e-5, type=float,
+parser.add_argument('--max_grad_norm', default=5.0, type=float,
+        help='max_grad_norm for gradient clip')
+parser.add_argument('--weight_decay', default=1e-2, type=float,
                     help='Weight decay')
 parser.add_argument('--warmup_step', default=0, type=int,
                     help='warmup steps for learning rate scheduler')
@@ -79,10 +86,10 @@ def make_model_name():
     model_name = 'bert_' + args.pooler + '_' + args.loss
     if len(args.adv) > 0:
         model_name += '_' + args.adv
+    return model_name
 model_name = make_model_name()
 
 # logger
-os.makedirs(config['path']['re_log'], exist_ok=True)
 os.makedirs(os.path.join(config['path']['re_log'], args.dataset, model_name), exist_ok=True)
 logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], args.dataset, model_name, 
                                         f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log'))
@@ -95,7 +102,8 @@ tb_logdir = os.path.join(config['path']['re_tb'], args.dataset, model_name,
 # Some basic settings
 os.makedirs(config['path']['re_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = os.path.join(args.dataset, model_name)
+    args.ckpt = f'{args.dataset}/{model_name}'
+    # args.ckpt = os.path.join(args.dataset, model_name)
 ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
@@ -113,7 +121,7 @@ if args.dataset != 'none':
         args.tag2id_file = os.path.join(config['path']['re_dataset'], args.dataset,
                                         '{}_tag2id.json'.format(args.dataset))
     if not os.path.exists(args.test_file):
-        logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
+        logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
     if args.dataset == 'wiki80' or args.dataset == 'fewrel':
         args.metric = 'acc'
@@ -152,9 +160,14 @@ else:
     raise NotImplementedError
 
 # Define the model
-model = pasaie.pasare.model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+model = pasaie.pasare.model.SoftmaxNN(
+    sentence_encoder=sentence_encoder, 
+    num_class=len(rel2id), 
+    rel2id=rel2id, 
+    dropout_rate=args.dropout_rate)
+
 if args.use_sampler:
-    sampler = pasaie.pasare.framework.get_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
+    sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
 else:
     sampler = None
 # Define the whole training framework
@@ -170,8 +183,13 @@ framework = pasaie.pasare.framework.SentenceRE(
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
     lr=args.lr,
-    opt=args.optimizer,
+    bert_lr=args.bert_lr,
+    weight_decay=args.weight_decay,
     warmup_step=args.warmup_step,
+    max_grad_norm=args.max_grad_norm,
+    adv=args.adv,
+    loss=args.loss,
+    opt=args.optimizer,
     sampler=sampler
 )
 if ckpt_cnt > 0:

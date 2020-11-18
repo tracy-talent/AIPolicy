@@ -5,7 +5,6 @@ from __future__ import print_function
 from .data_loader import SentenceREDataset, SentenceRELoader, BagREDataset, BagRELoader
 from .sentence_re import SentenceRE
 from .bag_re import BagRE
-from .data_sampler import get_sampler
 
 __all__ = [
     'SentenceREDataset',
@@ -14,5 +13,4 @@ __all__ = [
     'BagRE',
     'BagREDataset',
     'BagRELoader',
-    'get_sampler'
 ]

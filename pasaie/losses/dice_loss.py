@@ -36,16 +36,16 @@ class DiceLoss(nn.Module):
         """
         prob = torch.softmax(output, dim=1)
         prob = torch.gather(prob, dim=1, index=target.unsqueeze(1)).squeeze()
-        dsc_loss = 1 - (2 * (1 - prob) ** self.alpha * prob + self.gamma) / ((1 - prob) ** self.alpha * prob + 1 + self.gamma)
+        loss = 1 - (2 * ((1 - prob) ** self.alpha) * prob + self.gamma) / (((1 - prob) ** self.alpha) * prob + 1 + self.gamma)
 
         if self.reduction == 'sum':
             if mask is not None:
-                dice_loss = dice_loss * mask
-            loss = dice_loss.sum()
+                loss = loss * mask
+            loss = loss.sum()
         elif self.reduction == 'mean':
             if mask is not None:
-                dice_loss = (dice_loss * mask).sum(dim=-1) / mask.sum(dim=-1)
-            loss = dice_loss.mean()
+                loss = (loss * mask).sum(dim=-1) / mask.sum(dim=-1)
+            loss = loss.mean()
         elif self.reduction != 'none':
             raise ValueError("Invalid reduction. Must be 'sum' or 'mean' or 'non'.")
         return loss

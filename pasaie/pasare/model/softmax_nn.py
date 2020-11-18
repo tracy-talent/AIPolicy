@@ -7,7 +7,7 @@ class SoftmaxNN(SentenceRE):
     Softmax classifier for sentence-level relation extraction.
     """
 
-    def __init__(self, sentence_encoder, num_class, rel2id):
+    def __init__(self, sentence_encoder, num_class, rel2id, dropout_rate=0.5):
         """
         Args:
             sentence_encoder: encoder for sentences
@@ -21,7 +21,7 @@ class SoftmaxNN(SentenceRE):
         self.softmax = nn.Softmax(-1)
         self.rel2id = rel2id
         self.id2rel = {}
-        self.drop = nn.Dropout()
+        self.drop = nn.Dropout(dropout_rate)
         for rel, id in rel2id.items():
             self.id2rel[id] = rel
 
