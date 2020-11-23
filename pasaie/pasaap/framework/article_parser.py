@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 # @Time:    2020/10/26 15:57
 # @Author:  Mecthew
+import configparser
 import json
 import os
 import shutil
 import sys
-import configparser
+
 sys.path.append('../../..')
 from pasaie.pasaap.tools import search_target_sentences, cut_sent, simple_sentence_filter, plot_tree
 from pasaie.metrics import Mean
@@ -207,7 +208,7 @@ def parse_corpus(corpus_dir,
     with open(os.path.join(output_dir, 'mismatched-files.json'), 'w', encoding='utf8') as fout:
         json.dump(mismatched_dict, fout, indent=1, ensure_ascii=False)
 
-    target_dir = os.path.join(output_dir, "preprocessed-articles")
+    target_dir = os.path.join(output_dir, "extracted-articles")
     if is_rawtext and os.path.exists(target_dir):
         shutil.rmtree(target_dir)
     for filename, sentences in target_sentences.items():
@@ -327,7 +328,7 @@ if __name__ == '__main__':
     parse_corpus(corpus_dir=os.path.join(input_path, 'raw-policy'),
                  output_dir=output_path,
                  is_rawtext=True)
-    # parse_corpus(corpus_dir=os.path.join(output_path, 'preprocessed-articles'),
+    # parse_corpus(corpus_dir=os.path.join(output_path, 'extracted-articles'),
     #              output_dir=output_path,
     #              is_rawtext=False)
 

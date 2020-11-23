@@ -3,7 +3,10 @@
 # @Time:    2020/10/26 16:27
 # @Author:  Mecthew
 import os
-from graphviz import Digraph
+try:
+    from graphviz import Digraph
+except Exception as e:
+    print(f'\033[31mException occur: {e}')
 node_idx = "0"
 cur_dir = os.path.dirname(__file__)
 

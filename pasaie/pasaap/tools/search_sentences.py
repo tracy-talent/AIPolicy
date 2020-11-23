@@ -1,5 +1,10 @@
-import re
+import configparser
 import os
+import re
+
+project_path = '/'.join(os.path.abspath(__file__).replace('\\', '/').split('/')[:-4])
+config = configparser.ConfigParser()
+config.read(os.path.join(project_path, 'config.ini'))
 
 
 def search_target_sentences(file_path):
@@ -44,8 +49,10 @@ def search_target_sentences(file_path):
 def accuracy_of_pattern_match(src_dir, tgt_dir, exclusion_path):
     src_files_num = len([file for file in os.listdir(src_dir) if file.endswith('.txt')])
     tgt_files_num = len([file for file in os.listdir(tgt_dir) if file.endswith('.txt')])
-    exclusion_num = len([line for line in open(exclusion_path, 'r', encoding='utf8') if line.strip()])   # mismatched-files
+    exclusion_num = len(
+        [line for line in open(exclusion_path, 'r', encoding='utf8') if line.strip()])  # mismatched-files
     acc = (tgt_files_num + exclusion_num) / src_files_num
+    print(f'Accuracy of files extracted target sentences: {acc}')
     return acc
 
 
@@ -99,12 +106,9 @@ def num_of_article_contains_specific_str(src_dir, specific_regex):
 
 
 if __name__ == '__main__':
-    search_acc = accuracy_of_pattern_match(src_dir=r'C:\NLP-Github\AIPolicy\input\benchmark\article_parsing\raw-policy',
-                                           tgt_dir=r'C:\NLP-Github\AIPolicy\output\article_parsing\raw-policy\preprocessed-articles',
-                                           exclusion_path=r'C:\NLP-Github\AIPolicy\input\benchmark\article_parsing\no_content.txt')
-    print("Sentence search accuracy: {}".format(search_acc))
-
-    # specific_num, ratio, specific_list = num_of_article_contains_specific_str(
-    #     src_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\clean-jiangbei1',
-    #     specific_regex='(条件之一)|(下列.*之一)')
-    # print(specific_num, '\n', ratio, '\n', specific_list)
+    src_dir = config['path']['input'] + '/benchmark/article_parsing/raw-policy'
+    tgt_dir = config['path']['output'] + '/article_parsing/raw-policy/extracted-articles/'
+    exclusion_file_path = config['path']['input'] + '/benchmark/article_parsing/no_content_files.txt'
+    search_acc = accuracy_of_pattern_match(src_dir=src_dir,
+                                           tgt_dir=tgt_dir,
+                                           exclusion_path=exclusion_file_path)
