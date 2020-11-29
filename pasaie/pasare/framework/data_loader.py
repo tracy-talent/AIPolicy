@@ -138,7 +138,7 @@ class SentenceREDataset(data.Dataset):
         micro_r = round(correct_positive / gold_positive, 4) if gold_positive > 0 else 0
         micro_f1 = round(2 * micro_p * micro_r / (micro_p + micro_r), 4) if (micro_p + micro_r) > 0 else 0
         result = {'acc': acc, 'micro_p': micro_p, 'micro_r': micro_r, 'micro_f1': micro_f1}
-        category_result = {}
+        tmp_category_result = {}
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v
             cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
@@ -147,8 +147,8 @@ class SentenceREDataset(data.Dataset):
                 cate_f1 = 0
             else:
                 cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
-            category_result[k] = (cate_precision, cate_recall, cate_f1)
-        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
+            tmp_category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(tmp_category_result.items(), key=lambda x: x[1][2])}
         result['category-p/r/f1'] = category_result
         # logging.info('Evaluation result: {}.'.format(result))
         return result

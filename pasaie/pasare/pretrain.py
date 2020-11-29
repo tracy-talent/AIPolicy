@@ -109,12 +109,13 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
     check_root()
     ckpt = os.path.join(config['path']['re_ckpt'], model_name + '.pth.tar')
     print(ckpt)
-    if model_name == 'policy_bert_entity' or model_name == 'policy_bert':
+    dataset_name = model_name.split('/')[0]
+    if dataset_name == 'policy':
         rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'policy/policy_rel2id.json')))
         tag2id = json.load(open(os.path.join(config['path']['re_dataset'], 'policy/policy_tag2id.json')))
         if 'entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
-                max_length=256, pretrain_path=pretrain_path, blank_padding=True, tag2id=tag2id)
+                max_length=256, pretrain_path=pretrain_path, mask_entity=False, blank_padding=True, tag2id=tag2id)
         else:
             sentence_encoder = encoder.BERTEncoder(
                 max_length=256, pretrain_path=pretrain_path, blank_padding=True)
@@ -122,12 +123,12 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
         relation_model.eval()
         return relation_model
-    elif model_name in ['test-policy_bert_entity', 'test-policy_bert']:
+    elif dataset_name == 'test-policy':
         rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'test-policy/test-policy_rel2id.json')))
         tag2id = json.load(open(os.path.join(config['path']['re_dataset'], 'test-policy/test-policy_tag2id.json')))
         if 'entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
-                max_length=256, pretrain_path=pretrain_path, blank_padding=True, tag2id=tag2id)
+                max_length=256, pretrain_path=pretrain_path, mask_entity=False, blank_padding=True, tag2id=tag2id)
         else:
             sentence_encoder = encoder.BERTEncoder(
                 max_length=256, pretrain_path=pretrain_path, blank_padding=True)
