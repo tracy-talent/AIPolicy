@@ -26,7 +26,8 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         entity_encoder = encoder.BERTEncoder(
             max_length=256,
             pretrain_path=pretrain_path,
-            blank_padding=True
+            blank_padding=True,
+            bert_name='bert'
         )
         entity_model = model.BILSTM_CRF(
             sequence_encoder=entity_encoder,
@@ -42,14 +43,16 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         entity_encoder = encoder.BERTEncoder(
             max_length=256,
             pretrain_path=pretrain_path,
-            blank_padding=True
+            blank_padding=False,
+            bert_name='bert'
         )
         entity_model = model.BILSTM_CRF(
             sequence_encoder=entity_encoder,
             tag2id=tag2id,
             use_lstm=True,
             use_crf=True,
-            tagscheme='bmoes'
+            tagscheme='bmoes',
+            # compress_seq=False
         )
         entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
         return entity_model
