@@ -143,7 +143,7 @@ def fine_gained_parse(tokens, entity_list, relation_list):
             root_node.add_node(sub_node)
     elif len(sub_node_list) == 1:
         root_node = sub_node_list[0]
-        if root_node.logic_type == 'OR':
+        if summary_logic_type == 'OR':
             root_node.logic_type = summary_logic_type
     else:
         root_node = None
