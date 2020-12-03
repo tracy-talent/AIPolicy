@@ -26,8 +26,8 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         entity_encoder = encoder.BERTEncoder(
             max_length=256,
             pretrain_path=pretrain_path,
-            blank_padding=True,
-            bert_name='bert'
+            bert_name='bert',
+            blank_padding=False  # no padding for inference, otherwise logits size may not equal to mask size during crf decode
         )
         entity_model = model.BILSTM_CRF(
             sequence_encoder=entity_encoder,
@@ -36,15 +36,15 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             use_crf=True,
             tagscheme='bmoes'
         )
-        entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
+        entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         return entity_model
     elif model_name == 'policy_bmoes_bert_lstm_crf':
         tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], 'policy/tag2id.bmoes'))
         entity_encoder = encoder.BERTEncoder(
             max_length=256,
             pretrain_path=pretrain_path,
-            blank_padding=False,
-            bert_name='bert'
+            bert_name='bert',
+            blank_padding=False
         )
         entity_model = model.BILSTM_CRF(
             sequence_encoder=entity_encoder,
@@ -54,7 +54,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             tagscheme='bmoes',
             # compress_seq=False
         )
-        entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
+        entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         return entity_model
     else:
         raise NotImplementedError

@@ -105,7 +105,8 @@ logger = get_logger(sys.argv, os.path.join(config['path']['ner_log'], dataset_na
 
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
+tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, 
+                    make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
 # if os.path.exists(tb_logdir):
 #     raise Exception(f'path {tb_logdir} exists!')
 
@@ -182,14 +183,14 @@ framework = pasaner.framework.Model_CRF(
 
 # load model
 if ckpt_cnt > 0:
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))['state_dict'])
+    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
 
 # Train the model
 if not args.only_test:
     framework.train_model('micro_f1')
 
 # Test
-framework.load_state_dict(torch.load(ckpt)['state_dict'])
+framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
 
 # Print the result

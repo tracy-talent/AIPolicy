@@ -175,7 +175,7 @@ class BagRE(nn.Module):
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 if not os.path.exists(folder_path):
                     os.mkdir(folder_path)
-                torch.save({'state_dict': self.model.module.state_dict()}, self.ckpt)
+                torch.save({'model': self.model.module.state_dict()}, self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -216,4 +216,4 @@ class BagRE(nn.Module):
         return result
 
     def load_state_dict(self, state_dict):
-        self.model.module.load_state_dict(state_dict)
+        self.model.module.load_state_dict(state_dict['model'])

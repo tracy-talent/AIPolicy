@@ -1,9 +1,13 @@
+from .base_encoder import BaseEncoder
+from ...utils.dependency_parse import DDP_Parse
+
 import logging
 import torch
 import torch.nn as nn
-from transformers import BertModel, BertTokenizer
-from .base_encoder import BaseEncoder
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
+
+from transformers import BertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
@@ -99,9 +103,12 @@ class BERTEncoder(nn.Module):
 
         # Padding
         if self.blank_padding:
-            while len(indexed_tokens) < self.max_length:
-                indexed_tokens.append(0)  # 0 is id for [PAD]
-            indexed_tokens = indexed_tokens[:self.max_length]
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)  # 0 is id for [PAD]
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0)  # (1, L)
 
         # Attention mask
@@ -253,3 +260,279 @@ class BERTEntityEncoder(nn.Module):
         att_mask[0, :avai_len] = 1
 
         return indexed_tokens, pos1, pos2, att_mask
+
+
+class BERTWithDSPEncoder(BERTEncoder):
+    def __init__(self, pretrain_path, max_length, max_dsp_path_length=15, use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+        """
+        Args:
+            max_length: max length of sentence
+            pretrain_path: path of pretrain model
+        """
+        super(BERTWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
+                                                max_length=max_length, 
+                                                blank_padding=True, 
+                                                mask_entity=False)
+        self.max_dsp_path_length = max_dsp_path_length
+        self.parser = None
+        if self.max_dsp_path_length > 0:
+            self.parser = DDP_Parse()
+        bert_hidden_size = self.bert.config.hidden_size
+        self.hidden_size = self.bert.config.hidden_size * 2
+
+        self.bilstm = nn.LSTM(input_size=bert_hidden_size, 
+                            hidden_size=bert_hidden_size, 
+                            num_layers=1, 
+                            bidirectional=False, 
+                            batch_first=True)
+        self.compress_seq = compress_seq
+        self.linear = nn.Linear(self.hidden_size, self.hidden_size)
+        # attention
+        self.use_attention = use_attention
+        # self.attention_map = nn.Linear(bert_hidden_size, bert_hidden_size)
+        self.query = nn.Linear(bert_hidden_size, 1)
+
+    def dsp_encode(self, hidden, dsp_path, dsp_path_length):
+        dsp_rep = torch.stack([hidden[i, dsp_path[i]] for i in range(hidden.size(0))], dim=0) # (B, S, d)
+        ## head entity dsp path representation
+        if self.compress_seq:
+            sorted_length_indices = dsp_path_length.argsort(descending=True) # (B,)
+            unsorted_length_indices = sorted_length_indices.argsort(descending=False) # (B,)
+            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices], batch_first=True)
+            dsp_hidden_packed, _ = self.bilstm(dsp_rep_packed)
+            dsp_hidden, _ = pad_packed_sequence(dsp_hidden_packed, batch_first=True) # (B, S, d)
+            dsp_hidden = dsp_hidden[unsorted_length_indices] # (B, S, d)
+        else:
+            dsp_hidden, _ = self.bilstm(dsp_rep) # (B, S, d)
+        return dsp_hidden
+
+    def attention(self, dsp_hidden, dsp_path_length):
+        # dsp_hidden = torch.tanh(self.attention_map(dsp_hidden))
+        attention_score = self.query(dsp_hidden).squeeze(dim=-1) # (B, S)
+        for i in range(attention_score.size(0)):
+            attention_score[i, dsp_path_length[i]:] = 1e-9
+        attention_distribution = F.softmax(attention_score, dim=-1) # (B, S)
+        attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), dsp_hidden).squeeze(dim=1) # (B, d)
+        return attention_output
+
+    def forward(self, token, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
+        """
+        Args:
+            token: (B, L), index of tokens
+            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+        Return:
+            (B, H), representations for sentences
+        """
+        hidden, x = self.bert(token, attention_mask=att_mask)
+        # dsp encode, get dsp hidden
+        ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)
+        ent_t_dsp_hidden = self.dsp_encode(hidden, ent_t_path, ent_t_length) # (B, S, d)
+        # use attention or max pool to gather sequence hidden state
+        if self.use_attention:
+            ent_h_dsp_hidden = self.attention(ent_h_dsp_hidden, ent_h_length) # (B, d)
+            ent_t_dsp_hidden = self.attention(ent_t_dsp_hidden, ent_t_length) # (B, d)
+        else:
+            for i in range(hidden.size(0)):
+                ent_h_dsp_hidden[i][0] = ent_h_dsp_hidden[i][:ent_h_length[i]].max(dim=0)[0]
+            ent_h_dsp_hidden = ent_h_dsp_hidden[:, 0] # (B, d)
+            for i in range(hidden.size(0)):
+                ent_t_dsp_hidden[i][0] = ent_t_dsp_hidden[i][:ent_t_length[i]].max(dim=0)[0]
+            ent_t_dsp_hidden = ent_t_dsp_hidden[:, 0] # (B, d)
+        ## cat head and tail representation
+        ent_dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
+        # ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
+
+        joint_feature = torch.cat([x, ent_dsp_hidden], dim=-1)
+        joint_feature = torch.tanh(self.linear(joint_feature))
+        # joint_feature = self.linear(joint_feature)
+
+        return joint_feature
+
+    def tokenize(self, item):
+        """
+        Args:
+            item: data instance containing 'text' / 'token', 'h' and 't'
+        Return:
+            Name of the relation of the sentence
+        """
+        ret_items = super(BERTWithDSPEncoder, self).tokenize(item)
+        if self.parser is not None:
+            # shortest dependency path
+            ent_h_path, ent_t_path = self.parser.parse(sentence, item['h'], item['t'])
+            ent_h_length = len(ent_h_path)
+            ent_t_length = len(ent_t_path)
+            if self.blank_padding:
+                if ent_h_length <= self.max_dsp_path_length:
+                    while len(ent_h_path) < self.max_dsp_path_length:
+                        ent_h_path.append(-1)
+                ent_h_path = ent_h_path[:self.max_dsp_path_length]
+                if ent_t_length <= self.max_dsp_path_length:
+                    while len(ent_t_path) < self.max_dsp_path_length:
+                        ent_t_path.append(-1)
+                ent_t_path = ent_t_path[:self.max_dsp_path_length]
+            ent_h_path = torch.tensor([ent_h_path]).long() + 1
+            ent_t_path = torch,tensor([ent_t_path]).long() + 1
+            ent_h_length = torch.tensor([min(ent_h_length, self.max_dsp_path_length)]).long()
+            ent_t_length = torch.tensor([min(ent_t_length, self.max_dsp_path_length)]).long()
+            ret_items += (ent_h_path, ent_t_path, ent_h_length, ent_t_length)
+        return ret_items
+
+
+class BERTEntityWithDSPEncoder(BERTEntityEncoder):
+    def __init__(self, pretrain_path, max_length=256, max_dsp_path_length=15, tag2id=None, 
+                use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+        """
+        Args:
+            max_length: max length of sentence
+            pretrain_path: path of pretrain model
+        """
+        super(BERTEntityWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
+                                                    max_length=max_length, 
+                                                    tag2id=tag2id, 
+                                                    blank_padding=blank_padding, 
+                                                    mask_entity=mask_entity)
+        self.max_dsp_path_length = max_dsp_path_length
+        self.parser = None
+        if self.max_dsp_path_length > 0:
+            self.parser = DDP_Parse()
+        bert_hidden_size = self.bert.config.hidden_size
+        self.bilstm = nn.LSTM(input_size=bert_hidden_size, 
+                            hidden_size=bert_hidden_size, 
+                            num_layers=1, 
+                            bidirectional=False, 
+                            batch_first=True)
+        self.compress_seq = compress_seq
+        self.hidden_size = bert_hidden_size * 5
+        # output map
+        self.linear = nn.Linear(self.hidden_size, self.hidden_size)
+        # attention
+        self.use_attention = use_attention
+        # self.attention_map = nn.Linear(bert_hidden_size, bert_hidden_size)
+        self.dsp_query = nn.Linear(bert_hidden_size, 1)
+        self.context_query = nn.Linear(bert_hidden_size, 1)
+
+    def dsp_encode(self, hidden, dsp_path, dsp_path_length):
+        dsp_rep = torch.stack([hidden[i, dsp_path[i]] for i in range(hidden.size(0))], dim=0) # (B, S, d)
+        ## head entity dsp path representation
+        if self.compress_seq:
+            sorted_length_indices = dsp_path_length.argsort(descending=True) # (B,)
+            unsorted_length_indices = sorted_length_indices.argsort(descending=False) # (B,)
+            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices], batch_first=True)
+            dsp_hidden_packed, _ = self.bilstm(dsp_rep_packed)
+            dsp_hidden, _ = pad_packed_sequence(dsp_hidden_packed, batch_first=True) # (B, S, d)
+            dsp_hidden = dsp_hidden[unsorted_length_indices] # (B, S, d)
+        else:
+            dsp_hidden, _ = self.bilstm(dsp_rep) # (B, S, d)
+        return dsp_hidden
+
+    def attention(self, query, hidden, seq_length):
+        # dsp_hidden = torch.tanh(self.attention_map(dsp_hidden))
+        attention_score = query(hidden).squeeze(dim=-1) # (B, S)
+        for i in range(hidden.size(0)):
+            attention_score[i, seq_length[i]:] = 1e-9
+        attention_distribution = F.softmax(attention_score, dim=-1) # (B, S)
+        attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), hidden).squeeze(dim=1) # (B, d)
+        return attention_output
+
+    def forward(self, token, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
+        """
+        Args:
+            token: (B, L), index of tokens
+            pos1: (B, 1), position of the head entity starter
+            pos2: (B, 1), position of the tail entity starter
+            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+        Returns:
+            (B, 2H), representations for sentences
+        """
+        hidden, pooler_output = self.bert(token, attention_mask=att_mask)
+        # Get entity start hidden state
+        onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
+        onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
+        onehot_head = onehot_head.scatter_(1, pos1, 1)
+        onehot_tail = onehot_tail.scatter_(1, pos2, 1)
+        head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
+        tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
+        # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
+
+        # get context representation
+        if self.use_attention:
+            context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
+        else:
+            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_hidden = F.relu(F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)) # (B, d)
+
+        # dsp encode, get dsp hidden
+        ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)
+        ent_t_dsp_hidden = self.dsp_encode(hidden, ent_t_path, ent_t_length) # (B, S, d)
+        # use attention or max pool to gather sequence hidden state
+        if self.use_attention:
+            ent_h_dsp_hidden = self.attention(self.dsp_query, ent_h_dsp_hidden, ent_h_length) # (B, d)
+            ent_t_dsp_hidden = self.attention(self.dsp_query, ent_t_dsp_hidden, ent_t_length) # (B, d)
+        else:
+            for i in range(hidden.size(0)):
+                ent_h_dsp_hidden[i][0] = ent_h_dsp_hidden[i][:ent_h_length[i]].max(dim=0)[0]
+            ent_h_dsp_hidden = ent_h_dsp_hidden[:, 0] # (B, d)
+            for i in range(hidden.size(0)):
+                ent_t_dsp_hidden[i][0] = ent_t_dsp_hidden[i][:ent_t_length[i]].max(dim=0)[0]
+            ent_t_dsp_hidden = ent_t_dsp_hidden[:, 0] # (B, d)
+        ## cat head and tail representation
+        # dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
+        dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
+
+        # gather all features
+        x = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 4H)
+        # x = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
+        x = torch.tanh(self.linear(x))
+        # x = self.linear(x)
+
+        return x
+
+    def tokenize(self, item):
+        """
+        Args:
+            item: data instance containing 'text' / 'token', 'h' and 't'
+        Return:
+            Name of the relation of the sentence
+        """
+        ret_items = super(BERTEntityWithDSPEncoder, self).tokenize(item)
+        ent_h_pos = min(ret_items[1].item(), ret_items[2].item())
+        ent_t_pos = max(ret_items[1].item(), ret_items[2].item())
+        if self.parser is not None:
+            # shortest dependency path
+            ent_h_path, ent_t_path = self.parser.parse(sentence, item['h'], item['t'])
+            ent_h_length = len(ent_h_path)
+            ent_t_length = len(ent_t_path)
+            if self.blank_padding:
+                if ent_h_length <= self.max_dsp_path_length:
+                    while len(ent_h_path) < self.max_dsp_path_length:
+                        ent_h_path.append(-1)
+                ent_h_path = ent_h_path[:self.max_dsp_path_length]
+                if ent_t_length <= self.max_dsp_path_length:
+                    while len(ent_t_path) < self.max_dsp_path_length:
+                        ent_t_path.append(-1)
+                ent_t_path = ent_t_path[:self.max_dsp_path_length]
+            # move parsed token pos if entity type embedded
+            if self.tag2id is not None:
+                for i, pos in enumerate(ent_h_path):
+                    pos += 1
+                    pos_inc = 0
+                    if pos >= ent_h_pos:
+                        pos_inc += 1
+                    if pos + 1 >= ent_t_pos:
+                        pos_inc += 1
+                    ent_h_path[i] = pos + pos_inc
+                for i, pos in enumerate(ent_t_path):
+                    pos += 1
+                    pos_inc = 0
+                    if pos >= ent_h_pos:
+                        pos_inc += 1
+                    if pos + 1 >= ent_t_pos:
+                        pos_inc += 1
+                    ent_t_path[i] = pos + pos_inc
+            ent_h_path = torch.tensor([ent_h_path]).long()
+            ent_t_path = torch.tensor([ent_t_path]).long()
+            ent_h_length = torch.tensor([min(ent_h_length, self.max_dsp_path_length)]).long()
+            ent_t_length = torch.tensor([min(ent_t_length, self.max_dsp_path_length)]).long()
+            ret_items += (ent_h_path, ent_t_path, ent_h_length, ent_t_length)
+        return ret_items
+

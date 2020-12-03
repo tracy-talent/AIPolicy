@@ -1,14 +1,16 @@
 from ...metrics import Mean
 from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
 from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
-from .data_loader import SentenceRELoader
+from .data_loader import SentenceRELoader, SentenceWithDSPRELoader
 
-import os, logging, json
+import os
+import datetime
+from collections import defaultdict
+
 from tqdm import tqdm
 import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
-import datetime
 
 
 class SentenceRE(nn.Module):
@@ -29,6 +31,7 @@ class SentenceRE(nn.Module):
                  weight_decay=1e-5,
                  warmup_step=300,
                  max_grad_norm=5.0,
+                 dice_alpha=0.6,
                  adv='fgm',
                  loss='ce',
                  opt='sgd',
@@ -82,7 +85,7 @@ class SentenceRE(nn.Module):
         elif loss == 'focal':
             self.criterion = FocalLoss(gamma=2., reduction='none')
         elif loss == 'dice':
-            self.criterion = DiceLoss(alpha=1., gamma=0., reduction='none')
+            self.criterion = DiceLoss(alpha=dice_alpha, gamma=0., reduction='none')
         elif loss == 'lsr':
             self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
         else:
@@ -103,9 +106,10 @@ class SentenceRE(nn.Module):
             {'params': other_params, 'lr':lr}
         ]
         if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, lr, weight_decay=weight_decay)
+            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay) 
         elif opt == 'adam':
-            self.optimizer = optim.Adam(grouped_params, lr, weight_decay=weight_decay)
+            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
+            # self.optimizer = optim.Adam(grouped_params, lr, weight_decay=weight_decay) # adam weight_decay is not reasonable
         elif opt == 'adamw':  # Optimizer for BERT
             from transformers import AdamW
             params = list(self.parallel_model.named_parameters())
@@ -132,20 +136,6 @@ class SentenceRE(nn.Module):
                     'lr': lr,
                 }
             ]
-            # grouped_params = [
-            #     {
-            #         'params': [p for n, p in params if not any(nd in n for nd in no_decay)],
-            #         'weight_decay': weight_decay,
-            #         'lr': lr,
-            #         'ori_lr': lr
-            #     },
-            #     {
-            #         'params': [p for n, p in params if any(nd in n for nd in no_decay)],
-            #         'weight_decay': 0.0,
-            #         'lr': lr,
-            #         'ori_lr': lr
-            #     }
-            # ]
             self.optimizer = AdamW(adamw_grouped_params, correct_bias=True)  # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
@@ -178,6 +168,7 @@ class SentenceRE(nn.Module):
         
 
     def train_model(self, metric='acc'):
+        test_best_metric = 0
         best_metric = 0
         global_step = 0
         negid = -1
@@ -234,8 +225,7 @@ class SentenceRE(nn.Module):
                 global_step += 1
                 if global_step % 20 == 0:
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-                    self.logger.info(
-                        f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                    self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
                 # tensorboard training writer
                 if global_step % 5 == 0:
@@ -249,13 +239,14 @@ class SentenceRE(nn.Module):
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.val_loader)
+            self.logger.info('Evaluation result: {}.'.format(result))
             self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], best_metric))
             if result[metric] > best_metric:
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 if not os.path.exists(folder_path):
                     os.mkdir(folder_path)
-                torch.save({'state_dict': self.model.state_dict()}, self.ckpt)
+                torch.save({'model': self.model.state_dict()}, self.ckpt)
                 best_metric = result[metric]
 
             # tensorboard val writer
@@ -264,12 +255,33 @@ class SentenceRE(nn.Module):
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
 
+            # test
+            result = self.eval_model(self.test_loader)
+            self.logger.info('Test result: {}.'.format(result))
+            self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], test_best_metric))
+            if result[metric] > test_best_metric:
+                self.logger.info('Best test ckpt and saved')
+                torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
+                test_best_metric = result[metric]
+
         self.logger.info("Best %s on val set: %f" % (metric, best_metric))
+        self.logger.info("Best %s on test set: %f" % (metric, test_best_metric))
+
+
 
     def eval_model(self, eval_loader):
         self.eval()
         avg_acc = Mean()
-        pred_result = []
+        prec = Mean()
+        rec = Mean()
+        for rel_name in ['NA', 'na', 'no_relation', 'Other', 'Others']:
+            if rel_name in self.model.rel2id:
+                negid = self.model.rel2id[rel_name]
+                break
+        if negid == -1:
+            raise Exception("negtive tag not in ['NA', 'na', 'no_relation', 'Other', 'Others']")
+        category_result = defaultdict(lambda: [0, 0, 0])
+
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -281,17 +293,135 @@ class SentenceRE(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                score, pred = logits.max(-1)  # (B)
-                # Save result
-                pred_result.extend(pred.tolist())
-                # Log
+                pred = logits.argmax(dim=-1)  # (B)
+                # metrics
                 acc = (pred == label).long().sum().item()
+                label_pos = (label != negid).long().sum().item()
+                pred_pos = (pred != negid).long().sum().item()
+                true_pos = ((pred == label).long() * (label != negid).long()).sum().item()
                 avg_acc.update(acc, label.size(0))
+                prec.update(true_pos, pred_pos)
+                rec.update(true_pos, label_pos)
+                # log
                 if (ith + 1) % 20 == 0:
-                    self.logger.info(f'Evaluation...Batches: {ith + 1}, val_acc: {avg_acc.avg:.4f}')
-        result = eval_loader.dataset.eval(pred_result)
-        self.logger.info('Evaluation result: {}.'.format(result))
+                    micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
+                    self.logger.info(f'Evaluation...steps: {ith + 1}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                # category result
+                label = label.detach().cpu().numpy()
+                pred = pred.detach().cpu().numpy()
+                for j in range(len(label)):
+                    category_result[self.model.id2rel[label[j]]][0] += 1
+                    category_result[self.model.id2rel[pred[j]]][1] += 1
+                    if label[j] == pred[j]:
+                        category_result[self.model.id2rel[label[j]]][2] += 1
+
+        for k, v in category_result.items():
+            v_golden, v_pred, v_correct = v
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
+            if cate_precision + cate_recall == 0:
+                cate_f1 = 0
+            else:
+                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
+
+        micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
+        result = {'acc': avg_acc.avg, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1, 'category-p/r/f1': category_result}
+        # self.logger.info('Evaluation result: {}.'.format(result))
+
         return result
 
+
     def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict['model'])
+
+
+class SentenceWithDSPRE(SentenceRE):
+
+    def __init__(self,
+                 model,
+                 train_path,
+                 val_path,
+                 test_path,
+                 ckpt,
+                 logger,
+                 tb_logdir,
+                 compress_seq=True,
+                 max_dsp_path_length=-1,
+                 batch_size=32,
+                 max_epoch=100,
+                 lr=1e-3,
+                 bert_lr=2e-5,
+                 weight_decay=1e-2,
+                 warmup_step=300,
+                 max_grad_norm=5.0,
+                 dice_alpha=0.6,
+                 adv='fgm',
+                 loss='ce',
+                 opt='sgd',
+                 sampler=None):
+
+        super(SentenceWithDSPRE, self).__init__(
+            model=model,
+            train_path=None,
+            val_path=None,
+            test_path=None,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            compress_seq=compress_seq,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            dice_alpha=dice_alpha,
+            adv=adv,
+            loss=loss,
+            opt=opt,
+            sampler=sampler
+        )
+        # Load data
+        if train_path != None:
+            self.train_loader = SentenceWithDSPRELoader(
+                train_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                shuffle=True,
+                drop_last=False,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                is_bert_encoder=self.is_bert_encoder,
+                sampler=sampler,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )
+
+        if val_path != None:
+            self.val_loader = SentenceWithDSPRELoader(
+                val_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                is_bert_encoder=self.is_bert_encoder,
+                shuffle=False,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )
+
+        if test_path != None:
+            self.test_loader = SentenceWithDSPRELoader(
+                test_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                is_bert_encoder=self.is_bert_encoder,
+                shuffle=False,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )

@@ -195,7 +195,7 @@ def extract_kvpairs_in_bmoes(bmoes_seq, word_seq):
             v = ""
             k = ""
         elif bmoes[0] == 'S':
-            pairs.append((i, bmoes[2:], v))
+            pairs.append((i, bmoes[2:], word_seq[i]))
             v = ""
             k = ""
         pre_bmoes = bmoes

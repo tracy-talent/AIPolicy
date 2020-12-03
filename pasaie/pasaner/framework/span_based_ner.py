@@ -6,20 +6,22 @@
 """
 
 from ...metrics import Mean, micro_p_r_f1_score
-from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
+from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy, AutomaticWeightedLoss
 from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation, adversarial_perturbation_span_mtl
 from ...utils.entity_extract import extract_kvpairs_by_start_end
 from .data_loader import SpanSingleNERDataLoader, SpanMultiNERDataLoader
+
+import os
+import datetime
+from collections import defaultdict
 
 import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 
-import os
-
 
 class Span_Single_NER(nn.Module):
-    """model(adaptive) + crf decoder"""
+    """span based entity classification, single task"""
     
     def __init__(self, 
                 model, 
@@ -42,6 +44,7 @@ class Span_Single_NER(nn.Module):
                 opt='adam',
                 adv='fgm',
                 loss='ce',
+                dice_alpha=0.6, 
                 sampler=None):
 
         super(Span_Single_NER, self).__init__()
@@ -98,7 +101,7 @@ class Span_Single_NER(nn.Module):
         elif loss == 'focal':
             self.criterion = FocalLoss(gamma=2., reduction='none')
         elif loss == 'dice':
-            self.criterion = DiceLoss(alpha=1., gamma=0., reduction='none')
+            self.criterion = DiceLoss(alpha=dice_alpha, gamma=0., reduction='none')
         elif loss == 'lsr':
             self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
         else:
@@ -175,7 +178,7 @@ class Span_Single_NER(nn.Module):
         # logger
         self.logger = logger
         # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir)
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
 
     def train_model(self, metric='micro_f1'):
@@ -258,7 +261,7 @@ class Span_Single_NER(nn.Module):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                torch.save({'state_dict': self.model.state_dict()}, self.ckpt)
+                torch.save({'model': self.model.state_dict()}, self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -272,6 +275,7 @@ class Span_Single_NER(nn.Module):
 
     def eval_model(self, eval_loader):
         self.eval()
+        category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
         avg_acc = Mean()
         prec = Mean()
         rec = Mean()
@@ -307,18 +311,38 @@ class Span_Single_NER(nn.Module):
                 if (ith + 1) % 20 == 0:
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Evaluation...Batches: {ith + 1}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                
+                # category result
+                labels = labels.detach().cpu().numpy()
+                preds = preds.detach().cpu().numpy()
+                for j in range(len(labels)):
+                    category_result[self.model.id2tag[labels[j]]][0] += 1
+                    category_result[self.model.id2tag[preds[j]]][1] += 1
+                    if labels[j] == preds[j]:
+                        category_result[self.model.id2tag[labels[j]]][2] += 1
+        
+        for k, v in category_result.items():
+            v_golden, v_pred, v_correct = v
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
+            if cate_precision + cate_recall == 0:
+                cate_f1 = 0
+            else:
+                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
 
-        f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0.
-        result = {'acc': avg_acc.avg, 'micro_p': prec.avg, 'micro_r':rec.avg, 'micro_f1':f1}
+        micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0.
+        result = {'acc': avg_acc.avg, 'micro_p': prec.avg, 'micro_r':rec.avg, 'micro_f1':micro_f1, 'category-p/r/f1':category_result}
         self.logger.info(f'Evaluation result: {result}.')
         return result
 
     def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict['model'])
 
 
 
-class Span_Multi_NER(Span_Single_NER):
+class Span_Multi_NER(nn.Module):
     """train multi task for span_start and span_end"""
     
     def __init__(self, 
@@ -336,35 +360,25 @@ class Span_Multi_NER(Span_Single_NER):
                 max_epoch=100, 
                 lr=1e-3,
                 bert_lr=3e-5,
-                weight_decay=1e-5,
+                weight_decay=1e-2,
                 warmup_step=300,
                 max_grad_norm=5.0,
                 opt='adam',
                 adv='fgm',
-                loss='ce',
+                loss='dice',
+                mtl_autoweighted_loss=True,
+                dice_alpha=0.6,
                 sampler=None):
 
-        super(Span_Multi_NER, self).__init__(model=model, 
-                                            train_path=train_path, 
-                                            val_path=val_path, 
-                                            test_path=test_path, 
-                                            ckpt=ckpt, 
-                                            logger=logger, 
-                                            tb_logdir=tb_logdir, 
-                                            max_span=max_span,
-                                            compress_seq=compress_seq,
-                                            tagscheme=tagscheme, 
-                                            batch_size=batch_size, 
-                                            max_epoch=max_epoch, 
-                                            lr=lr,
-                                            bert_lr=bert_lr,
-                                            weight_decay=weight_decay,
-                                            warmup_step=warmup_step,
-                                            max_grad_norm=max_grad_norm,
-                                            opt=opt,
-                                            adv=adv,
-                                            loss=loss,
-                                            sampler=None)
+        super(Span_Multi_NER, self).__init__()
+        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
+            self.is_bert_encoder = True
+        else:
+            self.is_bert_encoder = False
+        self.max_epoch = max_epoch
+        self.tagscheme = tagscheme
+        self.max_grad_norm = max_grad_norm
+        
         # Load Data
         if train_path != None:
             self.train_loader = SpanMultiNERDataLoader(
@@ -396,6 +410,99 @@ class Span_Multi_NER(Span_Single_NER):
                 shuffle=False,
                 compress_seq=compress_seq
             )
+
+        # Model
+        self.model = model
+        self.parallel_model = nn.DataParallel(model)
+        # Criterion
+        if loss == 'ce':
+            # nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
+            self.criterion = nn.CrossEntropyLoss(reduction='none')
+        elif loss == 'focal':
+            self.criterion = FocalLoss(gamma=2., reduction='none')
+        elif loss == 'dice':
+            self.criterion = DiceLoss(alpha=dice_alpha, gamma=0., reduction='none')
+        elif loss == 'lsr':
+            self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
+        else:
+            raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
+        # Automatic weighted loss for mtl
+        self.autoweighted_loss = None
+        if mtl_autoweighted_loss:
+            self.autoweighted_loss = AutomaticWeightedLoss(2)
+        # Params and optimizer
+        self.lr = lr
+        self.bert_lr = bert_lr
+        if self.is_bert_encoder:
+            encoder_params = self.parallel_model.module.sequence_encoder.parameters()
+            bert_params_id = list(map(id, encoder_params))
+        else:
+            encoder_params = []
+            bert_params_id = []
+        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
+        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
+        grouped_params = [
+            {'params': bert_params, 'lr':bert_lr},
+            {'params': other_params, 'lr':lr}
+        ]
+        if opt == 'sgd':
+            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
+        elif opt == 'adam':
+            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
+        elif opt == 'adamw': # Optimizer for BERT
+            from transformers import AdamW
+            params = list(self.named_parameters())
+            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+            adamw_grouped_params = [
+                {
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': bert_lr,
+                },
+                {
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': bert_lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': lr,
+                }
+            ]
+            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
+        else:
+            raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
+        # Warmup
+        if warmup_step > 0:
+            from transformers import get_linear_schedule_with_warmup
+            training_steps = len(self.train_loader) // batch_size * self.max_epoch
+            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
+        else:
+            self.scheduler = None
+        # Adversarial
+        if adv == 'fgm':
+            self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
+        elif adv == 'pgd':
+            self.adv = PGD(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        elif adv == 'flb':
+            self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        else:
+            self.adv = None
+        # Cuda
+        if torch.cuda.is_available():
+            self.cuda()
+        # Ckpt
+        self.ckpt = ckpt
+        # logger
+        self.logger = logger
+        # tensorboard writer
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
 
     def train_model(self, metric='micro_f1'):
@@ -432,19 +539,20 @@ class Span_Multi_NER(Span_Single_NER):
                 inputs_seq_len = inputs_mask.sum(dim=-1) # (B)
                 bs = start_labels.size(0)
 
-                # loss
-                start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
-                start_loss = torch.sum(start_loss * inputs_mask, dim=-1) / inputs_seq_len
-                end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
-                end_loss = torch.sum(end_loss * inputs_mask, dim=-1) / inputs_seq_len
-                loss = (start_loss + end_loss) / 2
-
-                # Optimize
+                # Loss and Optimize
                 if self.adv is None:
+                    start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
+                    start_loss = torch.sum(start_loss * inputs_mask, dim=-1) / inputs_seq_len
+                    end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
+                    end_loss = torch.sum(end_loss * inputs_mask, dim=-1) / inputs_seq_len
+                    if self.autoweighted_loss is not None:
+                        loss = self.autoweighted_loss(start_loss, end_loss)
+                    else:
+                        loss = (start_loss + end_loss) / 2
                     loss = loss.mean()
                     loss.backward()
                 else:
-                    adversarial_perturbation_span_mtl(self.adv, self.parallel_model, self.criterion, 3, 0., start_labels, end_labels, *args)
+                    loss = adversarial_perturbation_span_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., start_labels, end_labels, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.scheduler is not None:
@@ -492,7 +600,7 @@ class Span_Multi_NER(Span_Single_NER):
                             hits += 1
                 start_acc = ((start_labels == start_preds) * (start_labels != negid) * inputs_mask).sum()
                 end_acc = ((end_labels == end_preds) * (end_labels != negid) * inputs_mask).sum()
-                avg_loss.update(loss.sum().item(), bs)
+                avg_loss.update(loss.item() * bs, bs)
                 avg_start_acc.update(start_acc, ((start_labels != negid) * inputs_mask).sum())
                 avg_end_acc.update(end_acc, ((end_labels != negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
@@ -522,7 +630,10 @@ class Span_Multi_NER(Span_Single_NER):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                torch.save({'state_dict': self.model.state_dict()}, self.ckpt)
+                state_dict = {'model': self.model.state_dict()}
+                if self.autoweighted_loss is not None:
+                    state_dict['autoweighted_loss'] = self.autoweighted_loss.state_dict()
+                torch.save(state_dict, self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -539,6 +650,7 @@ class Span_Multi_NER(Span_Single_NER):
         self.eval()
         preds_kvpairs = []
         golds_kvpairs = []
+        category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
         avg_start_acc = Mean()
         avg_end_acc = Mean()
         prec = Mean()
@@ -596,11 +708,16 @@ class Span_Multi_NER(Span_Single_NER):
                 r_sum = 0
                 hits = 0
                 for pred, gold in zip(preds_kvpairs[-bs:], golds_kvpairs[-bs:]):
+                    for triple in gold:
+                        category_result[triple[1]][0] += 1
+                    for triple in pred:
+                        category_result[triple[1]][1] += 1
                     p_sum += len(pred)
                     r_sum += len(gold)
-                    for label in pred:
-                        if label in gold:
+                    for triple in pred:
+                        if triple in gold:
                             hits += 1
+                            category_result[triple[1]][2] += 1
                 start_acc = ((start_labels == start_preds) * (start_labels != negid) * inputs_mask).sum()
                 end_acc = ((end_labels == end_preds) * (end_labels != negid) * inputs_mask).sum()
                 avg_start_acc.update(start_acc, ((start_labels != negid) * inputs_mask).sum())
@@ -613,11 +730,23 @@ class Span_Multi_NER(Span_Single_NER):
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Evaluation...Batches: {ith + 1}, start_acc: {avg_start_acc.avg:.4f}, end_acc: {avg_end_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
+        for k, v in category_result.items():
+            v_golden, v_pred, v_correct = v
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
+            if cate_precision + cate_recall == 0:
+                cate_f1 = 0
+            else:
+                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'start_acc': avg_start_acc.avg, 'end_acc': avg_end_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1}
+        result = {'start_acc': avg_start_acc.avg, 'end_acc': avg_end_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
         self.logger.info(f'Evaluation result: {result}.')
         return result
 
 
     def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict['model'])
+        if self.autoweighted_loss is not None:
+            self.autoweighted_loss.load_state_dict(state_dict['autoweighted_loss'])

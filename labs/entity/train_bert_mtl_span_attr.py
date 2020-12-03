@@ -195,7 +195,7 @@ if not args.only_test:
     framework.train_model('micro_f1')
 
 # Test
-framework.load_state_dict(torch.load(ckpt)['state_dict'])
+framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
 
 # Print the result

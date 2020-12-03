@@ -120,7 +120,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             sentence_encoder = encoder.BERTEncoder(
                 max_length=256, pretrain_path=pretrain_path, blank_padding=True)
         relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
-        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
+        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         relation_model.eval()
         return relation_model
     elif dataset_name == 'test-policy':
@@ -133,7 +133,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             sentence_encoder = encoder.BERTEncoder(
                 max_length=256, pretrain_path=pretrain_path, blank_padding=True)
         relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
-        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['state_dict'])
+        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         relation_model.eval()
         return relation_model
     if model_name == 'wiki80_cnn_softmax':
