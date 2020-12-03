@@ -52,6 +52,8 @@ parser.add_argument('--compress_seq', action='store_true',
                     help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
+parser.add_argument('--dice_alpha', default=0.6, type=float,
+        help='alpha of dice loss')
 parser.add_argument('--dropout_rate', default=0.1, type=float,
         help='dropout rate')
 parser.add_argument('--batch_size', default=64, type=int,
@@ -84,7 +86,7 @@ def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 def make_model_name():
     model_name = 'bert_' + args.pooler + '_' + args.loss
-    if len(args.adv) > 0:
+    if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     return model_name
 model_name = make_model_name()
@@ -164,7 +166,8 @@ model = pasaie.pasare.model.SoftmaxNN(
     sentence_encoder=sentence_encoder, 
     num_class=len(rel2id), 
     rel2id=rel2id, 
-    dropout_rate=args.dropout_rate)
+    dropout_rate=args.dropout_rate
+)
 
 if args.use_sampler:
     sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
@@ -172,8 +175,8 @@ else:
     sampler = None
 # Define the whole training framework
 framework = pasaie.pasare.framework.SentenceRE(
-    train_path=args.train_file,
-    val_path=args.val_file,
+    train_path=args.train_file if not args.only_test else None,
+    val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
     model=model,
     ckpt=ckpt,
@@ -187,19 +190,21 @@ framework = pasaie.pasare.framework.SentenceRE(
     weight_decay=args.weight_decay,
     warmup_step=args.warmup_step,
     max_grad_norm=args.max_grad_norm,
+    dice_alpha=args.dice_alpha,
     adv=args.adv,
     loss=args.loss,
     opt=args.optimizer,
     sampler=sampler
 )
 if ckpt_cnt > 0:
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))['state_dict'])
+    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
 # Train the model
 if not args.only_test:
     framework.train_model('micro_f1')
 
 # Test
-framework.load_state_dict(torch.load(ckpt)['state_dict'])
+if not args.only_test:
+    framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
 
 # Print the result

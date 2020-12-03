@@ -28,7 +28,7 @@ class SentenceREDataset(data.Dataset):
     Sentence-level relation extraction dataset
     """
 
-    def __init__(self, path, rel2id, tokenizer, kwargs):
+    def __init__(self, path, rel2id, tokenizer, **kwargs):
         """
         Args:
             path: path of the input file
@@ -40,7 +40,6 @@ class SentenceREDataset(data.Dataset):
         self.tokenizer = tokenizer
         self.rel2id = rel2id
         self.kwargs = kwargs
-
         # Load the file
         f = open(path)
         self.corpus = []
@@ -66,6 +65,8 @@ class SentenceREDataset(data.Dataset):
             seq = list(self.tokenizer(item, **self.kwargs))
             data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
             self.data.append(data_item)
+            if (index + 1) % 500 == 0:
+                logging.info(f'parsed {index + 1} sentences for DSP path')
 
     def __len__(self):
         return len(self.data)
@@ -79,89 +80,126 @@ class SentenceREDataset(data.Dataset):
         if compress_seq:
             seqs_len = torch.cat(seqs[-1], dim=0).sum(dim=-1) # (B)
             sorted_length_indices = seqs_len.argsort(descending=True) 
-            original_indices = sorted_length_indices.argsort(descending=False)
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
                 if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
-                    seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)[original_indices]
+                    seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)
+                else:
+                    seqs[i] = seqs[i][sorted_length_indices]
         else:
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
 
         return seqs
-        
-
-    def eval(self, pred_result, use_name=False):
-        """
-        Args:
-            pred_result: a list of predicted label (id)
-                Make sure that the `shuffle` param is set to `False` when getting the loader.
-            use_name: if True, `pred_result` contains predicted relation names instead of ids
-        Return:
-            {'acc': xx}
-        """
-        correct = 0
-        total = len(self.data)
-        correct_positive = 0
-        pred_positive = 0
-        gold_positive = 0
-        neg = -1
-        id2rel = {v: k for k, v in self.rel2id.items()}
-        category_result = defaultdict(lambda: [0, 0, 0])
-        for name in ['NA', 'na', 'no_relation', 'Other', 'Others']:
-            if name in self.rel2id:
-                if use_name:
-                    neg = name
-                else:
-                    neg = self.rel2id[name]
-                break
-        for i in range(total):
-            if use_name:
-                golden = self.corpus[i]['relation']
-            else:
-                golden = self.rel2id[self.corpus[i]['relation']]
-
-            category_result[id2rel[golden]][0] += 1
-            category_result[id2rel[pred_result[i]]][1] += 1
-            if golden == pred_result[i]:
-                correct += 1
-                category_result[id2rel[golden]][2] += 1
-                if golden != neg:
-                    correct_positive += 1
-            if golden != neg:
-                gold_positive += 1
-            if pred_result[i] != neg:
-                pred_positive += 1
-        acc = correct / total
-        micro_p = round(correct_positive / pred_positive, 4) if pred_positive > 0 else 0
-        micro_r = round(correct_positive / gold_positive, 4) if gold_positive > 0 else 0
-        micro_f1 = round(2 * micro_p * micro_r / (micro_p + micro_r), 4) if (micro_p + micro_r) > 0 else 0
-        result = {'acc': acc, 'micro_p': micro_p, 'micro_r': micro_r, 'micro_f1': micro_f1}
-        category_result = {}
-        for k, v in category_result.items():
-            v_golden, v_pred, v_correct = v
-            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
-            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
-            if cate_precision + cate_recall == 0:
-                cate_f1 = 0
-            else:
-                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
-            category_result[k] = (cate_precision, cate_recall, cate_f1)
-        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
-        result['category-p/r/f1'] = category_result
-        # logging.info('Evaluation result: {}.'.format(result))
-        return result
 
 
-def SentenceRELoader(path, rel2id, tokenizer, batch_size,
-                     shuffle, compress_seq=True, num_workers=16, collate_fn=SentenceREDataset.collate_fn, sampler=None, **kwargs):
+def SentenceRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, 
+                    compress_seq=True, num_workers=8, collate_fn=SentenceREDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
-    dataset = SentenceREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, kwargs=kwargs)
+    dataset = SentenceREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
                                   shuffle=shuffle,
+                                  drop_last=drop_last,
+                                  pin_memory=True,
+                                  num_workers=num_workers,
+                                  collate_fn=partial(collate_fn, compress_seq),
+                                  sampler=sampler)
+    return data_loader
+
+
+class SentenceWithDSPREDataset(SentenceREDataset):
+    """
+    Sentence-level relation extraction dataset with DSP feature
+    """
+    def __init__(self, path, rel2id, tokenizer, max_dsp_path_length=-1, is_bert_encoder=True, **kwargs):
+        """[summary]
+
+        Args:
+            path: path of the input file
+            rel2id: dictionary of relation->id mapping
+            tokenizer: function of tokenizing
+            max_dsp_path_length (int, optional): max length of DSP path length. Defaults to -1.
+            is_bert_encoder (bool, optional): whether encoder is bert. Defaults to True.
+        """
+        """
+        Args:
+            path: path of the input file
+            rel2id: dictionary of relation->id mapping
+            tokenizer: function of tokenizing
+        """
+        self.max_dsp_path_length = max_dsp_path_length
+        self.is_bert_encoder = is_bert_encoder
+        super(SentenceWithDSPREDataset, self).__init__(path, rel2id, tokenizer, **kwargs)
+
+    def construct_data(self):
+        if self.max_dsp_path_length > 0:
+            self.dsp_path = []
+            dsp_path = [self.path[:-4] + '_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
+            with open(dsp_path, 'r', encoding='utf-8') as f:
+                for line in f.readlines():
+                    line = eval(line.strip())
+                    ent_h_path = line['ent_h_path']
+                    ent_t_path = line['ent_t_path']
+                    ent_h_length = len(line['ent_h_path'])
+                    ent_t_length = len(line['ent_t_path'])
+                    if ent_h_length < self.max_dsp_path_length:
+                        while len(ent_h_path) < self.max_dsp_path_length:
+                            ent_h_path.append(0)
+                    ent_h_path = ent_h_path[:self.max_dsp_path_length]
+                    if ent_t_length < self.max_dsp_path_length:
+                        while len(ent_t_path) < self.max_dsp_path_length:
+                            ent_t_path.append(0)
+                    ent_t_path = ent_t_path[:self.max_dsp_path_length]
+                    ent_h_path = torch.tensor([ent_h_path]).long() + (1 if self.is_bert_encoder else 0)
+                    ent_t_path = torch.tensor([ent_t_path]).long() + (1 if self.is_bert_encoder else 0)
+                    ent_h_length = torch.tensor([min(ent_h_length, self.max_dsp_path_length)]).long()
+                    ent_t_length = torch.tensor([min(ent_t_length, self.max_dsp_path_length)]).long()
+                    self.dsp_path.append([ent_h_path, ent_t_path, ent_h_length, ent_t_length])
+
+        self.data = []
+        for index in range(len(self.corpus)):
+            item = self.corpus[index]
+            seq = list(self.tokenizer(item, **self.kwargs))
+            data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
+            if self.max_dsp_path_length > 0:
+                data_item += self.dsp_path[index]
+            self.data.append(data_item)
+            if (index + 1) % 500 == 0:
+                logging.info(f'parsed {index + 1} sentences for DSP path')
+
+    @classmethod
+    def collate_fn(cls, compress_seq, data):
+        seqs = list(zip(*data))
+        if compress_seq:
+            seqs_len = torch.cat(seqs[-5], dim=0).sum(dim=-1) # (B)
+            sorted_length_indices = seqs_len.argsort(descending=True) 
+            seqs_len = seqs_len[sorted_length_indices]
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+                if i < len(seqs) - 4 and len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
+                    seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)
+                else:
+                    seqs[i] = seqs[i][sorted_length_indices]
+        else:
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+
+        return seqs
+
+
+def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, max_dsp_path_length=-1, 
+                            is_bert_encoder=True, num_workers=0, collate_fn=SentenceWithDSPREDataset.collate_fn, sampler=None, **kwargs):
+    if sampler:
+        shuffle = False
+    dataset = SentenceWithDSPREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, 
+                max_dsp_path_length=max_dsp_path_length, is_bert_encoder=is_bert_encoder, **kwargs)
+    data_loader = data.DataLoader(dataset=dataset,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle,
+                                  drop_last=drop_last,
                                   pin_memory=True,
                                   num_workers=num_workers,
                                   collate_fn=partial(collate_fn, compress_seq),

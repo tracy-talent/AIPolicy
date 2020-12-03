@@ -9,12 +9,14 @@ from ...metrics import Mean, micro_p_r_f1_score
 from ...utils import *
 from .data_loader import MultiNERDataLoader
 
+import os
+import datetime
+from collections import defaultdict
+
 import torch
 from torch import nn, optim
 from torch.nn import functional as F
 from torch.utils.tensorboard import SummaryWriter
-
-import os
 
 
 class MTL_Span_Attr(nn.Module):
@@ -149,7 +151,7 @@ class MTL_Span_Attr(nn.Module):
         # logger
         self.logger = logger
         # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir)
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
 
     def train_model(self, metric='micro_f1'):
@@ -292,7 +294,7 @@ class MTL_Span_Attr(nn.Module):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                torch.save({'state_dict': self.model.state_dict()}, self.ckpt)
+                torch.save({'model': self.model.state_dict()}, self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -316,6 +318,7 @@ class MTL_Span_Attr(nn.Module):
         
         preds_kvpairs = []
         golds_kvpairs = []
+        category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
         avg_span_acc = Mean()
         avg_attr_acc = Mean()
         prec = Mean()
@@ -385,11 +388,16 @@ class MTL_Span_Attr(nn.Module):
                 r_sum = 0
                 hits = 0
                 for pred, gold in zip(preds_kvpairs[-bs:], golds_kvpairs[-bs:]):
+                    for triple in gold:
+                        category_result[triple[1]][0] += 1
+                    for triple in pred:
+                        category_result[triple[1]][1] += 1
                     p_sum += len(pred)
                     r_sum += len(gold)
-                    for label in pred:
-                        if label in gold:
+                    for triple in pred:
+                        if triple in gold:
                             hits += 1
+                            category_result[triple[1]][2] += 1
                 span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
                 attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != attr_negid) * inputs_mask).sum()
 
@@ -402,11 +410,21 @@ class MTL_Span_Attr(nn.Module):
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Evaluation...Batches: {ith + 1}, span_acc: {avg_span_acc.avg:.4f}, attr_acc: {avg_attr_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
+        for k, v in category_result.items():
+            v_golden, v_pred, v_correct = v
+            cate_precision = 0 if v_pred == 0 else round(v_correct / v_pred, 4)
+            cate_recall = 0 if v_golden == 0 else round(v_correct / v_golden, 4)
+            if cate_precision + cate_recall == 0:
+                cate_f1 = 0
+            else:
+                cate_f1 = round(2 * cate_precision * cate_recall / (cate_precision + cate_recall), 4)
+            category_result[k] = (cate_precision, cate_recall, cate_f1)
+        category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1}
+        result = {'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
         self.logger.info(f'Evaluation result: {result}.')
         return result
 
 
     def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict['model'])

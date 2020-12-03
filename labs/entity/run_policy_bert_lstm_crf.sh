@@ -8,12 +8,11 @@ python train_bert_crf.py \
     --compress_seq \
     --use_lstm \
     --use_crf \
-    --batch_size 12 \
-    --lr 1e-4 \
-    --bert_lr 2e-5 \
-    --weight_decay 0.01 \
+    --batch_size 16 \
+    --lr 1e-6 \
+    --bert_lr 1e-6 \
+    --weight_decay 0 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 20 \
-    --adv fgm \
     --optimizer adam

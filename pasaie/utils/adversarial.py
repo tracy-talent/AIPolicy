@@ -270,7 +270,7 @@ def adversarial_perturbation(adv, model, criterion, K=3, rand_init_mag=0., label
     return loss_adv
 
 
-def adversarial_perturbation_span_mtl(adv, model, criterion, K=3, rand_init_mag=0., start_labels=None, end_labels=None, *args):
+def adversarial_perturbation_span_mtl(adv, model, criterion, autoweighted_loss=None, K=3, rand_init_mag=0., start_labels=None, end_labels=None, *args):
     """adversarial perturbation process
 
     Args:
@@ -288,7 +288,11 @@ def adversarial_perturbation_span_mtl(adv, model, criterion, K=3, rand_init_mag=
         seqs_len = mask.sum(dim=-1)
         start_loss = torch.sum(criterion(start_logits.permute(0, 2, 1), start_labels) * mask, dim=-1) / seqs_len
         end_loss = torch.sum(criterion(end_logits.permute(0, 2, 1), end_labels) * mask, dim=-1) / seqs_len
-        loss = (start_loss + end_loss).mean() / 2
+        if autoweighted_loss is not None:
+            loss = autoweighted_loss(start_loss, end_loss)
+        else:
+            loss = (start_loss + end_loss) / 2
+        loss = loss.mean()
         return loss
 
     if adv.__class__.__name__ == 'FGM':

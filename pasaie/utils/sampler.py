@@ -33,7 +33,7 @@ def get_relation_sampler(train_path,
         raise NotImplementedError('{} has not been implemented'.format(sampler_type))
 
 
-def get_entity_span_mtl_sampler(train_path,
+def get_entity_span_single_sampler(train_path,
                                 tag2id,
                                 encoder,
                                 max_span,

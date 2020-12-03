@@ -10,12 +10,13 @@ from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes
 from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
 from .data_loader import SingleNERDataLoader
 
+import os
+import datetime
+from collections import defaultdict
+
 import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
-
-import os
-from collections import defaultdict
 
 
 class Model_CRF(nn.Module):
@@ -158,7 +159,7 @@ class Model_CRF(nn.Module):
         # logger
         self.logger = logger
         # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir)
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
 
     def train_model(self, metric='micro_f1'):
@@ -280,7 +281,7 @@ class Model_CRF(nn.Module):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                torch.save({'state_dict': self.model.state_dict()}, self.ckpt)
+                torch.save({'model': self.model.state_dict()}, self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -296,6 +297,7 @@ class Model_CRF(nn.Module):
         self.eval()
         preds_kvpairs = []
         golds_kvpairs = []
+        category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
         avg_acc = Mean()
         prec = Mean()
         rec = Mean()
@@ -326,7 +328,6 @@ class Model_CRF(nn.Module):
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
                 
                 # get token sequence
-                category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
                 preds_seq = preds_seq.detach().cpu().numpy()
                 outputs_seq = outputs_seq.detach().cpu().numpy()
                 inputs_seq = inputs_seq.detach().cpu().numpy()
@@ -389,4 +390,4 @@ class Model_CRF(nn.Module):
 
 
     def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict)
+        self.model.load_state_dict(state_dict['model'])

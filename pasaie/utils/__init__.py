@@ -10,6 +10,7 @@ from .entity_tag import convert_bio_to_bmoes, convert_bio_to_bmoe, convert_bio_t
 from .entity_extract import *
 from . import adversarial
 from . import sampler
+from . import dependency_parse
 
 __all__ = [
     'get_logger',

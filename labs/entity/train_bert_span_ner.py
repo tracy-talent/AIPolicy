@@ -6,12 +6,6 @@
 """
 
 import sys
-sys.path.append('../..')
-from pasaie.utils import get_logger
-from pasaie.utils.sampler import get_entity_span_mtl_sampler
-from pasaie.tokenization.utils import load_vocab
-from pasaie import pasaner
-
 import torch
 import numpy as np
 import json
@@ -21,6 +15,11 @@ import datetime
 import argparse
 import configparser
 
+sys.path.append('../..')
+from pasaie.utils import get_logger
+from pasaie.utils.sampler import get_entity_span_single_sampler
+from pasaie.tokenization.utils import load_vocab
+from pasaie import pasaner
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
@@ -35,6 +34,10 @@ parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
 parser.add_argument('--only_test', action='store_true', 
         help='Only run test')
+parser.add_argument('--use_lstm', action='store_true', 
+        help='whether add lstm encoder on top of bert')
+parser.add_argument('--use_mtl_autoweighted_loss', action='store_true', 
+        help='whether use automatic weighted loss for multi task learning')
 parser.add_argument('--tagscheme', default='bio', type=str,
         help='the sequence tag scheme')
 parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
@@ -59,6 +62,8 @@ parser.add_argument('--compress_seq', action='store_true',
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
 # Hyper-parameters
+parser.add_argument('--dice_alpha', default=0.6, type=float,
+        help='alpha of dice loss')
 parser.add_argument('--batch_size', default=64, type=int,
         help='Batch size')
 parser.add_argument('--lr', default=1e-3, type=float,
@@ -101,6 +106,8 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     model_name = args.model + '_' + args.bert_name + '_' + args.loss
+    if args.use_mtl_autoweighted_loss:
+        model_name += '_autoweighted'
     if len(args.adv) > 0:
         model_name += '_' + args.adv
     return model_name
@@ -154,10 +161,12 @@ for arg in vars(args):
 tag2id = load_vocab(args.tag2id_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BERTEncoder(
+sequence_encoder = pasaner.encoder.BERT_BILSTM_Encoder(
     max_length=args.max_length,
     pretrain_path=args.pretrain_path,
     bert_name=args.bert_name,
+    use_lstm=args.use_lstm if args.model == 'single' else False,
+    compress_seq=args.compress_seq if args.model == 'single' else False,
     blank_padding=True
 )
 
@@ -175,19 +184,21 @@ elif args.model == 'multi':
     model = pasaner.model.Span_Pos_CLS(
         sequence_encoder=sequence_encoder, 
         tag2id=tag2id, 
+        use_lstm=args.use_lstm, 
+        compress_seq=args.compress_seq, 
         soft_label=args.soft_label,
         dropout_rate=args.dropout_rate
     )
 
 # Define the whole training framework
 if args.use_sampler and args.model == 'single':
-    sampler = get_entity_span_mtl_sampler(args.train_file, tag2id, sequence_encoder, args.max_span, 'WeightedRandomSampler')
+    sampler = get_entity_span_single_sampler(args.train_file, tag2id, sequence_encoder, args.max_span, 'WeightedRandomSampler')
 else:
     sampler = None
 framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
     model=model,
-    train_path=args.train_file,
-    val_path=args.val_file,
+    train_path=args.train_file if not args.only_test else None,
+    val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
     ckpt=ckpt,
     logger=logger,
@@ -204,20 +215,24 @@ framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
     max_grad_norm=args.max_grad_norm,
     adv=args.adv,
     loss=args.loss,
+    mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
+    dice_alpha=args.dice_alpha,
     opt=args.optimizer,
     sampler=sampler
 )
 
 # load model
-if ckpt_cnt > 0 and False:
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))['state_dict'])
+if ckpt_cnt > 0:
+    logger.info('load checkpoint')
+    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
 
 # Train the model
 if not args.only_test:
     framework.train_model('micro_f1')
 
 # Test
-# framework.load_state_dict(torch.load(ckpt)['state_dict'])
+if not args.only_test:
+    framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
 
 # Print the result
