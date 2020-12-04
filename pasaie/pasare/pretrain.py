@@ -105,38 +105,34 @@ def download(name, root_path=default_root_path):
     else:
         raise Exception('Cannot find corresponding data.')
 
+def load_json(file_name):
+    with open(file_name) as f:
+        return json.load(f)
+        
 def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'], root_path=default_root_path):
     check_root()
     ckpt = os.path.join(config['path']['re_ckpt'], model_name + '.pth.tar')
     print(ckpt)
     dataset_name = model_name.split('/')[0]
-    if dataset_name == 'policy':
-        rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'policy/policy_rel2id.json')))
-        tag2id = json.load(open(os.path.join(config['path']['re_dataset'], 'policy/policy_tag2id.json')))
-        if 'entity' in model_name:
+    if 'policy' in dataset_name:
+        rel2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_rel2id.json'))
+        tag2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_tag2id.json'))
+        if 'bert_entity_dsp' in model_name:
+            sentence_encoder = encoder.BERTEntityWithDSPEncoder(
+                pretrain_path=pretrain_path, max_length=256, max_dsp_path_length=15, compress_seq=False,
+                use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=None)
+        elif 'bert_entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
-                max_length=256, pretrain_path=pretrain_path, mask_entity=False, blank_padding=True, tag2id=tag2id)
+                max_length=256, pretrain_path=pretrain_path, mask_entity=False, 
+                blank_padding=False, tag2id=tag2id)
         else:
             sentence_encoder = encoder.BERTEncoder(
-                max_length=256, pretrain_path=pretrain_path, blank_padding=True)
+                pretrain_path=pretrain_path, max_length=256, blank_padding=False)
         relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
         relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         relation_model.eval()
         return relation_model
-    elif dataset_name == 'test-policy':
-        rel2id = json.load(open(os.path.join(config['path']['re_dataset'], 'test-policy/test-policy_rel2id.json')))
-        tag2id = json.load(open(os.path.join(config['path']['re_dataset'], 'test-policy/test-policy_tag2id.json')))
-        if 'entity' in model_name:
-            sentence_encoder = encoder.BERTEntityEncoder(
-                max_length=256, pretrain_path=pretrain_path, mask_entity=False, blank_padding=True, tag2id=tag2id)
-        else:
-            sentence_encoder = encoder.BERTEncoder(
-                max_length=256, pretrain_path=pretrain_path, blank_padding=True)
-        relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
-        relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
-        relation_model.eval()
-        return relation_model
-    if model_name == 'wiki80_cnn_softmax':
+    elif model_name == 'wiki80_cnn_softmax':
         download_pretrain(model_name, root_path=root_path)
         download('glove', root_path=root_path)
         download('wiki80', root_path=root_path)

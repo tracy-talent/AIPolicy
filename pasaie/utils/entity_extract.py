@@ -17,32 +17,27 @@ def extract_kvpairs_in_bio(bio_seq, word_seq):
     pairs = list()
     pre_bio = "O"
     v = ""
-    k = ""
     spos = -1
     for i, bio in enumerate(bio_seq):
         if bio == "O":
-            if v != "" and k[0] == "B": 
-                pairs.append((spos, pre_bio[2:], v))
+            if v != "": 
+                pairs.append(((spos, i), pre_bio[2:], v))
             v = ""
-            k = ""
         elif bio[0] == "B":
-            if v != "" and k[0] == "B": 
-                pairs.append((spos, pre_bio[2:], v))
+            if v != "": 
+                pairs.append(((spos, i), pre_bio[2:], v))
             v = word_seq[i]
-            k = "B"
             spos = i
         elif bio[0] == "I":
-            if pre_bio[0] == "O" or pre_bio[2:] != bio[2:]:
-                if v != "" and k[0] == "B": 
-                    pairs.append((spos, pre_bio[2:], v))
+            if pre_bio[0] == "O" or pre_bio[2:] != bio[2:] or v == "":
+                if v != "": 
+                    pairs.append(((spos, i), pre_bio[2:], v))
                 v = ""
-                k = ""
             else:
                 v += word_seq[i]
-                k += "I"
         pre_bio = bio
-    if v != "" and k[0] == "B":
-        pairs.append((spos, pre_bio[2:], v))
+    if v != "":
+        pairs.append(((spos, len(bio_seq)), pre_bio[2:], v))
     return pairs
 
     
@@ -52,38 +47,32 @@ def extract_kvpairs_in_bioe(bioe_seq, word_seq):
     pairs = list()
     pre_bioe = "O"
     v = ""
-    k = ""
     spos = -1
     for i, bioe in enumerate(bioe_seq):
         if bioe == "O":
-            if v != "" and len(k) == 1 and k[0] == "B": 
-                pairs.append((spos, pre_bioe[2:], v))
+            if v != "" and spos + 1 == i: 
+                pairs.append(((spos, spos + 1), pre_bioe[2:], v))
             v = ""
-            k = ""
         elif bioe[0] == "B":
-            if v != "" and len(k) == 1 and k[0] == "B": 
-                pairs.append((spos, pre_bioe[2:], v))
+            if v != "" and spos + 1 == i: 
+                pairs.append(((spos, spos + 1), pre_bioe[2:], v))
             v = word_seq[i]
-            k = "B"
             spos = i
         elif bioe[0] == "I":
-            if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:]:
-                if v != "" and len(k) == 1 and k[0] == "B": 
-                    pairs.append((spos, pre_bioe[2:], v))
+            if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:] or v == "":
+                if v != "" and spos + 1 == i: 
+                    pairs.append(((spos, spos + 1), pre_bioe[2:], v))
                 v = ""
-                k = ""
             else:
                 v += word_seq[i]
-                k += "I"
         elif bioe[0] == 'E':
-            if pre_bioe[0] in 'BI' and pre_bioe[2:] == bioe[2:] and v != "" and k[0] == "B":
+            if pre_bioe[0] in 'BI' and pre_bioe[2:] == bioe[2:] and v != "":
                 v += word_seq[i]
-                pairs.append((spos, bioe[2:], v))
+                pairs.append(((spos, i + 1), bioe[2:], v))
             v = ""
-            k = ""
         pre_bioe = bioe
-    if v != "" and len(k) == 1 and k[0] == "B":
-        pairs.append((spos, pre_bioe[2:], v))
+    if v != "" and spos + 1 == len(bioe_seq):
+        pairs.append(((spos, spos + 1), pre_bioe[2:], v))
     return pairs
 
 
@@ -93,33 +82,26 @@ def extract_kvpairs_in_bioes(bioes_seq, word_seq):
     pairs = list()
     pre_bioes = "O"
     v = ""
-    k = ""
     spos = -1
     for i, bioes in enumerate(bioes_seq):
         if bioes == "O":
             v = ""
-            k = ""
         elif bioes[0] == "B":
             v = word_seq[i]
-            k = "B"
             spos = i
         elif bioes[0] == "I":
-            if pre_bioes[0] in "OES" or pre_bioes[2:] != bioes[2:]:
+            if pre_bioes[0] in "OES" or pre_bioes[2:] != bioes[2:] or v == "":
                 v = ""
-                k = ""
             else:
                 v += word_seq[i]
-                k += "I"
         elif bioes[0] == 'E':
-            if pre_bioes[0] in 'BI' and pre_bioes[2:] == bioes[2:] and v != "" and k[0] == "B":
+            if pre_bioes[0] in 'BI' and pre_bioes[2:] == bioes[2:] and v != "":
                 v += word_seq[i]
-                pairs.append((spos, bioes[2:], v))
+                pairs.append(((spos, i + 1), bioes[2:], v))
             v = ""
-            k = ""
         elif bioes[0] == 'S':
-            pairs.append((i, bioes[2:], word_seq[i]))
+            pairs.append(((i, i + 1), bioes[2:], word_seq[i]))
             v = ""
-            k = ""
         pre_bioes = bioes
     return pairs
 
@@ -130,38 +112,32 @@ def extract_kvpairs_in_bmoe(bioe_seq, word_seq):
     pairs = list()
     pre_bioe = "O"
     v = ""
-    k = ""
     spos = -1
     for i, bioe in enumerate(bioe_seq):
         if bioe == "O":
-            if v != "" and len(k) == 1 and k[0] == "B": 
-                pairs.append((spos, pre_bioe[2:], v))
+            if v != "" and spos + 1 == i: 
+                pairs.append(((spos, spos + 1), pre_bioe[2:], v))
             v = ""
-            k = ""
         elif bioe[0] == "B":
-            if v != "" and len(k) == 1 and k[0] == "B": 
-                pairs.append((spos, pre_bioe[2:], v))
+            if v != "" and spos + 1 == i: 
+                pairs.append(((spos, spos + 1), pre_bioe[2:], v))
             v = word_seq[i]
-            k = "B"
             spos = i
         elif bioe[0] == "M":
-            if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:]:
-                if v != "" and len(k) == 1 and k[0] == "B": 
-                    pairs.append((spos, pre_bioe[2:], v))
+            if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:] or v == "":
+                if v != "" and spos + 1 == i: 
+                    pairs.append(((spos, spos + 1), pre_bioe[2:], v))
                 v = ""
-                k = ""
             else:
                 v += word_seq[i]
-                k += "M"
         elif bioe[0] == 'E':
-            if pre_bioe[0] in 'BM' and pre_bioe[2:] == bioe[2:] and v != "" and k[0] == "B":
+            if pre_bioe[0] in 'BM' and pre_bioe[2:] == bioe[2:] and v != "":
                 v += word_seq[i]
-                pairs.append((spos, bioe[2:], v))
+                pairs.append(((spos, i + 1), bioe[2:], v))
             v = ""
-            k = ""
         pre_bioe = bioe
-    if v != "" and len(k) == 1 and k[0] == "B":
-        pairs.append((spos, pre_bioe[2:], v))
+    if v != "" and spos + 1 == len(bioe_seq):
+        pairs.append(((spos, spos + 1), pre_bioe[2:], v))
     return pairs
 
 
@@ -171,33 +147,26 @@ def extract_kvpairs_in_bmoes(bmoes_seq, word_seq):
     pairs = list()
     pre_bmoes = "O"
     v = ""
-    k = ""
     spos = -1
     for i, bmoes in enumerate(bmoes_seq):
         if bmoes == "O":
             v = ""
-            k = ""
         elif bmoes[0] == "B":
             v = word_seq[i]
-            k = "B"
             spos = i
         elif bmoes[0] == "M":
-            if pre_bmoes[0] in "OES" or pre_bmoes[2:] != bmoes[2:]:
+            if pre_bmoes[0] in "OES" or pre_bmoes[2:] != bmoes[2:] or v == "":
                 v = ""
-                k = ""
             else:
                 v += word_seq[i]
-                k += "M"
         elif bmoes[0] == 'E':
-            if pre_bmoes[0] in 'BM' and pre_bmoes[2:] == bmoes[2:] and v != "" and k[0] == "B":
+            if pre_bmoes[0] in 'BM' and pre_bmoes[2:] == bmoes[2:] and v != "":
                 v += word_seq[i]
-                pairs.append((spos, bmoes[2:], v))
+                pairs.append(((spos, i + 1), bmoes[2:], v))
             v = ""
-            k = ""
         elif bmoes[0] == 'S':
-            pairs.append((i, bmoes[2:], word_seq[i]))
+            pairs.append(((i, i + 1), bmoes[2:], word_seq[i]))
             v = ""
-            k = ""
         pre_bmoes = bmoes
     return pairs
 
@@ -216,7 +185,7 @@ def extract_kvpairs_in_bmoes_by_endtag(bioes_seq, word_seq, attr_seq):
             v = ""
         elif bioes == "S":
             v = word
-            pairs.append((i, attr, v))
+            pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
             v = word
@@ -227,7 +196,7 @@ def extract_kvpairs_in_bmoes_by_endtag(bioes_seq, word_seq, attr_seq):
         elif bioes == "E":
             if v != "":
                 v += word
-                pairs.append((spos, attr, v))
+                pairs.append(((spos, i + 1), attr, v))
             v = ""
     return pairs
 
@@ -246,7 +215,7 @@ def extract_kvpairs_in_bioes_by_endtag(bioes_seq, word_seq, attr_seq):
             v = ""
         elif bioes == "S":
             v = word
-            pairs.append((i, attr, v))
+            pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
             v = word
@@ -257,7 +226,7 @@ def extract_kvpairs_in_bioes_by_endtag(bioes_seq, word_seq, attr_seq):
         elif bioes == "E":
             if v != "":
                 v += word
-                pairs.append((spos, attr, v))
+                pairs.append(((spos, i + 1), attr, v))
             v = ""
     return pairs
 
@@ -276,7 +245,7 @@ def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
             v = ""
         elif bioes == "S":
             v = word
-            pairs.append((i, attr, v))
+            pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
             v = word
@@ -296,7 +265,7 @@ def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
                     if vote[k] > freq:
                         freq = vote[k]
                         freq_attr = k
-                pairs.append((spos, freq_attr, v))
+                pairs.append(((spos, i + 1), freq_attr, v))
             v = ""
     return pairs
 
@@ -309,6 +278,6 @@ def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
             continue
         for j, e_tag in enumerate(end_seq[i:]):
             if s_tag == e_tag:
-                pairs.append((i, s_tag, ''.join(word_seq[i:j+1])))
+                pairs.append(((i, j + i + 1), s_tag, ''.join(word_seq[i:j+i+1])))
                 break
     return pairs

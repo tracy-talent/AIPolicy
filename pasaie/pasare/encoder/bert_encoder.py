@@ -56,6 +56,7 @@ class BERTEncoder(nn.Module):
         else:
             sentence = item['token']
             is_token = True
+        self.sentence = sentence
         pos_head = item['h']['pos']
         pos_tail = item['t']['pos']
 
@@ -183,6 +184,7 @@ class BERTEntityEncoder(nn.Module):
         else:
             sentence = item['token']
             is_token = True
+        self.sentence = sentence
         pos_head = item['h']['pos']
         pos_tail = item['t']['pos']
         tag_head = item['h']['entity']
@@ -358,7 +360,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         ret_items = super(BERTWithDSPEncoder, self).tokenize(item)
         if self.parser is not None:
             # shortest dependency path
-            ent_h_path, ent_t_path = self.parser.parse(sentence, item['h'], item['t'])
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'])
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:
@@ -499,7 +501,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         ent_t_pos = max(ret_items[1].item(), ret_items[2].item())
         if self.parser is not None:
             # shortest dependency path
-            ent_h_path, ent_t_path = self.parser.parse(sentence, item['h'], item['t'])
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'])
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:

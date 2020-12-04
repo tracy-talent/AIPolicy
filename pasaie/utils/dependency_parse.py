@@ -6,13 +6,14 @@ class Base_Parse(object):
     def __init__(self):
         pass
 
-    def get_dependency_path(self, ent_h: dict, ent_t: dict, word: list, head: list, deprel: list):
+    def get_dependency_path(self, tokens: str, ent_h: dict, ent_t: dict, word: list, head: list, deprel: list):
         """get head entity to root dependency path, and get tail entity 
         to root dependency path
 
         Args:
-            ent_h (dict): entity dict like {'pos': [hpos, tpos]}
-            ent_t (dict): entity dict like {'pos': [hpos, tpos]}
+            tokens (str): token list or sentence
+            ent_h (dict): entity dict like {'pos': [hpos, tpos], 'entity': Time}
+            ent_t (dict): entity dict like {'pos': [hpos, tpos], 'entity': Time}
             word (list): words
             head (list): head word, word[head[i] - 1] is the head word of word[i] 
             deprel (list): dependecy relation, deprel[i] is the dependency relation of word[head[i] - 1] to word[i]
@@ -84,7 +85,7 @@ class DDP_Parse(Base_Parse):
         to root dependency path
 
         Args:
-            tokens (list or str): sentence
+            tokens (list or str): token list or sentence
             ent_h (dict): entity dict like {'pos': [hpos, tpos]}
             ent_t (dict): entity dict like {'pos': [hpos, tpos]}
 
@@ -101,7 +102,7 @@ class DDP_Parse(Base_Parse):
         word = parse_dict['word']
         head = parse_dict['head']
         deprel = parse_dict['deprel']
-        ent_h_path, ent_t_path = self.get_dependency_path(ent_h, ent_t, word, head, deprel)
+        ent_h_path, ent_t_path = self.get_dependency_path(tokens, ent_h, ent_t, word, head, deprel)
         
         return ent_h_path, ent_t_path
 
@@ -134,7 +135,7 @@ class LTP_Parse(Base_Parse):
         word = seg[0]
         head = parse_tuple[1]
         deprel = parse_tuple[2]
-        ent_h_path, ent_t_path = self.get_dependency_path(ent_h, ent_t, word, head, deprel)
+        ent_h_path, ent_t_path = self.get_dependency_path(tokens, ent_h, ent_t, word, head, deprel)
         
         return ent_h_path, ent_t_path
         

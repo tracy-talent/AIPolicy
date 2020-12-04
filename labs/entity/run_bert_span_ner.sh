@@ -5,9 +5,9 @@ python train_bert_span_ner.py \
     --model multi \
     --metric micro_f1 \
     --dataset policy \
+    --only_test \
     --compress_seq \
     --use_lstm \
-    --use_mtl_autoweighted_loss \
     --tagscheme bmoes \
     --batch_size 16 \
     --lr 1e-4 \
