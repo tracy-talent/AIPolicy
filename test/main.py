@@ -41,6 +41,8 @@ def pipeline(corpus_path,
             else:
                 sentence = node.sent
                 tokens, entities = entity_model.infer(sentence)
+                # fix for modified format of entity
+                entities = [(entity[0][0], entity[1], entity[2]) for entity in entities]
                 # relation_pairs = [entity[2] for entity in entities]
                 relation_pairs = []
                 for i in range(len(entities)):
@@ -95,9 +97,8 @@ def fine_gained_parse(tokens, entity_list, relation_list):
     entities_not_in_relations = list(set(entity_list) - set(entities_in_relations))
     entity_list = entities_not_in_relations
 
+    # FIXME: 时间词可能含有“:”
     if ':' in ''.join(tokens)[:20] or '：' in ''.join(tokens)[:20]:
-        # if tokens.count(':') + tokens.count("：") > 1:
-        #     print(f"{''.join(tokens)} has more than 1 :")
         summary_end_idx = 0
         for sidx in range(len(tokens)):
             if tokens[sidx] in [':', '：']:
@@ -314,10 +315,10 @@ def main_entry_step2(dataset, entity_model):
 def main_entry():
     dataset = 'raw-policy'
     extracted_path = os.path.join(config['path']['output'], 'article_parsing', dataset, 'sentence_level_logic_tree')
-    my_entity_model = pasaie.pasaner.get_model('policy_bmoes_bert_lstm_crf')
-    my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_fgm0')
+    my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf0')
+    my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
     if not os.path.exists(extracted_path):
-        print("Executing main_entry...")
+        print("Executing main_entry_step1...")
         main_entry_step1(dataset, my_entity_model, my_relation_model)
     main_entry_step2(dataset, my_entity_model)
 

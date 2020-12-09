@@ -53,12 +53,13 @@ def refactor_content(content, max_display_len):
     else:
         suffix = ''
 
-    if len(content) > 8:
+    unit_num = 10
+    if len(content) > unit_num:
         cnt_idx = 1
         new_content = ''
-        while cnt_idx * 8 < len(content):
-            new_content += content[8 * (cnt_idx - 1): 8 * cnt_idx] + '\n'
+        while cnt_idx * unit_num < len(content):
+            new_content += content[unit_num * (cnt_idx - 1): unit_num * cnt_idx] + '\n'
             cnt_idx += 1
-        new_content += content[8 * (cnt_idx - 1):]
+        new_content += content[unit_num * (cnt_idx - 1):]
         content = new_content + suffix
     return content
