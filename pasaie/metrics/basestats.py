@@ -42,20 +42,25 @@ class BatchMetric:
         self.y_true = []
         self.steps = 0
         self.step_time = [time.time()]
+        self.tp, self.fp, self.fn, self.tn = None, None, None, None
+        self.acc, self.prec, self.rec, self.f1 = [], [], [], []
 
     def __len__(self):
         return torch.cat(self.y_true, 0).size(0)
 
-    def update(self, y_pred, y_true):
+    def update(self, y_pred, y_true, update_score=True):
         '''Update with batch outputs and labels.
         Args:
           y_pred: (tensor) model outputs sized [N,].
           y_true: (tensor) labels targets sized [N,].
+          update_score:
         '''
         self.y_pred.append(y_pred)
         self.y_true.append(y_true)
         self.steps += 1
         self.step_time.append(time.time())
+        if update_score:
+            self.tp, self.fp, self.fn, self.tn = self._process(torch.cat(self.y_pred, 0), torch.cat(self.y_true, 0))
 
     def _process(self, y_pred, y_true):
         '''Compute TP, FP, FN, TN.
@@ -84,9 +89,11 @@ class BatchMetric:
         '''
         if not self.y_pred or not self.y_true:
             return
+
         y_pred = torch.cat(self.y_pred, 0)
         y_true = torch.cat(self.y_true, 0)
         acc = (y_true == y_pred).sum().float() / y_pred.size(0)
+        self.acc.append(acc)
         return acc
 
     def precision(self, reduction='micro'):
@@ -99,16 +106,16 @@ class BatchMetric:
         if not self.y_pred or not self.y_true:
             return
         assert (reduction in ['none', 'macro', 'micro'])
-        y_pred = torch.cat(self.y_pred, 0)
-        y_true = torch.cat(self.y_true, 0)
-        tp, fp, fn, tn = self._process(y_pred, y_true)
+        if self.tp is None:
+            self.tp, self.fp, self.fn, self.tn = self._process(torch.cat(self.y_pred, 0), torch.cat(self.y_true, 0))
+        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         prec = tp / (tp + fp)
         prec[torch.isnan(prec)] = 0
         if reduction == 'macro':
             prec = prec.mean()
         elif reduction == 'micro':
             prec = tp.sum() / (tp + fp).sum()
-
+        self.prec.append(prec)
         return prec
 
     def recall(self, reduction='micro'):
@@ -121,25 +128,27 @@ class BatchMetric:
         if not self.y_pred or not self.y_true:
             return
         assert (reduction in ['none', 'macro', 'micro'])
-        y_pred = torch.cat(self.y_pred, 0)
-        y_true = torch.cat(self.y_true, 0)
-        tp, fp, fn, tn = self._process(y_pred, y_true)
+        if self.tp is None:
+            self.tp, self.fp, self.fn, self.tn = self._process(torch.cat(self.y_pred, 0), torch.cat(self.y_true, 0))
+        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         recall = tp / (tp + fn)
         recall[torch.isnan(recall)] = 0
         if reduction == 'macro':
             recall = recall.mean()
         elif reduction == 'micro':
             recall = tp.sum() / (tp + fn).sum()
+        self.rec.append(recall)
         return recall
 
     def f1_score(self, reduction='micro'):
         if not self.y_pred or not self.y_true:
             return
         assert (reduction in ['none', 'macro', 'micro'])
-        _precision = self.precision(reduction)
-        _recall = self.recall(reduction)
-        f1 = 2 * _precision * _recall / (_precision + _recall)
+        # FIXME: In order to accelerate computation, precision and recall must be computed before
+        assert len(self.f1) + 1 == len(self.prec)
+        f1 = 2 * self.prec[-1] * self.rec[-1] / (self.prec[-1] + self.rec[-1])
         f1[torch.isnan(f1)] = 0.
+        self.f1.append(f1)
         return f1
 
     def confusion_matrix(self) -> torch.tensor:
