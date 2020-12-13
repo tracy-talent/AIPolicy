@@ -48,7 +48,8 @@ class SentenceImportanceClassifier(nn.Module):
             csv_path=csv_path,
             sequence_encoder=model.sequence_encoder,
             batch_size=batch_size,
-            sampler=sampler
+            sampler=sampler,
+            compress_seq=compress_seq
         )
 
         # Model
@@ -70,7 +71,7 @@ class SentenceImportanceClassifier(nn.Module):
         self.lr = lr
         self.bert_lr = bert_lr
         if self.is_bert_encoder:
-            encoder_params = self.parallel_model.module.sentence_encoder.parameters()
+            encoder_params = self.parallel_model.module.sequence_encoder.parameters()
             bert_params_id = list(map(id, encoder_params))
         else:
             encoder_params = []
@@ -183,11 +184,13 @@ class SentenceImportanceClassifier(nn.Module):
                 batch_metric.update(pred, label, update_score=True)
                 avg_loss.update(loss.item() * bs, bs)
                 cur_loss = avg_loss.avg
-                cur_acc = batch_metric.accuracy().item()
-                cur_prec = batch_metric.precision().item()
-                cur_recall = batch_metric.recall().item()
-                cur_f1 = batch_metric.f1_score().item()
-                # cur_prec = cur_recall = cur_f1 = cur_acc
+                if self.model.num_classes == 2:
+                    cur_acc = cur_prec = cur_recall = cur_f1 = batch_metric.accuracy().item()
+                else:
+                    cur_acc = batch_metric.accuracy().item()
+                    cur_prec = batch_metric.precision().item()
+                    cur_recall = batch_metric.recall().item()
+                    cur_f1 = batch_metric.f1_score().item()
 
                 # log
                 global_step += 1
@@ -261,10 +264,13 @@ class SentenceImportanceClassifier(nn.Module):
                 # if (ith + 1) % 20 == 0:
                 #     self.logger.info(f'Evaluation...steps: {ith + 1} finished')
 
-        acc = batch_metric.accuracy().item()
-        micro_prec = batch_metric.precision().item()
-        micro_recall = batch_metric.recall().item()
-        micro_f1 = batch_metric.f1_score().item()
+        if self.model.num_classes == 2:
+            acc = micro_prec = micro_recall = micro_f1 = batch_metric.accuracy().item()
+        else:
+            acc = batch_metric.accuracy().item()
+            micro_prec = batch_metric.precision().item()
+            micro_recall = batch_metric.recall().item()
+            micro_f1 = batch_metric.f1_score().item()
 
         cate_prec = batch_metric.precision('none').cpu().tolist()
         cate_rec = batch_metric.recall('none').cpu().tolist()

@@ -3,3 +3,5 @@ from __future__ import division
 from __future__ import print_function
 
 from . import framework, tools, encoder, model
+from .pretrain import get_model
+
