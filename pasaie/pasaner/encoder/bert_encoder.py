@@ -24,6 +24,7 @@ class BERTEncoder(nn.Module):
         """
         super(BERTEncoder, self).__init__()
 
+        logging.info(f'Loading {bert_name} pre-trained checkpoint.')
         self.bert_name = bert_name
         if 'albert' in bert_name:
             self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
@@ -106,3 +107,55 @@ class BERTEncoder(nn.Module):
         att_mask[0, :avail_len] = 1
 
         return indexed_tokens, att_mask  # ensure the first and last is indexed_tokens and att_mask
+
+class MRC_BERTEncoder(BERTEncoder):
+    def tokenize(self, *items): # items = (tokens, spans, query, [attrs, optional])
+        """
+        Args:
+            items: (tokens, tags, query) or (tokens, spans, atrrs, query) or (sentence)
+        Returns:
+            indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
+            att_mask (torch.tensor): token mask ids, (1, L)
+        """
+        if isinstance(items[0], list) or isinstance(items[0], tuple):
+            sentence = items[0]
+            is_token = True
+        else:
+            sentence = items[0]
+            is_token = False
+        
+        query_tokens = self.tokenizer.tokenize(items[-1])
+        if is_token:
+            tokens = ['[CLS]'] + query_tokens + ['[SEP]'] + items[0] + ['[SEP]']
+            items[0].clear()
+            items[0].extend(tokens)
+            if len(items) > 2:
+                spans = ['O'] + ['O'] * len(query_tokens) + ['O'] + items[1] + ['O']
+                items[1].clear()
+                items[1].extend(spans)
+            if len(items) > 3:
+                attrs = ['null'] + ['null'] * len(query_tokens) + ['null'] + items[2] + ['null']
+                items[2].clear()
+                items[2].extend(attrs)
+        else:
+            tokens = ['[CLS]'] + query_tokens + ['[SEP]'] + self.tokenizer.tokenize(sentence) + ['[SEP]']
+        
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
+        avail_len = torch.tensor([len(indexed_tokens)])
+
+        if self.blank_padding:
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
+        indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0) # (1, L)
+
+        # attention mask
+        att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
+        att_mask[0, :avail_len] = 1
+        loss_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
+        loss_mask[0, len(query_tokens)+2:avail_len-1] = 1
+
+        return indexed_tokens, loss_mask, att_mask  # ensure the first and last is indexed_tokens and att_mask

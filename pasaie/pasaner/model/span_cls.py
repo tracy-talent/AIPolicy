@@ -27,6 +27,7 @@ class Span_Cat_CLS(nn.Module):
         
         super(Span_Cat_CLS, self).__init__()
         self.sequence_encoder = sequence_encoder
+        self.max_span = max_span
         self.tag2id = tag2id
         self.id2tag = {}
         for tag, tid in tag2id.items():
@@ -45,6 +46,7 @@ class Span_Cat_CLS(nn.Module):
             pos_attr_entities (list[tuple]): list of (pos, entity_attr, entity)
         """
         self.eval()
+        negid = -1
         if 'null' in self.tag2id:
             negid = self.tag2id['null']
         if negid == -1:
@@ -53,12 +55,12 @@ class Span_Cat_CLS(nn.Module):
         if 'bert' in self.sequence_encoder.__class__.__name__.lower():
             skip_cls, skip_sep = 1, 1 # contain '[CLS]' and '[SEP]'
         seqs = list(self.sequence_encoder.tokenize(text))
-        if torch.cuda.is_available():
-            for i in range(len(seqs)):
-                seqs[i] = seqs[i].cuda()
-        seq_out = self.sequence_encoder(*seqs)
+        # if list(self.sequence_encoder.parameters())[0].device.type.startswith('cuda'):
+        #     for i in range(len(seqs)):
+        #         seqs[i] = seqs[i].cuda()
+        seq_out = self.sequence_encoder(*seqs).squeeze(0)
         seq_len = seqs[-1].sum().item()
-        ub = min(max_span, seq_len - skip_sep - skip_sep)
+        ub = min(self.max_span, seq_len - skip_sep - skip_sep)
         span_start, span_end = [], []
         for i in range(2, ub + 1):
             for j in range(skip_cls, seq_len - i + 1 - skip_sep):
@@ -68,8 +70,8 @@ class Span_Cat_CLS(nn.Module):
         span_end = torch.tensor(span_end) # (B, 1)
         onehot_start = torch.zeros(len(span_start), seq_out.size(0)) # (B, S)
         onehot_end = torch.zeros(len(span_end), seq_out.size(0)) # (B, S)
-        onehot_start = onehot_start.scatter_(dim=1, index=span_start, src=1).to(seq_out.device)
-        onehot_end = onehot_end.scatter_(dim=1, index=span_end, src=1).to(seq_out.device)
+        onehot_start = onehot_start.scatter_(dim=1, index=span_start, value=1).to(seq_out.device)
+        onehot_end = onehot_end.scatter_(dim=1, index=span_end, value=1).to(seq_out.device)
         span_start_out = torch.matmul(onehot_start, seq_out)
         span_end_out = torch.matmul(onehot_end, seq_out)
         span_pos = torch.cat([span_start, span_end], dim=-1).to(seq_out.device)
@@ -79,12 +81,12 @@ class Span_Cat_CLS(nn.Module):
         pos_attr_entities = []
         for i in range(0, len(span_pos), 32):
             logits = self.forward(span_start_out[i:i+32], span_end_out[i:i+32], span_pos[i:i+32])
-            preds = logits.argmax(dim=-1)
+            preds = logits.argmax(dim=-1).cpu().numpy()
             for j in range(len(preds)):
                 if preds[j] == negid:
                     continue
-                spos, tpos = span_pos[i+j][0].item() - skip_cls, span_pos[i+j][1].item() - skip_cls
-                pos_attr_entities.append((span_pos[i+j][0].item(), self.id2tag(preds[j]), ''.join(text[spos:tpos])))
+                spos, tpos = span_pos[i+j][0].item() - skip_cls, span_pos[i+j][1].item() - skip_cls + 1
+                pos_attr_entities.append(((spos, tpos), self.id2tag[preds[j]], ''.join([word[2:] if word.startswith('##') else word for word in text[spos:tpos]])))
             
         return text, pos_attr_entities
 
@@ -151,14 +153,15 @@ class Span_Pos_CLS(nn.Module):
             pos_attr_entities (list[tuple]): list of (pos, entity_attr, entity)
         """
         self.eval()
+        negid = -1
         if 'null' in self.tag2id:
             negid = self.tag2id['null']
         if negid == -1:
             raise Exception("negative tag not in 'null'")
         seqs = list(self.sequence_encoder.tokenize(text))
-        if torch.cuda.is_available():
-            for i in range(len(seqs)):
-                seqs[i] = seqs[i].cuda()
+        # if list(self.sequence_encoder.parameters())[0].device.type.startswith('cuda'):
+        #     for i in range(len(seqs)):
+        #         seqs[i] = seqs[i].cuda()
         seq_len = seqs[-1].sum().item()
         start_logits, end_logits = self.forward(None, *seqs)
         start_preds = start_logits[:,:seq_len,:].argmax(dim=-1).squeeze().detach().cpu().numpy()
@@ -170,7 +173,7 @@ class Span_Pos_CLS(nn.Module):
         end_preds_seq = [self.id2tag[tid] for tid in end_preds[spos:tpos]]
         if isinstance(text, str):
             text = self.sequence_encoder.tokenizer.tokenize(text)
-        pos_attr_entities = extract_entities_by_start_end(start_preds_seq, end_preds_seq, text, self.id2tag[negid])
+        pos_attr_entities = extract_kvpairs_by_start_end(start_preds_seq, end_preds_seq, text, self.id2tag[negid])
             
         return text, pos_attr_entities
 

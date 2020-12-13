@@ -44,13 +44,13 @@ class Base_Parse(object):
 
         # get head entity dependency path to root
         ent_h_path = [ent_h_word_pos_2]
-        while head[ent_h_path[-1]] != 0:
+        while ent_h_path[-1] < len(head) and head[ent_h_path[-1]] != 0:
             ent_h_path.append(head[ent_h_path[-1]] - 1)
         for i in range(len(ent_h_path)):
             ent_h_path[i] = word2token[ent_h_path[i]]
         pos = ent_h_word_pos_1
         while pos < ent_h_word_pos_2:
-            if head[pos] - 1 <= ent_h_word_pos_2 and deprel[pos] == 'ATT':
+            if pos < len(head) and head[pos] - 1 <= ent_h_word_pos_2 and deprel[pos] == 'ATT':
                 pos = head[pos] - 1
             else:
                 break
@@ -59,13 +59,13 @@ class Base_Parse(object):
 
         # get tail entity dependency path to root
         ent_t_path = [ent_t_word_pos_2]
-        while head[ent_t_path[-1]] != 0:
+        while ent_t_path[-1] < len(head) and head[ent_t_path[-1]] != 0:
             ent_t_path.append(head[ent_t_path[-1]] - 1)
         for i in range(len(ent_t_path)):
             ent_t_path[i] = word2token[ent_t_path[i]]
         pos = ent_t_word_pos_1
         while pos < ent_t_word_pos_2:
-            if head[pos] - 1 <= ent_t_word_pos_2 and deprel[pos] == 'ATT':
+            if pos < len(head) and head[pos] - 1 <= ent_t_word_pos_2 and deprel[pos] == 'ATT':
                 pos = head[pos] - 1
             else:
                 break

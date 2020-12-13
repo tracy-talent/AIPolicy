@@ -24,8 +24,8 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
     dataset_name = model_name.split('/')[0]
     if dataset_name.endswith('_bmoes'):
         dataset_name = dataset_name[:-6]
-    tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], f'{dataset_name}/tag2id.bmoes'))
     if 'multi_bert' in model_name:
+        tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], f'{dataset_name}/attr2id.bmoes'))
         entity_encoder = encoder.BERT_BILSTM_Encoder(
             max_length=256,
             pretrain_path=pretrain_path,
@@ -44,6 +44,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         return entity_model
     elif 'single_bert' in model_name:
+        tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], f'{dataset_name}/attr2id.bmoes'))
         entity_encoder = encoder.BERT_BILSTM_Encoder(
             max_length=256,
             pretrain_path=pretrain_path,
@@ -62,6 +63,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         return entity_model
     elif 'bert' in model_name and 'crf' in model_name:
+        tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], f'{dataset_name}/tag2id.bmoes'))
         entity_encoder = encoder.BERTEncoder(
             max_length=256,
             pretrain_path=pretrain_path,
@@ -75,6 +77,23 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             use_crf=True,
             tagscheme='bmoes',
             compress_seq=False
+        )
+        entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
+        return entity_model
+    elif 'bert' in model_name and 'mrc' in model_name:
+        tag2id = load_vocab(os.path.join(config['path']['ner_dataset'], f'{dataset_name}/attr2id.bmoes'))
+        entity_encoder = encoder.MRC_BERTEncoder(
+            max_length=320,
+            pretrain_path=pretrain_path,
+            bert_name='bert',
+            blank_padding=False  # no padding for inference, otherwise logits size may not equal to mask size during crf decode
+        )
+        entity_model = model.MRC_Span_Pos_CLS(
+            sequence_encoder=entity_encoder,
+            tag2id=tag2id,
+            use_lstm=('lstm' in model_name),
+            compress_seq=False,
+            add_span_loss=False
         )
         entity_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         return entity_model

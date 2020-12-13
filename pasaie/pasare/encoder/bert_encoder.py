@@ -206,11 +206,11 @@ class BERTEntityEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(' '.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(' '.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(' '.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(' '.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(' '.join(sentence[pos_max[1]:]))
+            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
 
         if self.mask_entity:
             ent0 = ['[unused1]'] if not rev else ['[unused2]']
@@ -220,11 +220,11 @@ class BERTEntityEncoder(nn.Module):
                 if not rev:
                     ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
                     ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
-                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2)]
-                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1)]
+                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + len(self.tag2id))]
+                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1 + len(self.tag2id))]
                 else:
-                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2)]
-                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1)]
+                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + len(self.tag2id))]
+                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1 + len(self.tag2id))]
                     ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
                     ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
 
@@ -531,8 +531,11 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
                     if pos + 1 >= ent_t_pos:
                         pos_inc += 1
                     ent_t_path[i] = pos + pos_inc
-            ent_h_path = torch.tensor([ent_h_path]).long()
-            ent_t_path = torch.tensor([ent_t_path]).long()
+                ent_h_path = torch.tensor([ent_h_path]).long()
+                ent_t_path = torch.tensor([ent_t_path]).long()
+            else:
+                ent_h_path = torch.tensor([ent_h_path]).long() + 1
+                ent_t_path = torch.tensor([ent_t_path]).long() + 1
             ent_h_length = torch.tensor([min(ent_h_length, self.max_dsp_path_length)]).long()
             ent_t_length = torch.tensor([min(ent_t_length, self.max_dsp_path_length)]).long()
             ret_items += (ent_h_path, ent_t_path, ent_h_length, ent_t_length)

@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=3 \
 python train_supervised_bert_with_dsp.py \
     --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --pooler entity \
@@ -8,8 +8,8 @@ python train_supervised_bert_with_dsp.py \
     --compress_seq \
     --dsp_preprocessed \
     --use_attention \
-    --adv fgm \
-    --loss dice \
+    --adv none \
+    --loss ce \
     --dice_alpha 0.6 \
     --batch_size 12 \
     --lr 1e-5 \

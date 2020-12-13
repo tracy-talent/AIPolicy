@@ -19,6 +19,7 @@ def extract_kvpairs_in_bio(bio_seq, word_seq):
     v = ""
     spos = -1
     for i, bio in enumerate(bio_seq):
+        word = word_seq[i]
         if bio == "O":
             if v != "": 
                 pairs.append(((spos, i), pre_bio[2:], v))
@@ -26,7 +27,7 @@ def extract_kvpairs_in_bio(bio_seq, word_seq):
         elif bio[0] == "B":
             if v != "": 
                 pairs.append(((spos, i), pre_bio[2:], v))
-            v = word_seq[i]
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bio[0] == "I":
             if pre_bio[0] == "O" or pre_bio[2:] != bio[2:] or v == "":
@@ -34,7 +35,7 @@ def extract_kvpairs_in_bio(bio_seq, word_seq):
                     pairs.append(((spos, i), pre_bio[2:], v))
                 v = ""
             else:
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
         pre_bio = bio
     if v != "":
         pairs.append(((spos, len(bio_seq)), pre_bio[2:], v))
@@ -49,6 +50,7 @@ def extract_kvpairs_in_bioe(bioe_seq, word_seq):
     v = ""
     spos = -1
     for i, bioe in enumerate(bioe_seq):
+        word = word_seq[i]
         if bioe == "O":
             if v != "" and spos + 1 == i: 
                 pairs.append(((spos, spos + 1), pre_bioe[2:], v))
@@ -56,7 +58,7 @@ def extract_kvpairs_in_bioe(bioe_seq, word_seq):
         elif bioe[0] == "B":
             if v != "" and spos + 1 == i: 
                 pairs.append(((spos, spos + 1), pre_bioe[2:], v))
-            v = word_seq[i]
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioe[0] == "I":
             if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:] or v == "":
@@ -64,10 +66,10 @@ def extract_kvpairs_in_bioe(bioe_seq, word_seq):
                     pairs.append(((spos, spos + 1), pre_bioe[2:], v))
                 v = ""
             else:
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
         elif bioe[0] == 'E':
             if pre_bioe[0] in 'BI' and pre_bioe[2:] == bioe[2:] and v != "":
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), bioe[2:], v))
             v = ""
         pre_bioe = bioe
@@ -84,23 +86,25 @@ def extract_kvpairs_in_bioes(bioes_seq, word_seq):
     v = ""
     spos = -1
     for i, bioes in enumerate(bioes_seq):
+        word = word_seq[i]
         if bioes == "O":
             v = ""
         elif bioes[0] == "B":
-            v = word_seq[i]
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioes[0] == "I":
             if pre_bioes[0] in "OES" or pre_bioes[2:] != bioes[2:] or v == "":
                 v = ""
             else:
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
         elif bioes[0] == 'E':
             if pre_bioes[0] in 'BI' and pre_bioes[2:] == bioes[2:] and v != "":
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), bioes[2:], v))
             v = ""
         elif bioes[0] == 'S':
-            pairs.append(((i, i + 1), bioes[2:], word_seq[i]))
+            v = word[2:] if word.startswith('##') else word
+            pairs.append(((i, i + 1), bioes[2:], v))
             v = ""
         pre_bioes = bioes
     return pairs
@@ -114,6 +118,7 @@ def extract_kvpairs_in_bmoe(bioe_seq, word_seq):
     v = ""
     spos = -1
     for i, bioe in enumerate(bioe_seq):
+        word = word_seq[i]
         if bioe == "O":
             if v != "" and spos + 1 == i: 
                 pairs.append(((spos, spos + 1), pre_bioe[2:], v))
@@ -121,7 +126,7 @@ def extract_kvpairs_in_bmoe(bioe_seq, word_seq):
         elif bioe[0] == "B":
             if v != "" and spos + 1 == i: 
                 pairs.append(((spos, spos + 1), pre_bioe[2:], v))
-            v = word_seq[i]
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioe[0] == "M":
             if pre_bioe[0] in "OE" or pre_bioe[2:] != bioe[2:] or v == "":
@@ -129,10 +134,10 @@ def extract_kvpairs_in_bmoe(bioe_seq, word_seq):
                     pairs.append(((spos, spos + 1), pre_bioe[2:], v))
                 v = ""
             else:
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
         elif bioe[0] == 'E':
             if pre_bioe[0] in 'BM' and pre_bioe[2:] == bioe[2:] and v != "":
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), bioe[2:], v))
             v = ""
         pre_bioe = bioe
@@ -149,23 +154,25 @@ def extract_kvpairs_in_bmoes(bmoes_seq, word_seq):
     v = ""
     spos = -1
     for i, bmoes in enumerate(bmoes_seq):
+        word = word_seq[i]
         if bmoes == "O":
             v = ""
         elif bmoes[0] == "B":
-            v = word_seq[i]
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bmoes[0] == "M":
             if pre_bmoes[0] in "OES" or pre_bmoes[2:] != bmoes[2:] or v == "":
                 v = ""
             else:
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
         elif bmoes[0] == 'E':
             if pre_bmoes[0] in 'BM' and pre_bmoes[2:] == bmoes[2:] and v != "":
-                v += word_seq[i]
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), bmoes[2:], v))
             v = ""
         elif bmoes[0] == 'S':
-            pairs.append(((i, i + 1), bmoes[2:], word_seq[i]))
+            v = word[2:] if word.startswith('##') else word
+            pairs.append(((i, i + 1), bmoes[2:], v))
             v = ""
         pre_bmoes = bmoes
     return pairs
@@ -184,18 +191,18 @@ def extract_kvpairs_in_bmoes_by_endtag(bioes_seq, word_seq, attr_seq):
         if bioes == "O":
             v = ""
         elif bioes == "S":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioes == "M":
             if v != "": 
-                v += word
+                v += word[2:] if word.startswith('##') else word
         elif bioes == "E":
             if v != "":
-                v += word
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), attr, v))
             v = ""
     return pairs
@@ -214,18 +221,18 @@ def extract_kvpairs_in_bioes_by_endtag(bioes_seq, word_seq, attr_seq):
         if bioes == "O":
             v = ""
         elif bioes == "S":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioes == "I":
             if v != "": 
-                v += word
+                v += word[2:] if word.startswith('##') else word
         elif bioes == "E":
             if v != "":
-                v += word
+                v += word[2:] if word.startswith('##') else word
                 pairs.append(((spos, i + 1), attr, v))
             v = ""
     return pairs
@@ -244,18 +251,18 @@ def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
         if bioes == "O":
             v = ""
         elif bioes == "S":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             pairs.append(((i, i + 1), attr, v))
             v = ""
         elif bioes == "B":
-            v = word
+            v = word[2:] if word.startswith('##') else word
             spos = i
         elif bioes == "M":
             if v != "": 
-                v += word
+                v += word[2:] if word.startswith('##') else word
         elif bioes == "E":
             if v != "":
-                v += word
+                v += word[2:] if word.startswith('##') else word
                 vote = defaultdict(lambda: 0)
                 for j in range(spos, i + 1):
                     vote[attr_seq[j]] += 1
@@ -277,7 +284,9 @@ def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
         if s_tag == neg_tag:
             continue
         for j, e_tag in enumerate(end_seq[i:]):
+            if j > 0 and start_seq[j+i] != neg_tag:
+                break
             if s_tag == e_tag:
-                pairs.append(((i, j + i + 1), s_tag, ''.join(word_seq[i:j+i+1])))
+                pairs.append(((i, j + i + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:j+i+1]])))
                 break
     return pairs

@@ -28,8 +28,6 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
-parser.add_argument('--model', default='single', choices=['single', 'multi'], 
-        help='used for model choice')
 parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
 parser.add_argument('--only_test', action='store_true', 
@@ -44,6 +42,8 @@ parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
         help='loss function')
+parser.add_argument('--add_span_loss', action='store_true', 
+        help='whether add span loss')
 
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
@@ -56,6 +56,8 @@ parser.add_argument('--val_file', default='', type=str,
         help='Validation data file')
 parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
+parser.add_argument('--query_file', default='', type=str,
+        help='mrc query file')
 parser.add_argument('--tag2id_file', default='', type=str,
         help='Relation to ID file')
 parser.add_argument('--compress_seq', action='store_true', 
@@ -76,10 +78,6 @@ parser.add_argument('--ffn_hidden_size', default=150, type=int,
         help='hidden size of FeedForwardNetwork')
 parser.add_argument('--width_embedding_size', default=150, type=int,
         help='embedding size of width embedding')
-parser.add_argument('--max_span', default=7, type=int, # 最大28，不包括是时间：22，且不包含括号：18,
-        help='max length of entity in corpus')
-parser.add_argument('--soft_label', default=False, type=bool, 
-        help="whether use one hot for entity span's start label when cat with encoder output")
 parser.add_argument('--optimizer', default='adamw', type=str,
         help='optimizer:adam|sgd|adamw')
 parser.add_argument('--max_grad_norm', default=5.0, type=float,
@@ -105,10 +103,16 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = args.model + '_' + args.bert_name + '_' + args.loss
+    if args.use_lstm:
+        model_name = args.bert_name + '_lstm_mrc'
+    else:
+        model_name = args.bert_name + '_mrc'
+    if args.add_span_loss:
+        model_name += '_spanloss'
+    model_name += '_' + args.loss
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
-    if len(args.adv) > 0 and args.adv == 'none':
+    if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     return model_name
 def make_hparam_string(op, lr, bs, wd, ml):
@@ -143,6 +147,7 @@ if args.dataset != 'none':
     args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'val.char.{args.tagscheme}')
     args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
     args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
+    args.query_file = os.path.join(config['path']['ner_dataset'], args.dataset, 'query.txt')
     if not os.path.exists(args.test_file):
         logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
@@ -161,49 +166,33 @@ for arg in vars(args):
 tag2id = load_vocab(args.tag2id_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BERT_BILSTM_Encoder(
+sequence_encoder = pasaner.encoder.MRC_BERTEncoder(
     max_length=args.max_length,
     pretrain_path=args.pretrain_path,
     bert_name=args.bert_name,
-    use_lstm=args.use_lstm if args.model == 'single' else False,
-    compress_seq=args.compress_seq if args.model == 'single' else False,
     blank_padding=True
 )
 
 # Define the model
-if args.model == 'single':
-    model = pasaner.model.Span_Cat_CLS(
-        sequence_encoder=sequence_encoder, 
-        tag2id=tag2id, 
-        ffn_hidden_size=args.ffn_hidden_size,
-        width_embedding_size=args.width_embedding_size,
-        max_span=args.max_span,
-        dropout_rate=args.dropout_rate
-    )
-elif args.model == 'multi':
-    model = pasaner.model.Span_Pos_CLS(
-        sequence_encoder=sequence_encoder, 
-        tag2id=tag2id, 
-        use_lstm=args.use_lstm, 
-        compress_seq=args.compress_seq, 
-        soft_label=args.soft_label,
-        dropout_rate=args.dropout_rate
-    )
+model = pasaner.model.MRC_Span_Pos_CLS(
+    sequence_encoder=sequence_encoder, 
+    tag2id=tag2id, 
+    use_lstm=args.use_lstm, 
+    compress_seq=args.compress_seq, 
+    add_span_loss=args.add_span_loss,
+    dropout_rate=args.dropout_rate
+)
 
 # Define the whole training framework
-if args.use_sampler and args.model == 'single':
-    sampler = get_entity_span_single_sampler(args.train_file, tag2id, sequence_encoder, args.max_span, 'WeightedRandomSampler')
-else:
-    sampler = None
-framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
+framework = pasaner.framework.MRC_Span_MTL(
     model=model,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
+    query_path=args.query_file,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
-    max_span=args.max_span,
     compress_seq=args.compress_seq,
     tagscheme=args.tagscheme,
     batch_size=args.batch_size,
@@ -215,10 +204,10 @@ framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
     max_grad_norm=args.max_grad_norm,
     adv=args.adv,
     loss=args.loss,
+    add_span_loss=args.add_span_loss,
     mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
     dice_alpha=args.dice_alpha,
     opt=args.optimizer,
-    sampler=sampler
 )
 
 # load model
@@ -237,11 +226,8 @@ result = framework.eval_model(framework.test_loader)
 
 # Print the result
 logger.info('Test set results:')
-if args.model == 'single':
-    logger.info('Accuracy: {}'.format(result['acc']))
-else:
-    logger.info('Start Accuracy: {}'.format(result['start_acc']))
-    logger.info('End Accuracy: {}'.format(result['end_acc']))
+logger.info('Start Accuracy: {}'.format(result['start_acc']))
+logger.info('End Accuracy: {}'.format(result['end_acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))

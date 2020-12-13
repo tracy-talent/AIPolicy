@@ -35,20 +35,20 @@ class LabelSmoothingCrossEntropy(nn.Module):
         """
         label_num = output.size()[1]
         log_preds = F.log_softmax(output, dim=1)
-        prior_loss = log_preds.sum(dim=1)
+        prior_loss = -log_preds.sum(dim=1)
         label_loss = F.nll_loss(log_preds, target, reduction='none', ignore_index=self.ignore_index)
 
         if self.reduction == 'sum':
             if mask is not None:
                 prior_loss = prior_loss * mask
                 label_loss = label_loss * mask
-            prior_loss = -prior_loss.sum()
+            prior_loss = prior_loss.sum()
             label_loss = label_loss.sum()
         elif self.reduction == 'mean':
             if mask is not None:
                 prior_loss = (prior_loss * mask).sum(dim=-1) / mask.sum(dim=-1)
                 label_loss = (label_loss * mask).sum(dim=-1) / mask.sum(dim=-1)
-            prior_loss = -prior_loss.mean()
+            prior_loss = prior_loss.mean()
             label_loss = label_loss.mean()
         elif self.reduction != 'none':
             raise ValueError("Invalid reduction. Must be 'sum' or 'mean' or 'non'.")

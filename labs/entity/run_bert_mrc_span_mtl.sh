@@ -1,18 +1,23 @@
-CUDA_VISIBLE_DEVICES=2 \
-python train_bert_crf.py \
+CUDA_VISIBLE_DEVICES=1 \
+python train_bert_mrc_span_mtl.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
     --metric micro_f1 \
     --dataset policy \
-    --tagscheme bmoes \
     --compress_seq \
+    --only_test \
     --use_lstm \
-    --use_crf \
-    --batch_size 16 \
+    --tagscheme bmoes \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
     --warmup_step 0 \
-    --max_length 256 \
+    --max_length 320 \
     --max_epoch 40 \
+    --dropout_rate 0.1 \
+    --loss dice \
+    --dice_alpha 0.6 \
+    --adv fgm \
     --optimizer adam
+

@@ -88,6 +88,8 @@ def make_model_name():
     model_name = 'bert_' + args.pooler + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
+    if args.embed_entity_type:
+        model_name += '_embed_entity'
     return model_name
 model_name = make_model_name()
 

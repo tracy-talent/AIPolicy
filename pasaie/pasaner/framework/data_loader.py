@@ -8,6 +8,7 @@
 import numpy as np
 import logging
 from functools import partial
+from copy import deepcopy
 import gc
 
 import torch
@@ -58,7 +59,7 @@ class SingleNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self.construct_data()
+        self._construct_data()
 
         self.weight = np.ones((len(self.tag2id)), dtype=np.float32)
         for item in self.corpus:
@@ -69,7 +70,7 @@ class SingleNERDataset(data.Dataset):
 
         logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self.data), len(self.tag2id)))
 
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
@@ -160,7 +161,7 @@ class MultiNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self.construct_data()
+        self._construct_data()
 
         self.weight_span = np.ones((len(self.span2id)), dtype=np.float32)
         self.weight_attr = np.ones((len(self.attr2id)), dtype=np.float32)
@@ -175,7 +176,7 @@ class MultiNERDataset(data.Dataset):
 
         logging.info("Loaded sentence NER dataset {} with {} lines and {} entity span types and {} entity attr types.".format(path, len(self.data), len(self.span2id), len(self.attr2id)))
     
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
@@ -251,7 +252,7 @@ class XLNetSingleNERDataset(SingleNERDataset):
     """
     named entity recognition dataset for XLNet
     """
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
@@ -304,7 +305,7 @@ class XLNetMultiNERDataset(MultiNERDataset):
     """
     named entity recognition dataset for XLNet MultiTask
     """
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
@@ -511,7 +512,7 @@ class SpanMultiNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self.construct_data()
+        self._construct_data()
 
         self.weight = np.ones((len(self.tag2id)), dtype=np.float32)
         for item in self.corpus:
@@ -525,7 +526,7 @@ class SpanMultiNERDataset(data.Dataset):
 
         logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self.data), len(self.tag2id)))
     
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
@@ -575,6 +576,62 @@ def SpanMultiNERDataLoader(path, tag2id, tokenizer, batch_size,
     if sampler:
         shuffle = False
     dataset = SpanMultiNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
+    data_loader = data.DataLoader(dataset=dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            pin_memory=True,
+            num_workers=num_workers,
+            collate_fn=partial(collate_fn, compress_seq),
+            sampler=sampler)
+    return data_loader
+
+
+class MRCSpanMultiNERDataset(SpanMultiNERDataset):
+    """
+    named entity recognition dataset
+    """
+    def __init__(self, data_path, query_path, tag2id, tokenizer, **kwargs):
+        """
+        Args:
+            data_path: path of the input file
+            query_path: path of query file
+            tag2id: dictionary of entity_tag->id mapping
+            tokenizer: function of tokenizing
+        """
+        with open(query_path, 'r', encoding='utf-8') as qf:
+            self.query_dict = dict(line.strip().split() for line in qf)
+        super(MRCSpanMultiNERDataset, self).__init__(data_path, tag2id, tokenizer)
+    
+    def _construct_data(self):
+        self.data = []
+        for index in range(len(self.corpus)):
+            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
+            attrs = set(x[2:] for x in items[1] if x != 'O')
+            for ent_type in self.query_dict:
+                if ent_type not in attrs:
+                    continue
+                items_copy = deepcopy(items)
+                seqs = list(self.tokenizer(*items_copy, self.query_dict[ent_type], **self.kwargs))
+
+                length = seqs[0].size(1)
+                if length >= len(items_copy[1]):
+                    start_labels = [1 if tag[0] == 'B' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                    end_labels = [1 if tag[0] == 'E' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                    start_labels.extend([0] * (length - len(items_copy[1])))
+                    end_labels.extend([0] * (length - len(items_copy[1])))
+                else:
+                    start_labels = [1 if tag[0] == 'B' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                    end_labels = [1 if tag[0] == 'E' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                    start_labels[-1] = 0
+                    end_labels[-1] = 0
+                item = [torch.tensor([start_labels]), torch.tensor([end_labels]), torch.tensor([self.tag2id[ent_type]])] + seqs # make labels size (1, L)
+                self.data.append(item)
+
+def MRCSpanMultiNERDataLoader(data_path, query_path, tag2id, tokenizer, batch_size, 
+        shuffle, compress_seq=True, num_workers=8, collate_fn=MRCSpanMultiNERDataset.collate_fn, sampler=None, **kwargs):
+    if sampler:
+        shuffle = False
+    dataset = MRCSpanMultiNERDataset(data_path=data_path, query_path=query_path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,

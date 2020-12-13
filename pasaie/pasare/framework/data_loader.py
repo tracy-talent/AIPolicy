@@ -48,7 +48,7 @@ class SentenceREDataset(data.Dataset):
                 line = line.rstrip()
                 if len(line) > 0:
                     self.corpus.append(eval(line))
-        self.construct_data()
+        self._construct_data()
 
         self.weight = np.ones((len(self.rel2id)), dtype=np.float32)
         for item in self.corpus:
@@ -58,15 +58,13 @@ class SentenceREDataset(data.Dataset):
 
         logging.info("Loaded sentence RE dataset {} with {} lines and {} relations.".format(path, len(self.data),
                                                                                             len(self.rel2id)))
-    def construct_data(self):
+    def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
             item = self.corpus[index]
             seq = list(self.tokenizer(item, **self.kwargs))
             data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
             self.data.append(data_item)
-            if (index + 1) % 500 == 0:
-                logging.info(f'parsed {index + 1} sentences for DSP path')
 
     def __len__(self):
         return len(self.data)
@@ -134,10 +132,10 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         self.is_bert_encoder = is_bert_encoder
         super(SentenceWithDSPREDataset, self).__init__(path, rel2id, tokenizer, **kwargs)
 
-    def construct_data(self):
+    def _construct_data(self):
         if self.max_dsp_path_length > 0:
             self.dsp_path = []
-            dsp_path = [self.path[:-4] + '_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
+            dsp_path = [self.path[:-4] + '_ddp_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
             with open(dsp_path, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     line = eval(line.strip())
