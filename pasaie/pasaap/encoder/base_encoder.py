@@ -72,20 +72,25 @@ class BaseEncoder(nn.Module):
         inputs_embed = self.word_embedding(seqs)  # (B, L, EMBED)
         return inputs_embed
 
-    def tokenize(self, items):
+    def tokenize(self, item):
         """
         Args:
             items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
         Return:
             index number of tokens and positions             
         """
-        if isinstance(items, list) or isinstance(items, tuple):
-            sentence = items[0]
+        if isinstance(item, tuple) or isinstance(item, str) or (isinstance(item, list) and len(item) < 3):
+            sentence = item[0]
+            is_token = False
         else:
-            sentence = items
+            sentence = item
+            is_token = True
 
         # Sentence -> token
-        tokens = self.tokenizer.tokenize(sentence)
+        if not is_token:
+            tokens = self.tokenizer.tokenize(sentence)
+        else:
+            tokens = sentence
         avail_len = torch.tensor([len(tokens)])  # 序列实际长度
 
         # Token -> index

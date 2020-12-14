@@ -19,7 +19,8 @@ def pipeline(corpus_path,
              output_path,
              is_rawtext,
              entity_model,
-             relation_model
+             relation_model,
+             sentence_judge_model
              ):
     if is_rawtext:
         pasaie.pasaap.framework.parse_corpus(corpus_dir=corpus_path)
@@ -40,6 +41,8 @@ def pipeline(corpus_path,
                     queue.append(child_node)
             else:
                 sentence = node.sent
+                if not sentence_judge_model.infer(sentence):    # 0 means unimportant
+                    continue
                 tokens, entities = entity_model.infer(sentence)
                 # fix for modified format of entity
                 entities = [(entity[0][0], entity[1], entity[2]) for entity in entities]
@@ -260,7 +263,7 @@ def remove_node_without_entities(root_node):
             return True
 
 
-def main_entry_step1(dataset, entity_model, relation_model):
+def main_entry_step1(dataset, entity_model, relation_model, sentence_judge_model):
     corpus_path = os.path.join(config['path']['input'], 'benchmark', 'article_parsing', dataset)
     output_path = os.path.join(config['path']['output'], 'article_parsing', dataset)
 
@@ -269,7 +272,8 @@ def main_entry_step1(dataset, entity_model, relation_model):
              output_path=output_path,
              is_rawtext=is_rawtext,
              entity_model=entity_model,
-             relation_model=relation_model)
+             relation_model=relation_model,
+             sentence_judge_model=sentence_judge_model)
 
 
 def main_entry_step2(dataset, entity_model):
@@ -317,9 +321,11 @@ def main_entry():
     extracted_path = os.path.join(config['path']['output'], 'article_parsing', dataset, 'sentence_level_logic_tree')
     my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf0')
     my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
+    my_sentence_judge_model = pasaie.pasaap.get_model(dataset_name='sentence_importance_judgement',
+                                                      model_name='base_textcnn_ce_fgm')
     if not os.path.exists(extracted_path):
         print("Executing main_entry_step1...")
-        main_entry_step1(dataset, my_entity_model, my_relation_model)
+        main_entry_step1(dataset, my_entity_model, my_relation_model, sentence_judge_model=my_sentence_judge_model)
     main_entry_step2(dataset, my_entity_model)
 
 

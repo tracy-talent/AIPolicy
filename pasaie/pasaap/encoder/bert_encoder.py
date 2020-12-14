@@ -44,12 +44,18 @@ class BERTEncoder(nn.Module):
             Name of the relation of the sentence
         """
         # Sentence -> token
-        if isinstance(item, tuple) or isinstance(item, list):
+        if isinstance(item, tuple) or isinstance(item, str) or (isinstance(item, list) and len(item) < 3):
             sentence = item[0]
+            is_token = False
         else:
             sentence = item
+            is_token = True
 
-        re_tokens = self.tokenizer.tokenize(sentence)
+        # Sentence -> token
+        if not is_token:
+            re_tokens = self.tokenizer.tokenize(sentence)
+        else:
+            re_tokens = sentence
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
         avai_len = len(indexed_tokens)
 
