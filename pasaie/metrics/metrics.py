@@ -58,7 +58,7 @@ class BatchMetric(object):
         Args:
           y_pred: (tensor) model outputs sized [N,].
           y_true: (tensor) labels targets sized [N,].
-          update_score:
+          update_score: generally set False for val or test set
         '''
         self._processed = False
         self.y_pred = torch.cat([self.y_pred, y_pred.detach().cpu()], dim=0)
@@ -94,10 +94,10 @@ class BatchMetric(object):
         Returns:
           (tensor) accuracy.
         '''
-        if not self.y_pred or not self.y_true:
-            return
+        if self.__len__() == 0:
+            raise ValueError('y_pred or y_true can not be none')
 
-        acc = (y_true == y_pred).sum().float() / y_pred.size(0)
+        acc = (self.y_true == self.y_pred).sum().float() / self.y_pred.size(0)
         self.acc.append(acc)
         return acc
 
@@ -108,8 +108,8 @@ class BatchMetric(object):
         Returns:
           (tensor) precision.
         '''
-        if not self.y_pred or not self.y_true:
-            return
+        if self.__len__() == 0:
+            raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         if not self._processed:
             self.tp, self.fp, self.fn, self.tn = self._process(self.y_pred, self.y_true)
@@ -130,8 +130,8 @@ class BatchMetric(object):
         Returns:
           (tensor) recall.
         '''
-        if not self.y_pred or not self.y_true:
-            return
+        if self.__len__() == 0:
+            raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         if not self._processed:
             self.tp, self.fp, self.fn, self.tn = self._process(self.y_pred, self.y_true)
@@ -146,8 +146,8 @@ class BatchMetric(object):
         return recall
 
     def f1_score(self, reduction='micro'):
-        if not self.y_pred or not self.y_true:
-            return
+        if self.__len__() == 0:
+            raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         # FIXME: In order to accelerate computation, precision and recall must be computed before
         assert len(self.f1) + 1 == len(self.prec)
@@ -160,7 +160,7 @@ class BatchMetric(object):
         matrix = torch.zeros(self.num_classes, self.num_classes)
         for i in range(self.num_classes):
             for j in range(self.num_classes):
-                matrix[j][i] = ((y_pred == i) & (y_true == j)).sum().item()
+                matrix[j][i] = ((self.y_pred == i) & (self.y_true == j)).sum().item()
         return matrix
 
     def step_time_interval(self):
