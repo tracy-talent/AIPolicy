@@ -42,8 +42,8 @@ class BatchMetric(object):
 
     def __init__(self, num_classes):
         self.num_classes = num_classes
-        self.y_pred = []
-        self.y_true = []
+        self.y_pred = torch.tensor([])
+        self.y_true = torch.tensor([])
         self.steps = 0
         self.step_time = [time.time()]
         self.tp, self.fp, self.fn, self.tn = None, None, None, None
@@ -51,7 +51,7 @@ class BatchMetric(object):
         self._processed = False
 
     def __len__(self):
-        return torch.cat(self.y_true, 0).size(0)
+        return self.y_true.size(0)
 
     def update(self, y_pred, y_true, update_score=True):
         '''Update with batch outputs and labels.
@@ -61,8 +61,8 @@ class BatchMetric(object):
           update_score:
         '''
         self._processed = False
-        self.y_pred = torch.cat([self.y_pred, y_pred], dim=0)
-        self.y_true = torch.cat([self.y_true, y_true], dim=0)
+        self.y_pred = torch.cat([self.y_pred, y_pred.detach().cpu()], dim=0)
+        self.y_true = torch.cat([self.y_true, y_true.detach().cpu()], dim=0)
         self.steps += 1
         self.step_time.append(time.time())
         if update_score:
