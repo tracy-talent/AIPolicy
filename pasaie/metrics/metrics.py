@@ -94,7 +94,7 @@ class BatchMetric(object):
         Returns:
           (tensor) accuracy.
         '''
-        if self.__len__() == 0:
+        if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
 
         acc = (self.y_true == self.y_pred).sum().float() / self.y_pred.size(0)
@@ -108,7 +108,7 @@ class BatchMetric(object):
         Returns:
           (tensor) precision.
         '''
-        if self.__len__() == 0:
+        if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         if not self._processed:
@@ -130,7 +130,7 @@ class BatchMetric(object):
         Returns:
           (tensor) recall.
         '''
-        if self.__len__() == 0:
+        if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         if not self._processed:
@@ -146,7 +146,7 @@ class BatchMetric(object):
         return recall
 
     def f1_score(self, reduction='micro'):
-        if self.__len__() == 0:
+        if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
         assert (reduction in ['none', 'macro', 'micro'])
         # FIXME: In order to accelerate computation, precision and recall must be computed before

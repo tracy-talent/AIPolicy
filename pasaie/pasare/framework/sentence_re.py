@@ -349,6 +349,7 @@ class SentenceWithDSPRE(SentenceRE):
                  tb_logdir,
                  compress_seq=True,
                  max_dsp_path_length=-1,
+                 dsp_tool='ddp',
                  batch_size=32,
                  max_epoch=100,
                  lr=1e-3,
@@ -395,6 +396,7 @@ class SentenceWithDSPRE(SentenceRE):
                 drop_last=False,
                 compress_seq=compress_seq,
                 max_dsp_path_length=max_dsp_path_length,
+                dsp_tool=dsp_tool,
                 is_bert_encoder=self.is_bert_encoder,
                 sampler=sampler,
                 num_workers=0 if max_dsp_path_length < 0 else 8
@@ -408,6 +410,7 @@ class SentenceWithDSPRE(SentenceRE):
                 batch_size,
                 compress_seq=compress_seq,
                 max_dsp_path_length=max_dsp_path_length,
+                dsp_tool=dsp_tool,
                 is_bert_encoder=self.is_bert_encoder,
                 shuffle=False,
                 num_workers=0 if max_dsp_path_length < 0 else 8
@@ -421,6 +424,7 @@ class SentenceWithDSPRE(SentenceRE):
                 batch_size,
                 compress_seq=compress_seq,
                 max_dsp_path_length=max_dsp_path_length,
+                dsp_tool=dsp_tool,
                 is_bert_encoder=self.is_bert_encoder,
                 shuffle=False,
                 num_workers=0 if max_dsp_path_length < 0 else 8

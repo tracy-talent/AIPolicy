@@ -1,5 +1,5 @@
 from .base_encoder import BaseEncoder
-from ...utils.dependency_parse import DDP_Parse
+from ...utils.dependency_parse import DDP_Parse, LTP_Parse
 
 import logging
 import torch
@@ -76,11 +76,11 @@ class BERTEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(' '.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(' '.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(' '.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(' '.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(' '.join(sentence[pos_max[1]:]))
+            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
 
         if self.mask_entity:
             ent0 = ['[unused5]'] if not rev else ['[unused6]']
@@ -206,11 +206,16 @@ class BERTEntityEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            # sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            # ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            # sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            # ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            # sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            sent0 = sentence[:pos_min[0]]
+            ent0 = sentence[pos_min[0]:pos_min[1]]
+            sent1 = sentence[pos_min[1]:pos_max[0]]
+            ent1 = sentence[pos_max[0]:pos_max[1]]
+            sent2 = sentence[pos_max[1]:]
 
         if self.mask_entity:
             ent0 = ['[unused1]'] if not rev else ['[unused2]']
@@ -265,7 +270,7 @@ class BERTEntityEncoder(nn.Module):
 
 
 class BERTWithDSPEncoder(BERTEncoder):
-    def __init__(self, pretrain_path, max_length, max_dsp_path_length=15, use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+    def __init__(self, pretrain_path, max_length, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
             max_length: max length of sentence
@@ -278,7 +283,12 @@ class BERTWithDSPEncoder(BERTEncoder):
         self.max_dsp_path_length = max_dsp_path_length
         self.parser = None
         if self.max_dsp_path_length > 0:
-            self.parser = DDP_Parse()
+            if dsp_tool == 'ddp':
+                self.parser = DDP_Parse()
+            elif dsp_tool == 'ltp':
+                self.parser = LTP_Parse()
+            else:
+                raise NotImplementedError(f'{dsp_tool} DSP tool is not imlemented')
         bert_hidden_size = self.bert.config.hidden_size
         self.hidden_size = self.bert.config.hidden_size * 2
 
@@ -295,6 +305,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         self.query = nn.Linear(bert_hidden_size, 1)
 
     def dsp_encode(self, hidden, dsp_path, dsp_path_length):
+        # dsp_rep = torch.gather(hidden, 1, dsp_path.unsqueeze(-1).repeat(1, 1, hidden.size(-1)))
         dsp_rep = torch.stack([hidden[i, dsp_path[i]] for i in range(hidden.size(0))], dim=0) # (B, S, d)
         ## head entity dsp path representation
         if self.compress_seq:
@@ -381,7 +392,7 @@ class BERTWithDSPEncoder(BERTEncoder):
 
 
 class BERTEntityWithDSPEncoder(BERTEntityEncoder):
-    def __init__(self, pretrain_path, max_length=256, max_dsp_path_length=15, tag2id=None, 
+    def __init__(self, pretrain_path, max_length=256, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
                 use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
@@ -396,7 +407,12 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         self.max_dsp_path_length = max_dsp_path_length
         self.parser = None
         if self.max_dsp_path_length > 0:
-            self.parser = DDP_Parse()
+            if dsp_tool == 'ddp':
+                self.parser = DDP_Parse()
+            elif dsp_tool == 'ltp':
+                self.parser = LTP_Parse()
+            else:
+                raise NotImplementedError(f'{dsp_tool} DSP tool is not imlemented')
         bert_hidden_size = self.bert.config.hidden_size
         self.bilstm = nn.LSTM(input_size=bert_hidden_size, 
                             hidden_size=bert_hidden_size, 
@@ -414,6 +430,8 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         self.context_query = nn.Linear(bert_hidden_size, 1)
 
     def dsp_encode(self, hidden, dsp_path, dsp_path_length):
+        # dsp_rep = torch.gather(hidden, 1, dsp_path.unsqueeze(-1).repeat(1, 1, hidden.size(-1)))
+        # dsp_rep = torch.gather(hidden, 1, dsp_path.unsqueeze(-1).expand(*dsp_path.size(), hidden.size(-1)))
         dsp_rep = torch.stack([hidden[i, dsp_path[i]] for i in range(hidden.size(0))], dim=0) # (B, S, d)
         ## head entity dsp path representation
         if self.compress_seq:
@@ -452,8 +470,8 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_head = onehot_head.scatter_(1, pos1, 1)
         onehot_tail = onehot_tail.scatter_(1, pos2, 1)
-        head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
-        tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
+        head_hidden = torch.matmul(onehot_head.unsqueeze(1), hidden).squeeze(1)  # (B, H)
+        tail_hidden = torch.matmul(onehot_tail.unsqueeze(1), hidden).squeeze(1)  # (B, H)
         # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
 
         # get context representation
@@ -497,9 +515,9 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             Name of the relation of the sentence
         """
         ret_items = super(BERTEntityWithDSPEncoder, self).tokenize(item)
-        ent_h_pos = min(ret_items[1].item(), ret_items[2].item())
-        ent_t_pos = max(ret_items[1].item(), ret_items[2].item())
         if self.parser is not None:
+            ent_h_pos = torch.min(ret_items[1], ret_items[2]).item()
+            ent_t_pos = torch.max(ret_items[1], ret_items[2]).item()
             # shortest dependency path
             ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'])
             ent_h_length = len(ent_h_path)

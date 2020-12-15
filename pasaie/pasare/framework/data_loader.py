@@ -112,7 +112,7 @@ class SentenceWithDSPREDataset(SentenceREDataset):
     """
     Sentence-level relation extraction dataset with DSP feature
     """
-    def __init__(self, path, rel2id, tokenizer, max_dsp_path_length=-1, is_bert_encoder=True, **kwargs):
+    def __init__(self, path, rel2id, tokenizer, max_dsp_path_length=-1, dsp_tool='ddp', is_bert_encoder=True, **kwargs):
         """[summary]
 
         Args:
@@ -130,12 +130,13 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         """
         self.max_dsp_path_length = max_dsp_path_length
         self.is_bert_encoder = is_bert_encoder
+        self.dsp_tool = dsp_tool
         super(SentenceWithDSPREDataset, self).__init__(path, rel2id, tokenizer, **kwargs)
 
     def _construct_data(self):
         if self.max_dsp_path_length > 0:
             self.dsp_path = []
-            dsp_path = [self.path[:-4] + '_ddp_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
+            dsp_path = [self.path[:-4] + f'_{self.dsp_tool}_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
             with open(dsp_path, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     line = eval(line.strip())
@@ -163,10 +164,36 @@ class SentenceWithDSPREDataset(SentenceREDataset):
             seq = list(self.tokenizer(item, **self.kwargs))
             data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
             if self.max_dsp_path_length > 0:
+                if len(seq) > 3:
+                    ent_h_pos = torch.min(seq[1], seq[2]).item()
+                    ent_t_pos = torch.max(seq[1], seq[2]).item()
+                    for i in range(self.dsp_path[index][2].item()):
+                        pos = self.dsp_path[index][0][0][i].item()
+                        pos_inc = 0
+                        if pos >= ent_h_pos:
+                            pos_inc += 1
+                        if pos + 1 >= ent_t_pos:
+                            pos_inc += 1
+                        self.dsp_path[index][0][0][i] = pos + pos_inc
+                    for i in range(self.dsp_path[index][3].item()):
+                        pos = self.dsp_path[index][1][0][i].item()
+                        pos_inc = 0
+                        if pos >= ent_h_pos:
+                            pos_inc += 1
+                        if pos + 1 >= ent_t_pos:
+                            pos_inc += 1
+                        self.dsp_path[index][1][0][i] = pos + pos_inc
                 data_item += self.dsp_path[index]
             self.data.append(data_item)
             if (index + 1) % 500 == 0:
                 logging.info(f'parsed {index + 1} sentences for DSP path')
+            # 序列长与依存路径索引校验
+            seq_len = self.data[-1][-5][0].sum().item()
+            max_ent_t_path_index = max(self.data[-1][-3][0]).squeeze().item()
+            max_ent_h_path_index = max(self.data[-1][-4][0]).squeeze().item()
+            if max_ent_h_path_index + 1 >= seq_len or max_ent_t_path_index + 1 >= seq_len:
+                raise IndexError('DSP index exceeds sequence length')
+
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -188,12 +215,12 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         return seqs
 
 
-def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, max_dsp_path_length=-1, 
+def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, max_dsp_path_length=-1, dsp_tool='ddp',
                             is_bert_encoder=True, num_workers=0, collate_fn=SentenceWithDSPREDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
-    dataset = SentenceWithDSPREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, 
-                max_dsp_path_length=max_dsp_path_length, is_bert_encoder=is_bert_encoder, **kwargs)
+    dataset = SentenceWithDSPREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, max_dsp_path_length=max_dsp_path_length, 
+                                        dsp_tool=dsp_tool, is_bert_encoder=is_bert_encoder, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,
                                   shuffle=shuffle,

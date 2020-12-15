@@ -34,6 +34,8 @@ parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
         help='loss function')
+parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp'],
+        help='DSP tool used')
 
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
@@ -76,7 +78,7 @@ parser.add_argument('--warmup_step', default=0, type=int,
 parser.add_argument('--max_length', default=256, type=int,
                     help='Maximum sentence length')
 parser.add_argument('--max_dsp_path_length', default=15, type=int,
-                    help='Maximum entity to root dsp path length')
+                    help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12}, suggest 15 for ddp, 10 for ltp
 parser.add_argument('--max_epoch', default=3, type=int,
                     help='Max number of training epochs')
 
@@ -90,11 +92,13 @@ config.read(os.path.join(project_path, 'config.ini'))
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 def make_model_name():
-    model_name = 'bert_' + args.pooler + '_dsp_' + args.loss
+    model_name = 'bert_' + args.pooler + '_' + args.dsp_tool + '_dsp_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     if args.use_attention:
         model_name += '_attention_cat'
+    if args.embed_entity_type:
+        model_name += '_embed_entity'
     return model_name
 model_name = make_model_name()
 
@@ -155,6 +159,7 @@ if args.pooler == 'entity':
         pretrain_path=args.pretrain_path,
         max_length=args.max_length,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
+        dsp_tool=args.dsp_tool,
         tag2id=tag2id,
         use_attention=args.use_attention,
         mask_entity=args.mask_entity,
@@ -166,6 +171,7 @@ elif args.pooler == 'cls':
         pretrain_path=args.pretrain_path,
         max_length=args.max_length,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
+        dsp_tool=args.dsp_tool,
         use_attention=args.use_attention,
         mask_entity=args.mask_entity,
         blank_padding=True,
@@ -196,6 +202,7 @@ framework = pasare.framework.SentenceWithDSPRE(
     tb_logdir=tb_logdir,
     compress_seq=args.compress_seq,
     max_dsp_path_length=args.max_dsp_path_length if args.dsp_preprocessed else -1,
+    dsp_tool=args.dsp_tool,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
     lr=args.lr,

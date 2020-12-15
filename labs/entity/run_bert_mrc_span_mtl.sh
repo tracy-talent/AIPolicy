@@ -1,11 +1,10 @@
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mrc_span_mtl.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
     --metric micro_f1 \
     --dataset policy \
     --compress_seq \
-    --only_test \
     --use_lstm \
     --tagscheme bmoes \
     --batch_size 12 \
@@ -19,5 +18,6 @@ python train_bert_mrc_span_mtl.py \
     --loss dice \
     --dice_alpha 0.6 \
     --adv fgm \
+    --use_mtl_autoweighted_loss \
     --optimizer adam
 

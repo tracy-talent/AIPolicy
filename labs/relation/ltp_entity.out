@@ -1,0 +1,65 @@
+nohup: ignoring input
+2020-12-15 02:05:33.281340: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
+2020-12-15 02:05:35,920 - train_supervised_bert_with_dsp.py - INFO - running train_supervised_bert_with_dsp.py --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext --pooler entity --metric micro_f1 --dataset test-policy --dropout_rate 0.1 --compress_seq --only_test --dsp_preprocessed --use_attention --embed_entity_type --adv fgm --loss dice --dice_alpha 0.6 --batch_size 12 --lr 1e-5 --bert_lr 1e-5 --weight_decay 0 --warmup_step 0 --max_length 256 --max_dsp_path_length 10 --max_epoch 20 --dsp_tool ltp --optimizer adam --use_sampler
+2020-12-15 02:05:35,920 - train_supervised_bert_with_dsp.py - INFO - Arguments:
+2020-12-15 02:05:35,920 - train_supervised_bert_with_dsp.py - INFO - pretrain_path: /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext
+2020-12-15 02:05:35,920 - train_supervised_bert_with_dsp.py - INFO - ckpt: test-policy/bert_entity_ltp_dsp_dice_fgm_attention_cat_embed_entity
+2020-12-15 02:05:35,920 - train_supervised_bert_with_dsp.py - INFO - pooler: entity
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - only_test: True
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - mask_entity: False
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - use_sampler: True
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - use_attention: True
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - embed_entity_type: True
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - adv: fgm
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - loss: dice
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - dsp_tool: ltp
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - metric: micro_f1
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - dataset: test-policy
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - train_file: /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_train.txt
+2020-12-15 02:05:35,921 - train_supervised_bert_with_dsp.py - INFO - val_file: /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_val.txt
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - test_file: /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_test.txt
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - rel2id_file: /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_rel2id.json
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - compress_seq: True
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - dsp_preprocessed: True
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - dice_alpha: 0.6
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - dropout_rate: 0.1
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - batch_size: 12
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - lr: 1e-05
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - bert_lr: 1e-05
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - optimizer: adam
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - max_grad_norm: 5.0
+2020-12-15 02:05:35,922 - train_supervised_bert_with_dsp.py - INFO - weight_decay: 0.0
+2020-12-15 02:05:35,923 - train_supervised_bert_with_dsp.py - INFO - warmup_step: 0
+2020-12-15 02:05:35,923 - train_supervised_bert_with_dsp.py - INFO - max_length: 256
+2020-12-15 02:05:35,923 - train_supervised_bert_with_dsp.py - INFO - max_dsp_path_length: 10
+2020-12-15 02:05:35,923 - train_supervised_bert_with_dsp.py - INFO - max_epoch: 20
+2020-12-15 02:05:35,923 - train_supervised_bert_with_dsp.py - INFO - tag2id_file: /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_tag2id.json
+2020-12-15 02:05:35,923 - root - INFO - Loading BERT pre-trained checkpoint.
+2020-12-15 02:05:40,904 - root - INFO - we have added 3 tokens ['“', '”', '—']
+2020-12-15 02:06:03,894 - root - INFO - parsed 500 sentences for DSP path
+2020-12-15 02:06:04,539 - root - INFO - parsed 1000 sentences for DSP path
+2020-12-15 02:06:05,427 - root - INFO - parsed 1500 sentences for DSP path
+2020-12-15 02:06:06,134 - root - INFO - parsed 2000 sentences for DSP path
+2020-12-15 02:06:07,008 - root - INFO - parsed 2500 sentences for DSP path
+2020-12-15 02:06:07,879 - root - INFO - parsed 3000 sentences for DSP path
+2020-12-15 02:06:08,746 - root - INFO - parsed 3500 sentences for DSP path
+2020-12-15 02:06:08,805 - root - INFO - Loaded sentence RE dataset /home/liujian/github/AIPolicy/input/benchmark/relation/test-policy/test-policy_test.txt with 3509 lines and 13 relations.
+2020-12-15 02:06:37,035 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 20, acc: 0.0000, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:07:04,666 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 40, acc: 0.0000, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:07:32,297 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 60, acc: 0.0000, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:07:59,801 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 80, acc: 0.0000, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:08:27,027 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 100, acc: 0.0008, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:08:53,993 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 120, acc: 0.0007, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+2020-12-15 02:09:21,526 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 140, acc: 0.0018, micro_p: 0.0012, micro_r: 0.0152, micro_f1: 0.0022
+2020-12-15 02:09:48,983 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 160, acc: 0.0016, micro_p: 0.0010, micro_r: 0.0139, micro_f1: 0.0019
+2020-12-15 02:10:16,265 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 180, acc: 0.0019, micro_p: 0.0014, micro_r: 0.0185, micro_f1: 0.0026
+2020-12-15 02:10:43,530 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 200, acc: 0.0021, micro_p: 0.0017, micro_r: 0.0211, micro_f1: 0.0031
+2020-12-15 02:11:10,672 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 220, acc: 0.0023, micro_p: 0.0019, micro_r: 0.0235, micro_f1: 0.0035
+2020-12-15 02:11:38,047 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 240, acc: 0.0024, micro_p: 0.0021, micro_r: 0.0261, micro_f1: 0.0039
+2020-12-15 02:12:05,249 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 260, acc: 0.0026, micro_p: 0.0022, micro_r: 0.0288, micro_f1: 0.0042
+2020-12-15 02:12:31,925 - train_supervised_bert_with_dsp.py - INFO - Evaluation...steps: 280, acc: 0.0030, micro_p: 0.0027, micro_r: 0.0342, micro_f1: 0.0050
+2020-12-15 02:12:49,232 - train_supervised_bert_with_dsp.py - INFO - Test set results:
+2020-12-15 02:12:49,244 - train_supervised_bert_with_dsp.py - INFO - Accuracy: 0.002849814762040467
+2020-12-15 02:12:49,248 - train_supervised_bert_with_dsp.py - INFO - Micro precision: 0.002565564424173318
+2020-12-15 02:12:49,252 - train_supervised_bert_with_dsp.py - INFO - Micro recall: 0.032490974729241874
+2020-12-15 02:12:49,256 - train_supervised_bert_with_dsp.py - INFO - Micro F1: 0.0047556142668428005

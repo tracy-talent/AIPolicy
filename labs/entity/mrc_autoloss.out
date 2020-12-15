@@ -1,0 +1,11 @@
+nohup: ignoring input
+2020-12-15 02:10:07.826116: I tensorflow/stream_executor/platform/default/dso_loader.cc:48] Successfully opened dynamic library libcudart.so.10.1
+we have added 3 tokens ['“', '”', '—']
+INFO:train_bert_mrc_span_mtl.py:Evaluation...Batches: 20, start_acc: 0.9952, end_acc: 0.9709, micro_p: 0.0000, micro_r: 0.0000, micro_f1: 0.0000
+INFO:train_bert_mrc_span_mtl.py:Evaluation result: {'start_acc': 0.9964539007092199, 'end_acc': 0.9769503546099291, 'micro_p': 0.0, 'micro_r': 0.0, 'micro_f1': 0, 'category-p/r/f1': {'Property': (0.0, 0.0, 0), 'Category': (0.0, 0.0, 0), 'Place': (0.0, 0.0, 0), 'Main': (0.0, 0.0, 0), 'Field': (0.0, 0.0, 0), 'Plan': (0.0, 0.0, 0), 'Fund': (0.0, 0.0, 0), 'Metrics': (0.0, 0.0, 0), 'Labor': (0.0, 0.0, 0), 'Service': (0.0, 0.0, 0), 'Qualification': (0.0, 0.0, 0), 'Time': (0.0, 0.0, 0), 'Element': (0.0, 0.0, 0), 'Labor_Qualification': (0.0, 0.0, 0), 'Index': (0.0, 0.0, 0)}}.
+INFO:train_bert_mrc_span_mtl.py:Test set results:
+INFO:train_bert_mrc_span_mtl.py:Start Accuracy: 0.9964539007092199
+INFO:train_bert_mrc_span_mtl.py:End Accuracy: 0.9769503546099291
+INFO:train_bert_mrc_span_mtl.py:Micro precision: 0.0
+INFO:train_bert_mrc_span_mtl.py:Micro recall: 0.0
+INFO:train_bert_mrc_span_mtl.py:Micro F1: 0
