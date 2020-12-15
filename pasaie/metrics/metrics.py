@@ -49,6 +49,7 @@ class BatchMetric(object):
         self.tp, self.fp, self.fn, self.tn = None, None, None, None
         self.acc, self.prec, self.rec, self.f1 = [], [], [], []
         self._processed = False
+        self.mask = None
 
     def __len__(self):
         return self.y_true.size(0)
@@ -89,24 +90,29 @@ class BatchMetric(object):
 
         return tp, fp, fn, tn
 
-    def accuracy(self):
+    def accuracy(self, ignore_classes=None):
         '''Accuracy = (TP+TN) / (P+N).
         Returns:
           (tensor) accuracy.
         '''
         if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
-
-        acc = (self.y_true == self.y_pred).sum().float() / self.y_pred.size(0)
+        if ignore_classes is None:
+            ignore_classes = []
+        mask = torch.ones_like(self.y_true).bool()
+        for ic in ignore_classes:
+            mask *= (self.y_true != ic)
+        acc = ((self.y_true == self.y_pred) * mask).sum().float() / self.y_true[mask].size(0)
         self.acc.append(acc)
         return acc
 
-    def precision(self, reduction='micro'):
+    def precision(self, reduction='micro', ignore_classes=None):
         '''Precision = TP / (TP+FP).
         Args:
           reduction: (str) mean or none.
         Returns:
           (tensor) precision.
+          :param ignore_classes:
         '''
         if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
@@ -116,6 +122,12 @@ class BatchMetric(object):
         tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         prec = tp / (tp + fp)
         prec[torch.isnan(prec)] = 0
+        if ignore_classes:
+            target_classes = list(set([ith for ith in range(self.num_classes)]) - set(ignore_classes))
+            prec = prec[target_classes]
+            tp = tp[target_classes]
+            fp = fp[target_classes]
+
         if reduction == 'macro':
             prec = prec.mean()
         elif reduction == 'micro':
@@ -123,12 +135,13 @@ class BatchMetric(object):
         self.prec.append(prec)
         return prec
 
-    def recall(self, reduction='micro'):
+    def recall(self, reduction='micro', ignore_classes=None):
         '''Recall = TP / P.
         Args:
           reduction: (str) mean or none.
         Returns:
           (tensor) recall.
+          :param ignore_classes:
         '''
         if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
@@ -138,6 +151,11 @@ class BatchMetric(object):
         tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         recall = tp / (tp + fn)
         recall[torch.isnan(recall)] = 0
+        if ignore_classes:
+            target_classes = list(set([ith for ith in range(self.num_classes)]) - set(ignore_classes))
+            recall = recall[target_classes]
+            tp = tp[target_classes]
+            fn = fn[target_classes]
         if reduction == 'macro':
             recall = recall.mean()
         elif reduction == 'micro':
