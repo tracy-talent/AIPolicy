@@ -318,14 +318,14 @@ def main_entry_step2(dataset, entity_model):
 
 def main_entry():
     dataset = 'raw-policy'
+    sentence_importance_path = 'sentence_importance_judgement/base_textcnn_ce_fgm1'
     extracted_path = os.path.join(config['path']['output'], 'article_parsing', dataset, 'sentence_level_logic_tree')
     my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf0')
     my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
-    my_sentence_judge_model = pasaie.pasaap.get_model(dataset_name='sentence_importance_judgement',
-                                                      model_name='base_textcnn_ce_fgm')
+    my_sentence_importance_model = pasaie.pasaap.get_model(model_path=sentence_importance_path)
     if not os.path.exists(extracted_path):
         print("Executing main_entry_step1...")
-        main_entry_step1(dataset, my_entity_model, my_relation_model, sentence_judge_model=my_sentence_judge_model)
+        main_entry_step1(dataset, my_entity_model, my_relation_model, sentence_judge_model=my_sentence_importance_model)
     main_entry_step2(dataset, my_entity_model)
 
 

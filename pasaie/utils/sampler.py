@@ -1,11 +1,12 @@
 import json
 import numpy as np
 from torch.utils.data import WeightedRandomSampler
+import pandas as pd
 
 
 def get_relation_sampler(train_path,
-                        rel2id,
-                        sampler_type):
+                         rel2id,
+                         sampler_type):
     """
         Get a self-defined sampler for train-files.
     :param train_path: str, path of train-files
@@ -34,10 +35,10 @@ def get_relation_sampler(train_path,
 
 
 def get_entity_span_single_sampler(train_path,
-                                tag2id,
-                                encoder,
-                                max_span,
-                                sampler_type):
+                                   tag2id,
+                                   encoder,
+                                   max_span,
+                                   sampler_type):
     """
         Get a self-defined sampler for train-files.
     :param train_path: str, path of train-files
@@ -61,14 +62,16 @@ def get_entity_span_single_sampler(train_path,
                 tokens.append(line)
             elif len(tokens) > 0:
                 items = [list(seq) for seq in zip(*tokens)]
-                seqs = list(encoder.tokenize(*items)) # (index_tokens:(1,S), att_maks(1,S))
+                seqs = list(encoder.tokenize(*items))  # (index_tokens:(1,S), att_maks(1,S))
                 seq_len = min(seqs[0].size(1), seqs[-1].sum().item())
                 ub = min(max_span, seq_len - skip_cls - skip_sep)
                 span_start, span_end = [], []
                 for i in range(2, ub + 1):
                     for j in range(skip_cls, seq_len - i + 1 - skip_sep):
                         flag = True
-                        if items[1][j][0] == 'B' and items[1][j + i - 1][0] == 'E' and items[1][j][2:] == items[1][j + i - 1][2:]:
+                        if items[1][j][0] == 'B' and items[1][j + i - 1][0] == 'E' and items[1][j][2:] == items[1][
+                                                                                                              j + i - 1][
+                                                                                                          2:]:
                             for k in range(j + 1, j + i - 1):
                                 if items[1][k][0] != 'M':
                                     flag = False
@@ -88,6 +91,21 @@ def get_entity_span_single_sampler(train_path,
         weights = [label_weight[l] for l in labels]
         return WeightedRandomSampler(weights=weights,
                                      num_samples=len(labels),
+                                     replacement=True)
+    else:
+        raise NotImplementedError('{} has not been implemented'.format(sampler_type))
+
+
+def get_sentence_importance_sampler(train_label,
+                                    sampler_type,
+                                    default_factor=0.5):
+    label = train_label
+    if sampler_type == "WeightedRandomSampler":
+        # Attention: minimum label index must be 0
+        label_weight = [1.0 / len(np.where(label == l)[0]) ** default_factor for l in np.unique(label)]
+        weights = [label_weight[l] for l in label]
+        return WeightedRandomSampler(weights=weights,
+                                     num_samples=len(label),
                                      replacement=True)
     else:
         raise NotImplementedError('{} has not been implemented'.format(sampler_type))

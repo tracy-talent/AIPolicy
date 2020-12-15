@@ -7,6 +7,7 @@ import re
 import argparse
 import configparser
 import datetime
+from ast import literal_eval
 
 sys.path.append('../..')
 from pasaie.utils import get_logger
@@ -24,18 +25,21 @@ parser.add_argument('--model', default='textcnn',
                     help='model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint path')
-parser.add_argument('--only_test', default=False, type=bool,
+parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
-parser.add_argument('--use_sampler', default=False, type=bool,
+parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
 parser.add_argument('--adv', default='none', choices=['fgm', 'pgd', 'flb', 'none'],
                     help='embedding adversarial perturbation')
-parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
+parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr', 'wce'],
                     help='loss function')
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
                     help='Metric for picking up best checkpoint')
-parser.add_argument('--compress_seq', default=False, type=bool,
+parser.add_argument('--compress_seq', action='store_true',
                     help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
+parser.add_argument('--ignore_classes', default='', type=str,
+                    help='ignored classes'
+                    )
 
 # Dataset
 parser.add_argument('--dataset', default='sentence_importance_judgement',
@@ -101,7 +105,12 @@ tb_logdir = os.path.join(config['path']['ap_tb'], args.dataset, model_name,
 os.makedirs(config['path']['ap_ckpt'], exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = f'{args.dataset}/{model_name}'
-ckpt = os.path.join(config['path']['ap_ckpt'], f'{args.ckpt}.pth.tar')
+
+ckpt = os.path.join(config['path']['ap_ckpt'], f'{args.ckpt}0.pth.tar')
+ckpt_cnt = 0
+while os.path.exists(ckpt):
+    ckpt_cnt += 1
+    ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
     data_csv_path = os.path.join(config['path']['ap_dataset'], args.dataset, 'full_data.csv')
@@ -139,13 +148,31 @@ if args.model == 'textcnn':
                                         embedding_size=embedding_dim,
                                         kernel_sizes=[3, 4, 5],
                                         dropout_rate=args.dropout_rate)
+elif args.model == 'bilstm':
+    model = pasaie.pasaap.model.BilstmAttn(
+        sequence_encoder=sentence_encoder,
+        num_class=2,
+        embedding_dim=embedding_dim,
+        hidden_size=128,
+        num_layers=1,
+        num_heads=8,
+        dropout_rate=0.2,
+        compress_seq=args.compress_seq,
+        use_attn=True
+    )
 else:
     raise NotImplementedError
 
 if args.use_sampler:
     sampler = None
 else:
-    sampler = None
+    sampler = 'WeightedRandomSampler'
+
+if args.ignore_classes:
+    args.ignore_classes = literal_eval(args.ignore_classes)
+else:
+    args.ignore_classes = []
+target_class = 1
 # Define the whole training framework
 framework = pasaie.pasaap.framework.\
     SentenceImportanceClassifier(model=model,
@@ -154,6 +181,8 @@ framework = pasaie.pasaap.framework.\
                                  logger=logger,
                                  tb_logdir=tb_logdir,
                                  compress_seq=args.compress_seq,
+                                 ignore_classes=args.ignore_classes,
+                                 target_class=target_class,
                                  batch_size=args.batch_size,
                                  max_epoch=args.max_epoch,
                                  lr=args.lr,
@@ -167,9 +196,11 @@ framework = pasaie.pasaap.framework.\
                                  opt=args.optimizer)
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model('target_f1')
 
 # Test
 if args.only_test:
-    framework.load_state_dict(torch.load(ckpt))
+    if ckpt_cnt > 0:
+        ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt - 1}.pth.tar', ckpt)
+    framework.load_model(ckpt)
     framework.eval_model(framework.eval_loader)

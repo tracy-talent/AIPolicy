@@ -1,30 +1,47 @@
 from torch.utils import data
 from torch.utils.data import DataLoader
+from torch.utils.data import Sampler
 import pandas as pd
 from sklearn.model_selection import train_test_split
 import random
 from functools import partial
 import torch
+import numpy as np
+from collections import Counter
 
 from ...pasare.framework.data_loader import compress_sequence
+from ...utils import sampler as mysampler
 
 
 class SentenceImportanceDataset(data.Dataset):
 
-    def __init__(self, sequence_encoder, data_with_label, is_training):
+    def __init__(self, sequence_encoder, data_with_label, is_training, data_augmentation=True):
         self.sequence_encoder = sequence_encoder
         self.is_training = is_training
-        self.data = self._construct_data(data_with_label)
+        self.data_augmentation = data_augmentation
+        self.data, self.data_split_indices = self._construct_data(data_with_label)
+        labels = list(zip(*data_with_label))[1]
+        self.num_classes = len(np.unique(labels))
+        self.weight = np.zeros(self.num_classes, dtype=np.float32)
+        class_cnt = Counter(labels)
+        for c, cnt in class_cnt.items():
+            self.weight[c] += cnt
+        self.weight = 1 / self.weight
+        self.weight = torch.from_numpy(self.weight)
 
     def _construct_data(self, data_with_label):
         tmp_data = []
+        split_indices = []
+        split_tokens = [',', '，']
         for index in range(len(data_with_label)):
             item = data_with_label[index]  # item = (text, label)
             seqs = list(self.sequence_encoder.tokenize(item))
             label = item[1]
             tmp_item = [torch.tensor([label])] + seqs
             tmp_data.append(tmp_item)
-        return tmp_data
+            tmp_split_indices = [ith for ith, ch in enumerate(item[0]) if ch in split_tokens]
+            split_indices.append(tmp_split_indices)
+        return tmp_data, split_indices
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -49,7 +66,25 @@ class SentenceImportanceDataset(data.Dataset):
         return len(self.data)
 
     def __getitem__(self, index):
-        return self.data[index]
+        item = self.data[index]
+        if self.is_training and self.data_augmentation and random.random() < 0.3 and self.data_split_indices[index]:
+            text_item = item[1]
+            mask = item[-1]
+            tidx = random.choice(self.data_split_indices[index])
+            if random.random() < 0.5:
+                t_text = text_item[:, :tidx + 1]
+                t_mask = mask[:, :tidx + 1]
+            else:
+                t_text = text_item[:, :tidx]
+                t_mask = mask[:, :tidx]
+            if self.sequence_encoder.blank_padding:
+                t_text = torch.cat([t_text, torch.zeros((1, self.sequence_encoder.max_length - t_text.size(-1)))], dim=-1).long()
+                t_mask = torch.cat([t_mask, torch.zeros((1, self.sequence_encoder.max_length - t_mask.size(-1)))], dim=-1).long()
+            # print(t_text.shape, t_mask.shape)
+            item = [item[0], t_text, t_mask]
+            return item
+        else:
+            return item
 
 
 def get_sentence_importance_dataloader(input_data, sequence_encoder, batch_size, shuffle, is_training, sampler=None,
@@ -75,6 +110,9 @@ def get_train_val_dataloader(csv_path, sequence_encoder, batch_size, sampler, te
                                                       random_state=0, test_size=test_size, stratify=full_label)
     train_data = [(x, y) for x, y in zip(X_train, Y_train)]
     val_data = [(x, y) for x, y in zip(X_val, Y_val)]
+    if sampler and isinstance(sampler, str):
+        sampler = mysampler.get_sentence_importance_sampler(Y_train, sampler_type=sampler, default_factor=0.5)
+
     train_loader = get_sentence_importance_dataloader(train_data,
                                                       sequence_encoder,
                                                       is_training=True,
