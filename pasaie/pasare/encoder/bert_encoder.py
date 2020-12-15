@@ -7,11 +7,13 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 
-from transformers import BertModel, BertTokenizer
+from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, AutoModel
+from transformers import BertModel, AlbertModel, BertTokenizer
+# from transformers import BertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, blank_padding=True, mask_entity=False):
+    def __init__(self, max_length, pretrain_path, bert_name='bert', blank_padding=True, mask_entity=False):
         """
         Args:
             max_length: max length of sentence
@@ -22,8 +24,16 @@ class BERTEncoder(nn.Module):
         self.blank_padding = blank_padding
         self.mask_entity = mask_entity
         logging.info('Loading BERT pre-trained checkpoint.')
-        self.bert = BertModel.from_pretrained(pretrain_path)
-        self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in bert_name:
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+        elif 'bert' in bert_name:
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         # add possible missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -39,8 +49,11 @@ class BERTEncoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
-        _, x = self.bert(token, attention_mask=att_mask)
-        return x
+        if 'roberta' in self.bert_name:
+            _, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            _, pooler_out = self.bert(seqs, attention_mask=att_mask)
+        return pooler_out
 
     def tokenize(self, item):
         """
@@ -76,11 +89,16 @@ class BERTEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            # sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            # ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            # sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            # ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            # sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            sent0 = sentence[:pos_min[0]]
+            ent0 = sentence[pos_min[0]:pos_min[1]]
+            sent1 = sentence[pos_min[1]:pos_max[0]]
+            ent1 = sentence[pos_max[0]:pos_max[1]]
+            sent2 = sentence[pos_max[1]:]
 
         if self.mask_entity:
             ent0 = ['[unused5]'] if not rev else ['[unused6]']
@@ -120,7 +138,7 @@ class BERTEncoder(nn.Module):
 
 
 class BERTEntityEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, tag2id=None, blank_padding=True, mask_entity=False):
+    def __init__(self, max_length, pretrain_path, bert_name='bert', tag2id=None, blank_padding=True, mask_entity=False):
         """
         Args:
             max_length: max length of sentence
@@ -131,8 +149,19 @@ class BERTEntityEncoder(nn.Module):
         self.blank_padding = blank_padding
         self.mask_entity = mask_entity
         logging.info('Loading BERT pre-trained checkpoint.')
-        self.bert = BertModel.from_pretrained(pretrain_path)
-        self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
+            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+        elif 'bert' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         # add possible missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -155,7 +184,11 @@ class BERTEntityEncoder(nn.Module):
         Returns:
             (B, 2H), representations for sentences
         """
-        hidden, _ = self.bert(token, attention_mask=att_mask)
+        if 'roberta' in self.bert_name:
+            # hidden = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
+            hidden, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -166,9 +199,9 @@ class BERTEntityEncoder(nn.Module):
         # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
         context_conv = F.relu(self.conv(hidden.unsqueeze(1))).squeeze(3)
         context_hidden = F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)
-        x = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
-        x = self.linear(x)
-        return x
+        rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
+        rep_out = self.linear(rep_out)
+        return rep_out
 
     def tokenize(self, item):
         """
@@ -270,14 +303,16 @@ class BERTEntityEncoder(nn.Module):
 
 
 class BERTWithDSPEncoder(BERTEncoder):
-    def __init__(self, pretrain_path, max_length, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=320, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
             max_length: max length of sentence
+            max_dsp_path_length: 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9).
             pretrain_path: path of pretrain model
         """
         super(BERTWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
                                                 max_length=max_length, 
+                                                bert_name=bert_name,
                                                 blank_padding=True, 
                                                 mask_entity=False)
         self.max_dsp_path_length = max_dsp_path_length
@@ -336,7 +371,10 @@ class BERTWithDSPEncoder(BERTEncoder):
         Return:
             (B, H), representations for sentences
         """
-        hidden, x = self.bert(token, attention_mask=att_mask)
+        if 'roberta' in self.bert_name:
+            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
         # dsp encode, get dsp hidden
         ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)
         ent_t_dsp_hidden = self.dsp_encode(hidden, ent_t_path, ent_t_length) # (B, S, d)
@@ -355,7 +393,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         ent_dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
         # ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
-        joint_feature = torch.cat([x, ent_dsp_hidden], dim=-1)
+        joint_feature = torch.cat([pooler_out, ent_dsp_hidden], dim=-1)
         joint_feature = torch.tanh(self.linear(joint_feature))
         # joint_feature = self.linear(joint_feature)
 
@@ -392,14 +430,16 @@ class BERTWithDSPEncoder(BERTEncoder):
 
 
 class BERTEntityWithDSPEncoder(BERTEntityEncoder):
-    def __init__(self, pretrain_path, max_length=256, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
+    def __init__(self, pretrain_path, bert_name='bert', max_length=320, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
                 use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
             max_length: max length of sentence
+            max_dsp_path_length: 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9).
             pretrain_path: path of pretrain model
         """
         super(BERTEntityWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
+                                                    bert_name=bert_name,
                                                     max_length=max_length, 
                                                     tag2id=tag2id, 
                                                     blank_padding=blank_padding, 
@@ -464,7 +504,10 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         Returns:
             (B, 2H), representations for sentences
         """
-        hidden, pooler_output = self.bert(token, attention_mask=att_mask)
+        if 'roberta' in self.bert_name:
+            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -472,7 +515,6 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         onehot_tail = onehot_tail.scatter_(1, pos2, 1)
         head_hidden = torch.matmul(onehot_head.unsqueeze(1), hidden).squeeze(1)  # (B, H)
         tail_hidden = torch.matmul(onehot_tail.unsqueeze(1), hidden).squeeze(1)  # (B, H)
-        # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
 
         # get context representation
         if self.use_attention:
@@ -500,12 +542,12 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
         # gather all features
-        x = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 4H)
-        # x = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
-        x = torch.tanh(self.linear(x))
-        # x = self.linear(x)
+        rep_out = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 4H)
+        # rep_out = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
+        rep_out = torch.tanh(self.linear(rep_out))
+        # rep_out = self.linear(rep_out)
 
-        return x
+        return rep_out
 
     def tokenize(self, item):
         """

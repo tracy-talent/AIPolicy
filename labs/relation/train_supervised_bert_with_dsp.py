@@ -16,6 +16,8 @@ from pasaie import pasare
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-uncased',
                     help='Pre-trained ckpt path / model name (hugginface)')
+parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
 parser.add_argument('--pooler', default='entity', choices=['cls', 'entity'],
@@ -92,13 +94,14 @@ config.read(os.path.join(project_path, 'config.ini'))
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 def make_model_name():
-    model_name = 'bert_' + args.pooler + '_' + args.dsp_tool + '_dsp_' + args.loss
+    model_name = args.bert_name + '_' + args.pooler + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
-    if args.use_attention:
-        model_name += '_attention_cat'
     if args.embed_entity_type:
         model_name += '_embed_entity'
+    model_name += '_' + args.dsp_tool + '_dsp'
+    if args.use_attention:
+        model_name += '_attention_cat'
     return model_name
 model_name = make_model_name()
 
@@ -157,6 +160,7 @@ tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file
 if args.pooler == 'entity':
     sentence_encoder = pasare.encoder.BERTEntityWithDSPEncoder(
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         max_length=args.max_length,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
         dsp_tool=args.dsp_tool,
@@ -169,6 +173,7 @@ if args.pooler == 'entity':
 elif args.pooler == 'cls':
     sentence_encoder = pasare.encoder.BERTWithDSPEncoder(
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         max_length=args.max_length,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
         dsp_tool=args.dsp_tool,

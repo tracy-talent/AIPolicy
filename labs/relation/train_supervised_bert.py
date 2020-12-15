@@ -17,6 +17,8 @@ from pasaie import pasare
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-uncased',
                     help='Pre-trained ckpt path / model name (hugginface)')
+parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
 parser.add_argument('--pooler', default='entity', choices=['cls', 'entity'],
@@ -85,7 +87,7 @@ config.read(os.path.join(project_path, 'config.ini'))
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 def make_model_name():
-    model_name = 'bert_' + args.pooler + '_' + args.loss
+    model_name = args.bert_name + '_' + args.pooler + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     if args.embed_entity_type:
@@ -149,6 +151,7 @@ if args.pooler == 'entity':
     sentence_encoder = pasaie.pasare.encoder.BERTEntityEncoder(
         max_length=args.max_length,
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         tag2id=tag2id,
         mask_entity=args.mask_entity,
         blank_padding=True
@@ -157,6 +160,7 @@ elif args.pooler == 'cls':
     sentence_encoder = pasaie.pasare.encoder.BERTEncoder(
         max_length=args.max_length,
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         mask_entity=args.mask_entity,
         blank_padding=True
     )

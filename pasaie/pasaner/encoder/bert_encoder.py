@@ -14,7 +14,7 @@ from transformers import BertModel, AlbertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, bert_name, blank_padding=True):
+    def __init__(self, max_length, pretrain_path, bert_name='bert', blank_padding=True):
         """
         Args:
             max_length (int): max length of sequence
