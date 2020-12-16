@@ -1,7 +1,8 @@
-CUDA_VISIBLE_DEVICES=$1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_sentence_importance_classifier.py \
-    --pretrain_path ~/qmc_space/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.vec \
-    --encoder base \
+    --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --encoder bert \
+    --bert_name bert \
     --model textcnn \
     --metric micro_f1 \
     --dataset sentence_importance_judgement \
@@ -15,9 +16,10 @@ python train_sentence_importance_classifier.py \
     --optimizer adam \
     --adv fgm \
     --dice_alpha 0.6 \
-    --loss ce \
+    --loss bce \
     --use_sampler Fasle \
-    --compress_seq False
+    --compress_seq True
 
 
+# --pretrain_path ~/qmc_space/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.vec \
 #    --pretrain_path ~/qmc_space/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \

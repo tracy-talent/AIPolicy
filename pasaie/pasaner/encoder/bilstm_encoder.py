@@ -36,6 +36,9 @@ class BILSTMEncoder(BaseEncoder):
         Return:
             (B, H), representations for sentences
         """
+        if not hasattr(self, '_flattened'):
+            self.bilstm.flatten_parameters()
+            setattr(self, '_flattened', True)
         seqs_embedding = self.word_embedding(seqs)
         if self.compress_seq:
             seqs_length = att_mask.sum(dim=-1).detach().cpu()

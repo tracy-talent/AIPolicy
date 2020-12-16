@@ -11,19 +11,19 @@ from ...pasare.framework.data_loader import compress_sequence
 
 class SentenceImportanceDataset(data.Dataset):
 
-    def __init__(self, sequence_encoder, data_with_label, is_training):
-        self.sequence_encoder = sequence_encoder
+    def __init__(self, tokenizer, data_with_label, is_training):
+        self.tokenizer = tokenizer
         self.is_training = is_training
         self.data = self._construct_data(data_with_label)
 
     def _construct_data(self, data_with_label):
         tmp_data = []
         for index in range(len(data_with_label)):
-            item = data_with_label[index]  # item = (text, label)
-            seqs = list(self.sequence_encoder.tokenize(item))
-            label = item[1]
-            tmp_item = [torch.tensor([label])] + seqs
-            tmp_data.append(tmp_item)
+            items = data_with_label[index]  # items = (text, label)
+            seqs = list(self.tokenizer(*items))
+            label = items[1]
+            tmp_items = [torch.tensor([label])] + seqs
+            tmp_data.append(tmp_items)
         return tmp_data
 
     @classmethod
@@ -52,11 +52,11 @@ class SentenceImportanceDataset(data.Dataset):
         return self.data[index]
 
 
-def get_sentence_importance_dataloader(input_data, sequence_encoder, batch_size, shuffle, is_training, sampler=None,
+def get_sentence_importance_dataloader(input_data, tokenizer, batch_size, shuffle, is_training, sampler=None,
                                        compress_seq=True, num_workers=8):
     if sampler:
         shuffle = False
-    dataset = SentenceImportanceDataset(sequence_encoder, input_data, is_training)
+    dataset = SentenceImportanceDataset(tokenizer, input_data, is_training)
     data_loader = DataLoader(dataset=dataset,
                              batch_size=batch_size,
                              shuffle=shuffle,
@@ -66,7 +66,7 @@ def get_sentence_importance_dataloader(input_data, sequence_encoder, batch_size,
     return data_loader
 
 
-def get_train_val_dataloader(csv_path, sequence_encoder, batch_size, sampler, test_size=0.3, compress_seq=True):
+def get_train_val_dataloader(csv_path, tokenizer, batch_size, sampler, test_size=0.3, compress_seq=True):
     csv_data = pd.read_csv(csv_path)
     full_data = csv_data['text'].values
     full_label = csv_data['label'].values
@@ -76,14 +76,14 @@ def get_train_val_dataloader(csv_path, sequence_encoder, batch_size, sampler, te
     train_data = [(x, y) for x, y in zip(X_train, Y_train)]
     val_data = [(x, y) for x, y in zip(X_val, Y_val)]
     train_loader = get_sentence_importance_dataloader(train_data,
-                                                      sequence_encoder,
+                                                      tokenizer,
                                                       is_training=True,
                                                       batch_size=batch_size,
                                                       shuffle=True,
                                                       sampler=sampler,
                                                       compress_seq=compress_seq)
     val_loader = get_sentence_importance_dataloader(val_data,
-                                                    sequence_encoder,
+                                                    tokenizer,
                                                     is_training=False,
                                                     batch_size=batch_size,
                                                     shuffle=False,

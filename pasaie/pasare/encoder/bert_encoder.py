@@ -41,10 +41,10 @@ class BERTEncoder(nn.Module):
 
         self.hidden_size = self.bert.config.hidden_size
 
-    def forward(self, token, att_mask):
+    def forward(self, seqs, att_mask):
         """
         Args:
-            token: (B, L), index of tokens
+            seqs: (B, L), index of tokens
             att_mask: (B, L), attention mask (1 for contents and 0 for padding)
         Return:
             (B, H), representations for sentences
@@ -174,10 +174,10 @@ class BERTEntityEncoder(nn.Module):
         # for type boarder
         self.tag2id = tag2id
 
-    def forward(self, token, pos1, pos2, att_mask):
+    def forward(self, seqs, pos1, pos2, att_mask):
         """
         Args:
-            token: (B, L), index of tokens
+            seqs: (B, L), index of tokens
             pos1: (B, 1), position of the head entity starter
             pos2: (B, 1), position of the tail entity starter
             att_mask: (B, L), attention mask (1 for contents and 0 for padding)
@@ -363,10 +363,10 @@ class BERTWithDSPEncoder(BERTEncoder):
         attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), dsp_hidden).squeeze(dim=1) # (B, d)
         return attention_output
 
-    def forward(self, token, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
+    def forward(self, seqs, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
         Args:
-            token: (B, L), index of tokens
+            seqs: (B, L), index of tokens
             att_mask: (B, L), attention mask (1 for contents and 0 for padding)
         Return:
             (B, H), representations for sentences
@@ -494,10 +494,10 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), hidden).squeeze(dim=1) # (B, d)
         return attention_output
 
-    def forward(self, token, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
+    def forward(self, seqs, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
         Args:
-            token: (B, L), index of tokens
+            seqs: (B, L), index of tokens
             pos1: (B, 1), position of the head entity starter
             pos2: (B, 1), position of the tail entity starter
             att_mask: (B, L), attention mask (1 for contents and 0 for padding)

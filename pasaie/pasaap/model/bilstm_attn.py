@@ -2,13 +2,13 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from pasaie.utils.attention import MultiHeadedAttention
+from ...module.nn import MultiHeadedAttention
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class BilstmAttn(nn.Module):
 
-    def __init__(self, sequence_encoder, num_class, embedding_dim, hidden_size=128, num_layers=1, num_heads=8,
+    def __init__(self, sequence_encoder, num_class, hidden_size=128, num_layers=1, num_heads=8,
                  dropout_rate=0.2, compress_seq=False, batch_first=True, use_attn=True):
         super(BilstmAttn, self).__init__()
         self.sequence_encoder = sequence_encoder
@@ -17,7 +17,7 @@ class BilstmAttn(nn.Module):
         self.batch_first = batch_first
         self.use_attn = use_attn
 
-        self.bilstm1 = nn.LSTM(input_size=embedding_dim,
+        self.bilstm1 = nn.LSTM(input_size=sequence_encoder.hidden_size,
                                num_layers=num_layers,
                                hidden_size=hidden_size,
                                dropout=0,
@@ -65,7 +65,7 @@ class BilstmAttn(nn.Module):
             else:
                 x, _ = self.bilstm2(x)
             x = torch.add(*x.chunk(2, dim=-1))
-        x_last = torch.cat((x[:, 0, :], x[:, -1, :]), dim=-1)  # select the first and the last layer's output
+        x_last = torch.cat((x[:, 0, :], x[:, -1, :]), dim=-1)  # select the first and the last token's representation as output
         logits = self.fc(x_last)
         return logits
 
@@ -73,11 +73,13 @@ class BilstmAttn(nn.Module):
         self.eval()
         item = self.sequence_encoder.tokenize(item)
         logits = self.forward(*item)
-        if self.num_classes == 2:
-            logits = F.sigmoid(logits)
+        if self.num_classes == 1:
+            score = F.sigmoid(logits.squeeze(-1)).item()
+            pred = (score >= 0.5).long().item()
+            score = score if pred else 1 - score
         else:
             logits = F.softmax(logits, dim=-1)
-        score, pred = logits.max(-1)
-        score = score.item()
-        pred = pred.item()
+            score, pred = logits.max(-1)
+            score = score.item()
+            pred = pred.item()
         return pred, score

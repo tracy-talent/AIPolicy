@@ -40,8 +40,14 @@ def micro_p_r_f1_score(preds, golds):
 class BatchMetric(object):
     '''Metric computes accuracy/precision/recall/confusion_matrix with batch updates.'''
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, ignore_classes=[]):
+        """
+        Args:
+            num_classes (int): number of classes.
+            ignore_classes (list, optional): classes should be ignored. Defaults to [].
+        """
         self.num_classes = num_classes
+        self.pos_classes = [i for i in range(num_classes) if i not in ignore_classes]
         self.y_pred = torch.tensor([])
         self.y_true = torch.tensor([])
         self.steps = 0
@@ -117,9 +123,9 @@ class BatchMetric(object):
         prec = tp / (tp + fp)
         prec[torch.isnan(prec)] = 0
         if reduction == 'macro':
-            prec = prec.mean()
+            prec = prec[self.pos_classes].mean()
         elif reduction == 'micro':
-            prec = tp.sum() / (tp + fp).sum()
+            prec = tp[self.pos_classes].sum() / (tp + fp)[self.pos_classes].sum()
         self.prec.append(prec)
         return prec
 
@@ -139,9 +145,9 @@ class BatchMetric(object):
         recall = tp / (tp + fn)
         recall[torch.isnan(recall)] = 0
         if reduction == 'macro':
-            recall = recall.mean()
+            recall = recall[self.pos_classes].mean()
         elif reduction == 'micro':
-            recall = tp.sum() / (tp + fn).sum()
+            recall = tp[self.pos_classes].sum() / (tp + fn)[self.pos_classes].sum()
         self.rec.append(recall)
         return recall
 

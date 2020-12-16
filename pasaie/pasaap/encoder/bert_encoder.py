@@ -8,35 +8,52 @@ from transformers import BertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, blank_padding=True):
+    def __init__(self, max_length, pretrain_path, bert_name='bert', blank_padding=True):
         """
         Args:
             max_length: max length of sentence
             pretrain_path: path of pretrain model
         """
         super().__init__()
-        self.max_length = max_length
-        self.blank_padding = blank_padding
         logging.info('Loading BERT pre-trained checkpoint.')
-        self.bert = BertModel.from_pretrained(pretrain_path)
-        self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
+            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+        elif 'bert' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         # add possible missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
         self.bert.resize_token_embeddings(len(self.tokenizer))
 
-    def forward(self, token, att_mask):
+        self.hidden_size = self.bert.config.hidden_size
+        self.max_length = max_length
+        self.blank_padding = blank_padding
+
+    def forward(self, seqs, att_mask):
         """
         Args:
-            token: (B, L), index of tokens
+            seqs: (B, L), index of tokens
             att_mask: (B, L), attention mask (1 for contents and 0 for padding)
         Return:
             (B, H), representations for sentences
         """
-        seq_out, sent_out = self.bert(token, attention_mask=att_mask)
+        if 'roberta' in self.bert_name:
+            # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask)
         return seq_out
 
-    def tokenize(self, item):
+    def tokenize(self, *items):
         """
         Args:
             item: data instance containing 'text' / 'token', 'h' and 't'
@@ -44,11 +61,11 @@ class BERTEncoder(nn.Module):
             Name of the relation of the sentence
         """
         # Sentence -> token
-        if isinstance(item, tuple) or isinstance(item, str) or (isinstance(item, list) and len(item) < 3):
-            sentence = item[0]
+        if isinstance(items[0], str):
+            sentence = items[0]
             is_token = False
         else:
-            sentence = item
+            sentence = items[0]
             is_token = True
 
         # Sentence -> token

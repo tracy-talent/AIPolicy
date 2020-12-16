@@ -46,7 +46,7 @@ class SentenceImportanceClassifier(nn.Module):
         # Load Data
         self.train_loader, self.eval_loader = get_train_val_dataloader(
             csv_path=csv_path,
-            sequence_encoder=model.sequence_encoder,
+            tokenizer=model.sequence_encoder.tokenize,
             batch_size=batch_size,
             sampler=sampler,
             compress_seq=compress_seq
@@ -56,7 +56,9 @@ class SentenceImportanceClassifier(nn.Module):
         self.model = model
         self.parallel_model = nn.DataParallel(self.model)
         # Criterion
-        if loss == 'ce':
+        if loss == 'bce':
+            self.criterion = nn.BCEWithLogitsLoss(reduction='none', pos_weight=torch.tensor([5.71]))
+        elif loss == 'ce':
             # nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
             self.criterion = nn.CrossEntropyLoss(reduction='none')
         elif loss == 'focal':
@@ -66,7 +68,7 @@ class SentenceImportanceClassifier(nn.Module):
         elif loss == 'lsr':
             self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
         else:
-            raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
+            raise ValueError("Invalid loss. Must be 'bce', 'ce' or 'focal' or 'dice' or 'lsr'")
         # Params and optimizer
         self.lr = lr
         self.bert_lr = bert_lr
@@ -151,7 +153,7 @@ class SentenceImportanceClassifier(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
-            batch_metric = BatchMetric(num_classes=self.model.num_classes)
+            batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=[0])
             avg_loss = Mean()
             t_start = time.time()
             for ith, data in enumerate(self.train_loader):
@@ -164,16 +166,22 @@ class SentenceImportanceClassifier(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                pred = logits.argmax(dim=-1)  # (B)
+                if logits.size(-1) == 1:
+                    pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
+                else:
+                    pred = logits.argmax(dim=-1)  # (B)
                 bs = label.size(0)
 
                 # Optimize
+                loss_label = label
+                if 'bce' in self.criterion.__class__.__name__.lower():
+                    loss_label = label.float().unsqueeze(-1)
                 if self.adv is None:
-                    loss = self.criterion(logits, label)  # B
+                    loss = self.criterion(logits, loss_label)  # B
                     loss = loss.mean()
                     loss.backward()
                 else:
-                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., loss_label, *args)
                 torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.scheduler is not None:
@@ -184,13 +192,10 @@ class SentenceImportanceClassifier(nn.Module):
                 batch_metric.update(pred, label, update_score=True)
                 avg_loss.update(loss.item() * bs, bs)
                 cur_loss = avg_loss.avg
-                if self.model.num_classes == 2:
-                    cur_acc = cur_prec = cur_recall = cur_f1 = batch_metric.accuracy().item()
-                else:
-                    cur_acc = batch_metric.accuracy().item()
-                    cur_prec = batch_metric.precision().item()
-                    cur_recall = batch_metric.recall().item()
-                    cur_f1 = batch_metric.f1_score().item()
+                cur_acc = batch_metric.accuracy().item()
+                cur_prec = batch_metric.precision().item()
+                cur_recall = batch_metric.recall().item()
+                cur_f1 = batch_metric.f1_score().item()
 
                 # log
                 global_step += 1
@@ -246,7 +251,7 @@ class SentenceImportanceClassifier(nn.Module):
     def eval_model(self, eval_loader):
         self.eval()
 
-        batch_metric = BatchMetric(num_classes=self.model.num_classes)
+        batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=[0])
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -258,23 +263,23 @@ class SentenceImportanceClassifier(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                pred = logits.argmax(dim=-1)  # (B)
+                if logits.size(-1) == 1:
+                    pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
+                else:
+                    pred = logits.argmax(dim=-1)  # (B)
                 batch_metric.update(pred, label, update_score=False)
                 # log
                 # if (ith + 1) % 20 == 0:
                 #     self.logger.info(f'Evaluation...steps: {ith + 1} finished')
 
-        if self.model.num_classes == 2:
-            acc = micro_prec = micro_recall = micro_f1 = batch_metric.accuracy().item()
-        else:
-            acc = batch_metric.accuracy().item()
-            micro_prec = batch_metric.precision().item()
-            micro_recall = batch_metric.recall().item()
-            micro_f1 = batch_metric.f1_score().item()
+        acc = batch_metric.accuracy().item()
+        micro_prec = batch_metric.precision().item()
+        micro_recall = batch_metric.recall().item()
+        micro_f1 = batch_metric.f1_score().item()
 
-        cate_prec = batch_metric.precision('none').cpu().tolist()
-        cate_rec = batch_metric.recall('none').cpu().tolist()
-        cate_f1 = batch_metric.f1_score('none').cpu().tolist()
+        cate_prec = batch_metric.precision('none').cpu().numpy()
+        cate_rec = batch_metric.recall('none').cpu().numpy()
+        cate_f1 = batch_metric.f1_score('none').cpu().numpy()
         category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
         result = {'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_recall, 'micro_f1': micro_f1,
                   'category-p/r/f1': category_result}

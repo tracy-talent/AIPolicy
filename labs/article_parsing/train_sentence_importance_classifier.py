@@ -18,8 +18,10 @@ from pasaie import pasaap, utils
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='hfl-chinese-bert-wwm-ext',
                     help='Pre-trained ckpt path / model name (hugginface) or pretrained embedding path')
-parser.add_argument('--encoder', default='bert',
+parser.add_argument('--encoder', default='bert', choices=['bert', 'base'], 
                     help='encoder name')
+parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--model', default='textcnn',
                     help='model name')
 parser.add_argument('--ckpt', default='',
@@ -30,7 +32,7 @@ parser.add_argument('--use_sampler', default=False, type=bool,
                     help='Use sampler')
 parser.add_argument('--adv', default='none', choices=['fgm', 'pgd', 'flb', 'none'],
                     help='embedding adversarial perturbation')
-parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
+parser.add_argument('--loss', default='bce', choices=['bce', 'ce', 'focal', 'dice', 'lsr'],
                     help='loss function')
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
                     help='Metric for picking up best checkpoint')
@@ -78,7 +80,10 @@ def make_hparam_string(op, lr, bs, wd, ml):
 
 
 def make_model_name():
-    _model_name = '_'.join((args.encoder, args.model, args.loss))
+    if args.encoder == 'bert':
+        _model_name = '_'.join((args.bert_name, args.model, args.loss))
+    else:
+        _model_name = '_'.join((args.encoder, args.model, args.loss))
     if len(args.adv) > 0 and args.adv != 'none':
         _model_name += '_' + args.adv
     return _model_name
@@ -117,15 +122,14 @@ if args.encoder == 'bert':
     sentence_encoder = pasaie.pasaap.encoder.BERTEncoder(
         max_length=args.max_length,
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         blank_padding=True
     )
-    embedding_dim = 768
 elif args.encoder == 'base':
     word2id, word_emb_npy = load_wordvec(wv_file=args.pretrain_path)
-    embedding_dim = word_emb_npy.shape[-1]
     sentence_encoder = pasaie.pasaap.encoder.BaseEncoder(token2id=word2id,
                                                          max_length=256,
-                                                         embedding_dim=embedding_dim,
+                                                         word_embe_size=word_emb_npy.shape[-1],
                                                          word2vec=word_emb_npy,
                                                          blank_padding=True)
 else:
@@ -134,9 +138,8 @@ else:
 # Define the model
 if args.model == 'textcnn':
     model = pasaie.pasaap.model.TextCnn(sequence_encoder=sentence_encoder,
-                                        num_class=2,
+                                        num_class=1 if args.loss == 'bce' else 2,
                                         num_filter=256,
-                                        embedding_size=embedding_dim,
                                         kernel_sizes=[3, 4, 5],
                                         dropout_rate=args.dropout_rate)
 else:
@@ -170,6 +173,5 @@ if not args.only_test:
     framework.train_model('micro_f1')
 
 # Test
-if args.only_test:
-    framework.load_state_dict(torch.load(ckpt))
-    framework.eval_model(framework.eval_loader)
+framework.load_state_dict(torch.load(ckpt))
+framework.eval_model(framework.eval_loader)

@@ -40,6 +40,9 @@ class BILSTM_WLF_Encoder(BaseWLFEncoder):
         Return:
             (B, L, H), representations for sequences
         """
+        if not hasattr(self, '_flattened'):
+            self.bilstm.flatten_parameters()
+            setattr(self, '_flattened', True)
         # Check size of tensors
         inputs_embed = torch.cat([
             self.char_embedding(seqs_char),
