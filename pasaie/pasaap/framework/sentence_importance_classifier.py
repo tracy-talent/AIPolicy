@@ -1,6 +1,7 @@
 import os
 import datetime
 import time
+import operator
 from collections import defaultdict
 import torch
 from torch import nn, optim
@@ -28,11 +29,13 @@ class SentenceImportanceClassifier(nn.Module):
                  lr=1e-3,
                  bert_lr=3e-5,
                  weight_decay=1e-5,
+                 early_stopping_step=3,
                  warmup_step=300,
                  max_grad_norm=5.0,
                  dice_alpha=0.6,
                  recall_alpha=0.7,         # used when need to emphasize recall score
                  sampler=None,
+                 metric='micro_f1',
                  loss='ce',
                  adv='fgm',
                  opt='adam'):
@@ -43,8 +46,10 @@ class SentenceImportanceClassifier(nn.Module):
         else:
             self.is_bert_encoder = False
         self.max_epoch = max_epoch
+        self.early_stopping_step = early_stopping_step
         self.max_grad_norm = max_grad_norm
         self.recall_alpha = recall_alpha
+        self.metric = metric
 
         # Load Data
         self.train_loader, self.eval_loader = get_train_val_dataloader(
@@ -127,13 +132,17 @@ class SentenceImportanceClassifier(nn.Module):
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
+        self.warmup_step = warmup_step
         if warmup_step > 0:
             from transformers import get_linear_schedule_with_warmup
             training_steps = self.train_loader.dataset.__len__() // batch_size * self.max_epoch
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step,
                                                              num_training_steps=training_steps)
         else:
-            self.scheduler = None
+            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
+                                                                mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
+                                                                patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
+            # self.scheduler = None
         # Adversarial
         if adv == 'fgm':
             self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
@@ -153,14 +162,51 @@ class SentenceImportanceClassifier(nn.Module):
         # tensorboard writer
         self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
-    def train_model(self, metric='micro_f1'):
+
+    def make_train_state(self):
+        return {'stop_early': False,
+                'early_stopping_step': 0,
+                'early_stopping_best_val': 1e8,
+                'epoch_index': 0,
+                'train_metrics': [], # [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
+                'val_metrics': [], # [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
+                }
+    
+    
+    def update_train_state(self):
+        if 'loss' in self.metric:
+            cmp_op = operator.gte
+        else:
+            cmp_op = operator.lte
+        if train_state['epoch_index'] == 0:
+            self.save_model(self.ckpt)
+            train_state['early_stopping_best_val'] = train_state['val_metrics'][-1][self.metric]
+            self.logger.info("Best ckpt and saved.")
+        elif train_state['epoch_index'] >= 1:
+            metric_v2 = train_state['val_metrics'][-2][self.metric]
+            metric_v1 = train_state['val_metrics'][-1][self.metric]
+            if cmp_op(metric_v1, metric_v2):
+                train_state['early_stopping_step'] += 1
+            else:
+                if not cmp_op(metric_v1, train_state['early_stopping_best_val']):
+                    self.save_model(self.ckpt)
+                    train_state['early_stopping_best_val'] = metric_v1
+                    self.logger.info("Best ckpt and saved.")
+                train_state['early_stopping_step'] = 0
+            
+            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
+
+
+    def train_model(self):
         test_best_metric = 0
         best_metric = 0
         global_step = 0
+        train_state = self.make_train_state()
 
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
+            train_state['epoch_index'] = epoch
             batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
             avg_loss = Mean()
             for ith, data in enumerate(self.train_loader):
@@ -189,26 +235,27 @@ class SentenceImportanceClassifier(nn.Module):
                     loss.backward()
                 else:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., loss_label, *args)
+                loss_label = loss_label.detach().cpu()
                 torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-                if self.scheduler is not None:
+                if self.warmup_step > 0:
                     self.scheduler.step()
                 self.optimizer.zero_grad()
 
                 # metrics
-                batch_metric.update(pred, label, update_score=True)
+                batch_metric.update(pred, label)
                 avg_loss.update(loss.item() * bs, bs)
                 cur_loss = avg_loss.avg
                 cur_acc = batch_metric.accuracy().item()
                 cur_prec = batch_metric.precision().item()
-                cur_recall = batch_metric.recall().item()
+                cur_rec = batch_metric.recall().item()
                 cur_f1 = batch_metric.f1_score().item()
 
                 # log
                 global_step += 1
                 if global_step % 20 == 0:
                     self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {cur_loss:.4f},'
-                                     f' acc: {cur_acc:.4f}, micro_p: {cur_prec:.4f}, micro_r: {cur_recall:.4f},'
+                                     f' acc: {cur_acc:.4f}, micro_p: {cur_prec:.4f}, micro_r: {cur_rec:.4f},'
                                      f' micro_f1: {cur_f1:.4f}')
 
                 # tensorboard training writer
@@ -216,22 +263,24 @@ class SentenceImportanceClassifier(nn.Module):
                     self.writer.add_scalar('train loss', cur_loss, global_step=global_step)
                     self.writer.add_scalar('train acc', cur_acc, global_step=global_step)
                     self.writer.add_scalar('train micro precision', cur_prec, global_step=global_step)
-                    self.writer.add_scalar('train micro recall', cur_recall, global_step=global_step)
+                    self.writer.add_scalar('train micro recall', cur_rec, global_step=global_step)
                     self.writer.add_scalar('train micro f1', cur_f1, global_step=global_step)
+            alpha_f1 = self.recall_alpha * cur_rec + (1 - self.recall_alpha) * cur_prec
+            train_state['train_metrics'].append({'loss': cur_loss, 'acc': cur_acc, 'micro_p': cur_prec, 'micro_r': cur_rec, 'micro_f1': cur_f1, 'alpha_f1': alpha_f1})
 
             # Val
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.eval_loader)
             self.logger.info('Evaluation result: {}.'.format(result))
-            self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], best_metric))
-            if result[metric] > best_metric:
-                self.logger.info("Best ckpt and saved.")
-                folder_path = '/'.join(self.ckpt.split('/')[:-1])
-                if not os.path.exists(folder_path):
-                    os.mkdir(folder_path)
-                # torch.save({'model': self.model.state_dict()}, self.ckpt)
-                torch.save(self.model, self.ckpt)
-                best_metric = result[metric]
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            category_result = result.pop('category-p/r/f1')
+            train_state['val_metrics'].append(result)
+            result['category-p/r/f1'] = category_result
+            self.update_train_state(self.metric)
+            if not self.warmup_step > 0:
+                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+            if train_state['stop_early']:
+                break
 
             # tensorboard val writer
             self.writer.add_scalar('val acc', result['acc'], epoch)
@@ -244,20 +293,23 @@ class SentenceImportanceClassifier(nn.Module):
             if hasattr(self, 'test_loader'):
                 result = self.eval_model(self.test_loader)
                 self.logger.info('Test result: {}.'.format(result))
-                self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], test_best_metric))
-                if result[metric] > test_best_metric:
+                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                if result[self.metric] > test_best_metric:
                     self.logger.info('Best test ckpt and saved')
-                    torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
-                    test_best_metric = result[metric]
+                    self.save_model(self.ckpt[:-9] + '_test' + self.ckpt[-9:])
+                    # torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
+                    test_best_metric = result[self.metric]
 
-        self.logger.info("Best %s on val set: %f" % (metric, best_metric))
+        self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader'):
-            self.logger.info("Best %s on test set: %f" % (metric, test_best_metric))
+            self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
+
 
     def eval_model(self, eval_loader):
         self.eval()
 
         batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
+        avg_loss = Mean()
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -269,29 +321,38 @@ class SentenceImportanceClassifier(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
+                bs = label.size(0)
+
                 if logits.size(-1) == 1:
                     pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
                 else:
                     pred = logits.argmax(dim=-1)  # (B)
-                batch_metric.update(pred, label, update_score=False)
+                batch_metric.update(pred, label)
+                if 'bce' in self.criterion.__class__.__name__.lower():
+                    label = label.float().unsqueeze(-1)
+                loss = self.criterion(logits, label).mean().item()
+                avg_loss.update(loss * bs, bs)
                 # log
                 if (ith + 1) % 20 == 0:
                     self.logger.info(f'Evaluation...steps: {ith + 1} finished')
 
+        loss = avg_loss.avg
         acc = batch_metric.accuracy().item()
         micro_prec = batch_metric.precision().item()
-        micro_recall = batch_metric.recall().item()
+        micro_rec = batch_metric.recall().item()
         micro_f1 = batch_metric.f1_score().item()
 
-        alpha_f1 = self.recall_alpha * micro_recall + (1 - self.recall_alpha) * micro_prec
+        alpha_f1 = self.recall_alpha * micro_rec + (1 - self.recall_alpha) * micro_prec
         cate_prec = batch_metric.precision('none').cpu().numpy()
         cate_rec = batch_metric.recall('none').cpu().numpy()
         cate_f1 = batch_metric.f1_score('none').cpu().numpy()
         category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
-        result = {'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_recall, 'micro_f1': micro_f1,
-                  'alpha_f1': alpha_f1,
-                  'category-p/r/f1': category_result}
+        result = {'loss': loss, 'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_rec, 'micro_f1': micro_f1,
+                  'alpha_f1': alpha_f1, 'category-p/r/f1': category_result}
         return result
 
-    def load_model(self, ckpt_path):
-        self.model = torch.load(ckpt_path)
+    def load_model(self, ckpt):
+        self.model = torch.load(ckpt)
+    
+    def save_model(self, ckpt):
+        torch.save(self.model, ckpt)

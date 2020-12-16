@@ -62,6 +62,8 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
                     help='max_grad_norm for gradient clip')
 parser.add_argument('--weight_decay', default=1e-2, type=float,
                     help='Weight decay')
+parser.add_argument('--early_stopping_step', default=3, type=int,
+                    help='max times of worse metric allowed to avoid overfit')
 parser.add_argument('--warmup_step', default=0, type=int,
                     help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -114,7 +116,7 @@ while os.path.exists(ckpt):
     ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
-    data_csv_path = os.path.join(config['path']['ap_dataset'], args.dataset, 'test_data.csv')
+    data_csv_path = os.path.join(config['path']['ap_dataset'], args.dataset, 'full_data.csv')
 else:
     raise ValueError('args.dataset cannot be none!')
 
@@ -184,9 +186,11 @@ framework = pasaie.pasaap.framework.\
                                  lr=args.lr,
                                  bert_lr=args.bert_lr,
                                  weight_decay=args.weight_decay,
+                                 early_stopping_step=args.early_stopping_step,
                                  warmup_step=args.warmup_step,
                                  max_grad_norm=args.max_grad_norm,
                                  sampler=sampler,
+                                 metric=args.metric,
                                  adv=args.adv,
                                  loss=args.loss,
                                  opt=args.optimizer)
@@ -200,13 +204,12 @@ if not args.only_test:
     framework.train_model(args.metric)
 
 # Test
-if args.only_test:
+if not args.only_test:
     framework.load_model(ckpt)
-
-# result = framework.eval_model(framework.eval_loader)
-# # Print the result
-# logger.info('Test set best results:')
-# logger.info('Accuracy: {}'.format(result['acc']))
-# logger.info('Micro precision: {}'.format(result['micro_p']))
-# logger.info('Micro recall: {}'.format(result['micro_r']))
-# logger.info('Micro F1: {}'.format(result['micro_f1']))
+result = framework.eval_model(framework.eval_loader)
+# Print the result
+logger.info('Test set best results:')
+logger.info('Accuracy: {}'.format(result['acc']))
+logger.info('Micro precision: {}'.format(result['micro_p']))
+logger.info('Micro recall: {}'.format(result['micro_r']))
+logger.info('Micro F1: {}'.format(result['micro_f1']))
