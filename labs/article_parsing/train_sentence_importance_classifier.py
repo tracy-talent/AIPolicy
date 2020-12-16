@@ -34,7 +34,7 @@ parser.add_argument('--adv', default='none', choices=['fgm', 'pgd', 'flb', 'none
                     help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='bce', choices=['pwbce', 'bce', 'ce', 'wce', 'focal', 'dice', 'lsr'],
                     help='loss function')
-parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
+parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc', 'alpha_f1'],
                     help='Metric for picking up best checkpoint')
 parser.add_argument('--compress_seq', action='store_true',
                     help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
@@ -134,7 +134,7 @@ elif args.encoder == 'base':
     word2id, word_emb_npy = load_wordvec(wv_file=args.pretrain_path)
     sentence_encoder = pasaie.pasaap.encoder.BaseEncoder(token2id=word2id,
                                                          max_length=256,
-                                                         word_embe_size=word_emb_npy.shape[-1],
+                                                         word_emb_size=word_emb_npy.shape[-1],
                                                          word2vec=word_emb_npy,
                                                          blank_padding=True)
 else:
@@ -193,20 +193,20 @@ framework = pasaie.pasaap.framework.\
 
 # Load pretrained model
 if ckpt_cnt > 0:
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
+    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model(args.metric)
 
 # Test
-if not args.only_test:
-    framework.load_state_dict(torch.load(ckpt))
-framework.eval_model(framework.eval_loader)
+if args.only_test:
+    framework.load_model(ckpt)
 
-# Print the result
-logger.info('Test set best results:')
-logger.info('Accuracy: {}'.format(result['acc']))
-logger.info('Micro precision: {}'.format(result['micro_p']))
-logger.info('Micro recall: {}'.format(result['micro_r']))
-logger.info('Micro F1: {}'.format(result['micro_f1']))
+# result = framework.eval_model(framework.eval_loader)
+# # Print the result
+# logger.info('Test set best results:')
+# logger.info('Accuracy: {}'.format(result['acc']))
+# logger.info('Micro precision: {}'.format(result['micro_p']))
+# logger.info('Micro recall: {}'.format(result['micro_r']))
+# logger.info('Micro F1: {}'.format(result['micro_f1']))

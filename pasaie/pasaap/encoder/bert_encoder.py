@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 
-from transformers import BertModel, BertTokenizer
+from transformers import BertModel, BertTokenizer, AlbertModel
 
 
 class BERTEncoder(nn.Module):

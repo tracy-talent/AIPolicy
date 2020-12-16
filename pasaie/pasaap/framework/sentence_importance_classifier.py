@@ -31,6 +31,7 @@ class SentenceImportanceClassifier(nn.Module):
                  warmup_step=300,
                  max_grad_norm=5.0,
                  dice_alpha=0.6,
+                 recall_alpha=0.7,         # used when need to emphasize recall score
                  sampler=None,
                  loss='ce',
                  adv='fgm',
@@ -43,6 +44,7 @@ class SentenceImportanceClassifier(nn.Module):
             self.is_bert_encoder = False
         self.max_epoch = max_epoch
         self.max_grad_norm = max_grad_norm
+        self.recall_alpha = recall_alpha
 
         # Load Data
         self.train_loader, self.eval_loader = get_train_val_dataloader(
@@ -281,13 +283,15 @@ class SentenceImportanceClassifier(nn.Module):
         micro_recall = batch_metric.recall().item()
         micro_f1 = batch_metric.f1_score().item()
 
+        alpha_f1 = self.recall_alpha * micro_recall + (1 - self.recall_alpha) * micro_prec
         cate_prec = batch_metric.precision('none').cpu().numpy()
         cate_rec = batch_metric.recall('none').cpu().numpy()
         cate_f1 = batch_metric.f1_score('none').cpu().numpy()
         category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
         result = {'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_recall, 'micro_f1': micro_f1,
+                  'alpha_f1': alpha_f1,
                   'category-p/r/f1': category_result}
         return result
 
-    def load_state_dict(self, state_dict):
-        self.model.load_state_dict(state_dict['model'])
+    def load_model(self, ckpt_path):
+        self.model = torch.load(ckpt_path)
