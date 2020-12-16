@@ -14,6 +14,7 @@ default_root_path = config['path']['ap_ckpt']
 
 def get_model(model_path,
               root_path=default_root_path):
+    print(f"load text classifier: {model_path}")
     dataset_name = model_path.split('/')[0]
     abs_ckpt_path = os.path.join(root_path, model_path + '.pth.tar')
     if dataset_name in ['sentence_importance_judgement']:

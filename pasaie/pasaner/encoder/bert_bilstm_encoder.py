@@ -69,7 +69,7 @@ class BERT_BILSTM_Encoder(nn.Module):
             (B, H), representations for sentences
         """
         if not hasattr(self, '_flattened'):
-            if self.bisltm is not None:
+            if self.bilstm is not None:
                 self.bilstm.flatten_parameters()
             setattr(self, '_flattened', True)
         if 'roberta' in self.bert_name:

@@ -35,7 +35,7 @@ class TextCnn(nn.Module):
         logits = self.forward(*item)
         if self.num_classes == 1:
             score = F.sigmoid(logits.squeeze(-1)).item()
-            pred = (score >= 0.5).long().item()
+            pred = (score >= 0.5)
             score = score if pred else 1 - score
         else:
             logits = F.softmax(logits, dim=-1)
