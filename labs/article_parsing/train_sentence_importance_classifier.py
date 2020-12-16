@@ -114,7 +114,7 @@ while os.path.exists(ckpt):
     ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
-    data_csv_path = os.path.join(config['path']['ap_dataset'], args.dataset, 'test_data.csv')
+    data_csv_path = os.path.join(config['path']['ap_dataset'], args.dataset, 'full_data.csv')
 else:
     raise ValueError('args.dataset cannot be none!')
 
