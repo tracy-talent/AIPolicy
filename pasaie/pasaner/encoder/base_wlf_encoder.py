@@ -22,7 +22,6 @@ class BaseWLFEncoder(nn.Module):
                  char2id, 
                  word2id,
                  max_length=256, 
-                 hidden_size=230, 
                  char_size=50,
                  word_size=50,
                  char2vec=None,
@@ -34,7 +33,6 @@ class BaseWLFEncoder(nn.Module):
             char2id (dict): dictionary of char->idx mapping
             word2id (dict): dictionary of word->idx mapping
             max_length (int): max length of sentence, used for postion embedding
-            hidden_size (int): hidden size
             char_size (int): size of char embedding
             word_size (int): size of word embedding
             char2vec (numpy.array): pretrained char2vec numpy
@@ -60,8 +58,7 @@ class BaseWLFEncoder(nn.Module):
         else:
             self.word_size = word2vec.shape[-1]
             
-        self.hidden_size = hidden_size
-        self.input_size = self.char_size + self.word_size
+        self.hidden_size = self.char_size + self.word_size
         self.blank_padding = blank_padding
 
         # char vocab

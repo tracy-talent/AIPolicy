@@ -205,7 +205,7 @@ def adversarial_perturbation(adv, model, criterion, K=3, rand_init_mag=0., label
         labels (torch.tensor, optional): labels. Defaults to None.
     """
     use_mask = False
-    if len(labels.size()) > 1:
+    if len(labels.size()) > 1 and labels.size(-1) > 1:
         use_mask = True
     ori_model = model.module if hasattr(model, 'module') else model
 

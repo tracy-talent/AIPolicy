@@ -6,7 +6,8 @@ import pandas as pd
 
 def get_relation_sampler(train_path,
                          rel2id,
-                         sampler_type):
+                         sampler_type,
+                         default_factor=0.5):
     """
         Get a self-defined sampler for train-files.
     :param train_path: str, path of train-files
@@ -25,7 +26,7 @@ def get_relation_sampler(train_path,
 
     if sampler_type == "WeightedRandomSampler":
         # Attention: minimum label index must be 0
-        label_weight = [1.0 / len(np.where(labels == l)[0]) ** 0.5 for l in np.unique(labels)]
+        label_weight = [1.0 / len(np.where(labels == l)[0]) ** default_factor for l in np.unique(labels)]
         weights = [label_weight[l] for l in labels]
         return WeightedRandomSampler(weights=weights,
                                      num_samples=len(labels),
@@ -38,7 +39,8 @@ def get_entity_span_single_sampler(train_path,
                                    tag2id,
                                    encoder,
                                    max_span,
-                                   sampler_type):
+                                   sampler_type,
+                                   default_factor=0.5):
     """
         Get a self-defined sampler for train-files.
     :param train_path: str, path of train-files
@@ -87,7 +89,7 @@ def get_entity_span_single_sampler(train_path,
 
     if sampler_type == "WeightedRandomSampler":
         # Attention: minimum label index must be 0
-        label_weight = [1.0 / len(np.where(labels == l)[0]) ** 0.5 for l in np.unique(labels)]
+        label_weight = [1.0 / len(np.where(labels == l)[0]) ** default_factor for l in np.unique(labels)]
         weights = [label_weight[l] for l in labels]
         return WeightedRandomSampler(weights=weights,
                                      num_samples=len(labels),
@@ -99,7 +101,7 @@ def get_entity_span_single_sampler(train_path,
 def get_sentence_importance_sampler(train_label,
                                     sampler_type,
                                     default_factor=0.5):
-    label = train_label
+    label = np.array(train_label)
     if sampler_type == "WeightedRandomSampler":
         # Attention: minimum label index must be 0
         label_weight = [1.0 / len(np.where(label == l)[0]) ** default_factor for l in np.unique(label)]

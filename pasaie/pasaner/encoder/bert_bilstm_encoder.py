@@ -68,6 +68,10 @@ class BERT_BILSTM_Encoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
+        if not hasattr(self, '_flattened'):
+            if self.bisltm is not None:
+                self.bilstm.flatten_parameters()
+            setattr(self, '_flattened', True)
         if 'roberta' in self.bert_name:
             # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
             seq_out, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta

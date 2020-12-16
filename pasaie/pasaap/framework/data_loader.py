@@ -20,7 +20,7 @@ class SentenceImportanceDataset(data.Dataset):
         self.is_training = is_training
         self.data_augmentation = data_augmentation
         self.data, self.data_split_indices = self._construct_data(data_with_label)
-        labels = list(zip(*data_with_label))[1]
+        labels = np.array(list(zip(*data_with_label))[1])
         self.num_classes = len(np.unique(labels))
         self.weight = np.zeros(self.num_classes, dtype=np.float32)
         class_cnt = Counter(labels)
@@ -28,18 +28,24 @@ class SentenceImportanceDataset(data.Dataset):
             self.weight[c] += cnt
         self.weight = 1 / self.weight
         self.weight = torch.from_numpy(self.weight)
+        if labels.max() == 1 and is_training:
+            self.pos_weight = torch.tensor([labels[labels==1].shape[0] / labels[labels==0].shape[0]])
+        else:
+            self.pos_weight = None
 
     def _construct_data(self, data_with_label):
         tmp_data = []
         split_indices = []
         split_tokens = [',', '，']
+        split_token_ids = [self.sequence_encoder.tokenizer.convert_tokens_to_ids(token) for token in split_tokens]
         for index in range(len(data_with_label)):
-            item = data_with_label[index]  # item = (text, label)
-            seqs = list(self.sequence_encoder.tokenize(item))
-            label = item[1]
-            tmp_item = [torch.tensor([label])] + seqs
-            tmp_data.append(tmp_item)
-            tmp_split_indices = [ith for ith, ch in enumerate(item[0]) if ch in split_tokens]
+            items = data_with_label[index]  # item = (text, label)
+            seqs = list(self.sequence_encoder.tokenize(*items))
+            seq_len = seqs[-1].sum().item()
+            label = items[1]
+            tmp_items = [torch.tensor([label])] + seqs
+            tmp_data.append(tmp_items)
+            tmp_split_indices = [ith for ith, tid in enumerate(seqs[0][0][:seq_len]) if tid.item() in split_token_ids]
             split_indices.append(tmp_split_indices)
         return tmp_data, split_indices
 
@@ -101,27 +107,28 @@ def get_sentence_importance_dataloader(input_data, sequence_encoder, batch_size,
     return data_loader
 
 
-def get_train_val_dataloader(csv_path, sequence_encoder, batch_size, sampler, test_size=0.3, compress_seq=True):
+def get_train_val_dataloader(csv_path, sequence_encoder, batch_size, sampler=None, test_size=0.3, compress_seq=True):
     csv_data = pd.read_csv(csv_path)
     full_data = csv_data['text'].values
     full_label = csv_data['label'].values
 
     X_train, X_val, Y_train, Y_val = train_test_split(full_data, full_label,
                                                       random_state=0, test_size=test_size, stratify=full_label)
+
     train_data = [(x, y) for x, y in zip(X_train, Y_train)]
     val_data = [(x, y) for x, y in zip(X_val, Y_val)]
     if sampler and isinstance(sampler, str):
         sampler = mysampler.get_sentence_importance_sampler(Y_train, sampler_type=sampler, default_factor=0.5)
 
     train_loader = get_sentence_importance_dataloader(train_data,
-                                                      sequence_encoder,
+                                                      sequence_encoder=sequence_encoder,
                                                       is_training=True,
                                                       batch_size=batch_size,
                                                       shuffle=True,
                                                       sampler=sampler,
                                                       compress_seq=compress_seq)
     val_loader = get_sentence_importance_dataloader(val_data,
-                                                    sequence_encoder,
+                                                    sequence_encoder=sequence_encoder,
                                                     is_training=False,
                                                     batch_size=batch_size,
                                                     shuffle=False,

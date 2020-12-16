@@ -22,8 +22,7 @@ class SentenceImportanceClassifier(nn.Module):
                  logger,
                  tb_logdir,
                  compress_seq=False,
-                 ignore_classes=None,
-                 target_class=None,
+                 neg_classes=[0],
                  batch_size=32,
                  max_epoch=100,
                  lr=1e-3,
@@ -53,15 +52,21 @@ class SentenceImportanceClassifier(nn.Module):
             sampler=sampler,
             compress_seq=compress_seq
         )
+        # ignore_classes for selecting model
+        self.neg_classes = neg_classes
 
         # Model
         self.model = model
         self.parallel_model = nn.DataParallel(self.model)
         # Criterion
-        if loss == 'ce':
+        if loss == 'bce':
+            self.criterion = nn.BCEWithLogitsLoss(reduction='none')
+        elif loss == 'pwbce':
+            self.criterion = nn.BCEWithLogitsLoss(pos_weight=self.train_loader.dataset.pos_weight, reduction='none')
+        elif loss == 'ce':
             self.criterion = nn.CrossEntropyLoss(reduction='none')
         elif loss == 'wce':
-            self.criterion = nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
+            self.criterion = nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight, reduction='none')
         elif loss == 'focal':
             self.criterion = FocalLoss(gamma=2., reduction='none')
         elif loss == 'dice':
@@ -69,7 +74,7 @@ class SentenceImportanceClassifier(nn.Module):
         elif loss == 'lsr':
             self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
         else:
-            raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
+            raise ValueError("Invalid loss. Must be 'bce', 'ce' or 'focal' or 'dice' or 'lsr'")
         # Params and optimizer
         self.lr = lr
         self.bert_lr = bert_lr
@@ -145,9 +150,6 @@ class SentenceImportanceClassifier(nn.Module):
         self.logger = logger
         # tensorboard writer
         self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
-        # ignore_classes for selecting model
-        self.ignore_classes = ignore_classes if ignore_classes else []
-        self.target_class = target_class if target_class else None
 
     def train_model(self, metric='micro_f1'):
         test_best_metric = 0
@@ -157,7 +159,7 @@ class SentenceImportanceClassifier(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
-            batch_metric = BatchMetric(num_classes=self.model.num_classes)
+            batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
             avg_loss = Mean()
             for ith, data in enumerate(self.train_loader):
                 if torch.cuda.is_available():
@@ -169,16 +171,22 @@ class SentenceImportanceClassifier(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                pred = logits.argmax(dim=-1)  # (B)
+                if logits.size(-1) == 1:
+                    pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
+                else:
+                    pred = logits.argmax(dim=-1)  # (B)
                 bs = label.size(0)
 
                 # Optimize
+                loss_label = label
+                if 'bce' in self.criterion.__class__.__name__.lower():
+                    loss_label = label.float().unsqueeze(-1)
                 if self.adv is None:
-                    loss = self.criterion(logits, label)  # B
+                    loss = self.criterion(logits, loss_label)  # B
                     loss = loss.mean()
                     loss.backward()
                 else:
-                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., loss_label, *args)
                 torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.scheduler is not None:
@@ -189,18 +197,10 @@ class SentenceImportanceClassifier(nn.Module):
                 batch_metric.update(pred, label, update_score=True)
                 avg_loss.update(loss.item() * bs, bs)
                 cur_loss = avg_loss.avg
-                if self.ignore_classes:
-                    cur_acc = batch_metric.accuracy().item()
-                    cur_prec = batch_metric.precision().item()
-                    cur_recall = batch_metric.recall().item()
-                    cur_f1 = batch_metric.f1_score().item()
-                elif self.model.num_classes == 2:
-                    cur_acc = cur_prec = cur_recall = cur_f1 = batch_metric.accuracy().item()
-                else:
-                    cur_acc = batch_metric.accuracy().item()
-                    cur_prec = batch_metric.precision().item()
-                    cur_recall = batch_metric.recall().item()
-                    cur_f1 = batch_metric.f1_score().item()
+                cur_acc = batch_metric.accuracy().item()
+                cur_prec = batch_metric.precision().item()
+                cur_recall = batch_metric.recall().item()
+                cur_f1 = batch_metric.f1_score().item()
 
                 # log
                 global_step += 1
@@ -245,8 +245,7 @@ class SentenceImportanceClassifier(nn.Module):
                 self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], test_best_metric))
                 if result[metric] > test_best_metric:
                     self.logger.info('Best test ckpt and saved')
-                    # torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
-                    torch.save(self.model, self.ckpt)
+                    torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
                     test_best_metric = result[metric]
 
         self.logger.info("Best %s on val set: %f" % (metric, best_metric))
@@ -256,8 +255,7 @@ class SentenceImportanceClassifier(nn.Module):
     def eval_model(self, eval_loader):
         self.eval()
 
-        neg_ids = [0]
-        batch_metric = BatchMetric(num_classes=self.model.num_classes)
+        batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -269,40 +267,27 @@ class SentenceImportanceClassifier(nn.Module):
                 label = data[0]
                 args = data[1:]
                 logits = self.parallel_model(*args)
-                pred = logits.argmax(dim=-1)  # (B)
+                if logits.size(-1) == 1:
+                    pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
+                else:
+                    pred = logits.argmax(dim=-1)  # (B)
                 batch_metric.update(pred, label, update_score=False)
                 # log
-                # if (ith + 1) % 20 == 0:
-                #     self.logger.info(f'Evaluation...steps: {ith + 1} finished')
+                if (ith + 1) % 20 == 0:
+                    self.logger.info(f'Evaluation...steps: {ith + 1} finished')
 
-        if self.ignore_classes:
-            acc = batch_metric.accuracy().item()
-            micro_prec = batch_metric.precision(ignore_classes=self.ignore_classes).item()
-            micro_recall = batch_metric.recall(ignore_classes=self.ignore_classes).item()
-            micro_f1 = batch_metric.f1_score().item()
-        elif self.model.num_classes == 2:
-            acc = micro_prec = micro_recall = micro_f1 = batch_metric.accuracy().item()
-        else:
-            acc = batch_metric.accuracy().item()
-            micro_prec = batch_metric.precision().item()
-            micro_recall = batch_metric.recall().item()
-            micro_f1 = batch_metric.f1_score().item()
+        acc = batch_metric.accuracy().item()
+        micro_prec = batch_metric.precision().item()
+        micro_recall = batch_metric.recall().item()
+        micro_f1 = batch_metric.f1_score().item()
 
-        alpha = 0.8
-        f1_recall = alpha * micro_recall + (1 - alpha) * micro_f1
-        cate_prec = batch_metric.precision('none').cpu().tolist()
-        cate_rec = batch_metric.recall('none').cpu().tolist()
-        cate_f1 = batch_metric.f1_score('none').cpu().tolist()
-        target_classes = list(set([ith for ith in range(self.model.num_classes)]) - set(neg_ids))
-        category_result = {k: v for k, v in zip(target_classes, zip(cate_prec, cate_rec, cate_f1))}
+        cate_prec = batch_metric.precision('none').cpu().numpy()
+        cate_rec = batch_metric.recall('none').cpu().numpy()
+        cate_f1 = batch_metric.f1_score('none').cpu().numpy()
+        category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
         result = {'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_recall, 'micro_f1': micro_f1,
                   'category-p/r/f1': category_result}
-        if self.target_class:
-            result = dict(result, **{'target_f1': category_result[self.target_class][2]})
         return result
 
     def load_state_dict(self, state_dict):
         self.model.load_state_dict(state_dict['model'])
-
-    def load_model(self, ckpt):
-        self.model = torch.load(ckpt)

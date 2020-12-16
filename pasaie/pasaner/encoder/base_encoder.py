@@ -18,7 +18,6 @@ class BaseEncoder(nn.Module):
     def __init__(self, 
                  token2id, 
                  max_length=256, 
-                 hidden_size=230, 
                  word_size=50,
                  word2vec=None,
                  blank_padding=True):
@@ -26,7 +25,6 @@ class BaseEncoder(nn.Module):
         Args:
             token2id: dictionary of token->idx mapping
             max_length: max length of sentence, used for postion embedding
-            hidden_size: hidden size
             word_size: size of word embedding
             blank_padding: padding for CNN
             word2vec: pretrained word2vec numpy
@@ -43,8 +41,7 @@ class BaseEncoder(nn.Module):
         else:
             self.word_size = word2vec.shape[-1]
             
-        self.hidden_size = hidden_size
-        self.input_size = self.word_size
+        self.hidden_size = self.word_size
         self.blank_padding = blank_padding
 
         if not '[UNK]' in self.token2id:

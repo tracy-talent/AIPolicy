@@ -16,7 +16,7 @@ from pasaie import pasare
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-uncased',
                     help='Pre-trained ckpt path / model name (hugginface)')
-parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'albert'], 
+parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'], 
         help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')

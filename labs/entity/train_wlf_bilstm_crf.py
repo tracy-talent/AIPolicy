@@ -148,7 +148,8 @@ else:
 #     char2id=char2id,
 #     word2id=word2id,
 #     max_length=args.max_length,
-#     hidden_size=char2vec.shape[-1] + word2vec.shape[-1],
+#     char_size=char2vec.shape[-1],
+#     word_size=word2vec.shape[-1],
 #     char2vec=char2vec,
 #     word2vec=word2vec,
 #     custom_dict=args.custom_dict,
@@ -157,7 +158,7 @@ else:
 sequence_encoder = pasaner.encoder.BaseEncoder(
     token2id=char2id,
     max_length=args.max_length,
-    hidden_size=char2vec.shape[-1],
+    word_size=char2vec.shape[-1],
     word2vec=char2vec,
     blank_padding=True
 )

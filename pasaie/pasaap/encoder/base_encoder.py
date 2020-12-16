@@ -12,14 +12,14 @@ class BaseEncoder(nn.Module):
     def __init__(self,
                  token2id,
                  max_length=256,
-                 embedding_dim=50,
+                 word_emb_size=50,
                  word2vec=None,
                  blank_padding=True):
         """
         Args:
             token2id: dictionary of token->idx mapping
             max_length: max length of sentence, used for postion embedding
-            embedding_dim: dimension of word embedding
+            word_emb_size: size of word embedding
             blank_padding: padding for CNN
             word2vec: pretrained word2vec numpy
         """
@@ -31,11 +31,11 @@ class BaseEncoder(nn.Module):
         self.num_token = len(token2id)
 
         if word2vec is None:
-            self.embedding_dim = embedding_dim
+            self.word_emb_size = word_emb_size
         else:
-            self.embedding_dim = word2vec.shape[-1]
+            self.word_emb_size = word2vec.shape[-1]
 
-        self.input_size = self.embedding_dim
+        self.hidden_size = self.word_emb_size
         self.blank_padding = blank_padding
 
         if not '[UNK]' in self.token2id:
@@ -46,13 +46,13 @@ class BaseEncoder(nn.Module):
             self.num_token += 1
 
         # Word embedding
-        self.word_embedding = nn.Embedding(self.num_token, self.embedding_dim)
+        self.word_embedding = nn.Embedding(self.num_token, self.word_emb_size)
         if word2vec is not None:
             logging.info("Initializing word embedding with word2vec.")
             word2vec = torch.from_numpy(word2vec)
             if self.num_token == len(word2vec) + 2:
-                unk = torch.randn(1, self.embedding_dim) / math.sqrt(self.embedding_dim)
-                blk = torch.zeros(1, self.embedding_dim)
+                unk = torch.randn(1, self.word_emb_size) / math.sqrt(self.word_emb_size)
+                blk = torch.zeros(1, self.word_emb_size)
                 self.word_embedding.weight.data.copy_(torch.cat([word2vec, unk, blk], 0))
             else:
                 self.word_embedding.weight.data.copy_(word2vec)
@@ -72,18 +72,18 @@ class BaseEncoder(nn.Module):
         inputs_embed = self.word_embedding(seqs)  # (B, L, EMBED)
         return inputs_embed
 
-    def tokenize(self, item):
+    def tokenize(self, *items):
         """
         Args:
             items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
         Return:
             index number of tokens and positions             
         """
-        if isinstance(item, tuple) or isinstance(item, str) or (isinstance(item, list) and len(item) < 3):
-            sentence = item[0]
+        if isinstance(items[0], str):
+            sentence = items[0]
             is_token = False
         else:
-            sentence = item
+            sentence = items[0]
             is_token = True
 
         # Sentence -> token

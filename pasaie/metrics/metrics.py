@@ -40,8 +40,14 @@ def micro_p_r_f1_score(preds, golds):
 class BatchMetric(object):
     '''Metric computes accuracy/precision/recall/confusion_matrix with batch updates.'''
 
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, ignore_classes=[]):
+        """
+        Args:
+            num_classes (int): number of classes.
+            ignore_classes (list, optional): classes should be ignored. Defaults to [].
+        """
         self.num_classes = num_classes
+        self.pos_classes = [i for i in range(num_classes) if i not in ignore_classes]
         self.y_pred = torch.tensor([])
         self.y_true = torch.tensor([])
         self.steps = 0
@@ -83,30 +89,25 @@ class BatchMetric(object):
         fn = torch.empty(self.num_classes, dtype=torch.float)
         tn = torch.empty(self.num_classes, dtype=torch.float)
         for i in range(self.num_classes):
-            tp[i] = ((y_pred == i) & (y_true == i)).sum().item()
-            fp[i] = ((y_pred == i) & (y_true != i)).sum().item()
-            fn[i] = ((y_pred != i) & (y_true == i)).sum().item()
-            tn[i] = ((y_pred != i) & (y_true != i)).sum().item()
+            tp[i] = ((y_pred == i) & (y_true == i)).sum()
+            fp[i] = ((y_pred == i) & (y_true != i)).sum()
+            fn[i] = ((y_pred != i) & (y_true == i)).sum()
+            tn[i] = ((y_pred != i) & (y_true != i)).sum()
 
         return tp, fp, fn, tn
 
-    def accuracy(self, ignore_classes=None):
+    def accuracy(self):
         '''Accuracy = (TP+TN) / (P+N).
         Returns:
           (tensor) accuracy.
         '''
         if len(self) == 0:
             raise ValueError('y_pred or y_true can not be none')
-        if ignore_classes is None:
-            ignore_classes = []
-        mask = torch.ones_like(self.y_true).bool()
-        for ic in ignore_classes:
-            mask *= (self.y_true != ic)
-        acc = ((self.y_true == self.y_pred) * mask).sum().float() / self.y_true[mask].size(0)
+        acc = (self.y_true == self.y_pred).sum().float() / self.y_true.size(0)
         self.acc.append(acc)
         return acc
 
-    def precision(self, reduction='micro', ignore_classes=None):
+    def precision(self, reduction='micro'):
         '''Precision = TP / (TP+FP).
         Args:
           reduction: (str) mean or none.
@@ -121,21 +122,15 @@ class BatchMetric(object):
             self.tp, self.fp, self.fn, self.tn = self._process(self.y_pred, self.y_true)
         tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         prec = tp / (tp + fp)
-        prec[torch.isnan(prec)] = 0
-        if ignore_classes:
-            target_classes = list(set([ith for ith in range(self.num_classes)]) - set(ignore_classes))
-            prec = prec[target_classes]
-            tp = tp[target_classes]
-            fp = fp[target_classes]
-
+        prec[torch.isnan(prec) | torch.isinf(prec)] = 0
         if reduction == 'macro':
-            prec = prec.mean()
+            prec = prec[self.pos_classes].mean()
         elif reduction == 'micro':
-            prec = tp.sum() / (tp + fp).sum()
+            prec = tp[self.pos_classes].sum() / (tp + fp)[self.pos_classes].sum()
         self.prec.append(prec)
         return prec
 
-    def recall(self, reduction='micro', ignore_classes=None):
+    def recall(self, reduction='micro'):
         '''Recall = TP / P.
         Args:
           reduction: (str) mean or none.
@@ -150,16 +145,11 @@ class BatchMetric(object):
             self.tp, self.fp, self.fn, self.tn = self._process(self.y_pred, self.y_true)
         tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
         recall = tp / (tp + fn)
-        recall[torch.isnan(recall)] = 0
-        if ignore_classes:
-            target_classes = list(set([ith for ith in range(self.num_classes)]) - set(ignore_classes))
-            recall = recall[target_classes]
-            tp = tp[target_classes]
-            fn = fn[target_classes]
+        recall[torch.isnan(recall) | torch.isinf(recall)] = 0
         if reduction == 'macro':
-            recall = recall.mean()
+            recall = recall[self.pos_classes].mean()
         elif reduction == 'micro':
-            recall = tp.sum() / (tp + fn).sum()
+            recall = tp[self.pos_classes].sum() / (tp + fn)[self.pos_classes].sum()
         self.rec.append(recall)
         return recall
 
@@ -170,7 +160,7 @@ class BatchMetric(object):
         # FIXME: In order to accelerate computation, precision and recall must be computed before
         assert len(self.f1) + 1 == len(self.prec)
         f1 = 2 * self.prec[-1] * self.rec[-1] / (self.prec[-1] + self.rec[-1])
-        f1[torch.isnan(f1)] = 0.
+        f1[torch.isnan(f1) | torch.isinf(f1)] = 0.
         self.f1.append(f1)
         return f1
 
