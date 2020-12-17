@@ -201,7 +201,7 @@ if ckpt_cnt > 0:
 
 # Train the model
 if not args.only_test:
-    framework.train_model(args.metric)
+    framework.train_model()
 
 # Test
 if not args.only_test:

@@ -37,7 +37,7 @@ class SentenceImportanceDataset(data.Dataset):
         tmp_data = []
         split_indices = []
         split_tokens = [',', '，']
-        split_token_ids = [self.sequence_encoder.tokenizer.convert_tokens_to_ids(token) for token in split_tokens]
+        split_token_ids = self.sequence_encoder.tokenizer.convert_tokens_to_ids(split_tokens)
         for index in range(len(data_with_label)):
             items = data_with_label[index]  # item = (text, label)
             seqs = list(self.sequence_encoder.tokenize(*items))

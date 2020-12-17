@@ -343,9 +343,9 @@ class SentenceImportanceClassifier(nn.Module):
         micro_f1 = batch_metric.f1_score().item()
 
         alpha_f1 = self.recall_alpha * micro_rec + (1 - self.recall_alpha) * micro_prec
-        cate_prec = batch_metric.precision('none').cpu().numpy()
-        cate_rec = batch_metric.recall('none').cpu().numpy()
-        cate_f1 = batch_metric.f1_score('none').cpu().numpy()
+        cate_prec = batch_metric.precision('none')
+        cate_rec = batch_metric.recall('none')
+        cate_f1 = batch_metric.f1_score('none')
         category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
         result = {'loss': loss, 'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_rec, 'micro_f1': micro_f1,
                   'alpha_f1': alpha_f1, 'category-p/r/f1': category_result}

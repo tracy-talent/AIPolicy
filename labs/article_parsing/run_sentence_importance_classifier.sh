@@ -11,13 +11,15 @@ python train_sentence_importance_classifier.py \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
-    --warmup_step 10 \
+    --early_stopping_step 3 \
+    --warmup_step 0 \
     --max_length 256 \
     --max_epoch 20 \
     --optimizer adamw \
     --adv pgd \
     --dice_alpha 0.6 \
     --loss pwbce \
+    --metric micro_f1 \
     --compress_seq \
     --use_sampler \
 
