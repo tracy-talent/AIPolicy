@@ -8,7 +8,7 @@
 import torch
 import numpy as np
 import time
-
+np.seterr(divide='ignore',invalid='ignore')
 
 def micro_p_r_f1_score(preds, golds):
     """calculate precision/recall/f1 score

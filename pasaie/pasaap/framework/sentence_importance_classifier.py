@@ -246,10 +246,10 @@ class SentenceImportanceClassifier(nn.Module):
                 batch_metric.update(pred, label)
                 avg_loss.update(loss.item() * bs, bs)
                 cur_loss = avg_loss.avg
-                cur_acc = batch_metric.accuracy().item()
-                cur_prec = batch_metric.precision().item()
-                cur_rec = batch_metric.recall().item()
-                cur_f1 = batch_metric.f1_score().item()
+                cur_acc = batch_metric.accuracy()
+                cur_prec = batch_metric.precision()
+                cur_rec = batch_metric.recall()
+                cur_f1 = batch_metric.f1_score()
 
                 # log
                 global_step += 1
@@ -337,10 +337,10 @@ class SentenceImportanceClassifier(nn.Module):
                     self.logger.info(f'Evaluation...steps: {ith + 1} finished')
 
         loss = avg_loss.avg
-        acc = batch_metric.accuracy().item()
-        micro_prec = batch_metric.precision().item()
-        micro_rec = batch_metric.recall().item()
-        micro_f1 = batch_metric.f1_score().item()
+        acc = batch_metric.accuracy()
+        micro_prec = batch_metric.precision()
+        micro_rec = batch_metric.recall()
+        micro_f1 = batch_metric.f1_score()
 
         alpha_f1 = self.recall_alpha * micro_rec + (1 - self.recall_alpha) * micro_prec
         cate_prec = batch_metric.precision('none')
