@@ -83,10 +83,6 @@ config.read(os.path.join(project_path, 'config.ini'))
 fix_seed(args.random_seed)
 
 # construct save path name
-def make_hparam_string(op, lr, bs, wd, ml):
-    return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
-
-
 def make_model_name():
     if args.encoder == 'bert':
         _model_name = '_'.join((args.bert_name, args.model, args.loss))
@@ -94,8 +90,12 @@ def make_model_name():
         _model_name = '_'.join((args.encoder, args.model, args.loss))
     if len(args.adv) > 0 and args.adv != 'none':
         _model_name += '_' + args.adv
+    model_name += '_' + args.metric
     return _model_name
+def make_hparam_string(op, blr, lr, bs, wd, ml):
+    return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
 model_name = make_model_name()
+hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batch_size, args.weight_decay, args.max_length)
 
 # logger
 os.makedirs(os.path.join(config['path']['ap_log'], args.dataset, model_name), exist_ok=True)
@@ -104,15 +104,13 @@ logger = get_logger(sys.argv, os.path.join(config['path']['ap_log'], args.datase
 
 # tensorboard
 os.makedirs(config['path']['ap_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['ap_tb'], args.dataset, model_name,
-                         make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay,
-                                            args.max_length))
+tb_logdir = os.path.join(config['path']['ap_tb'], args.dataset, model_name, hparam_str)
 
 # Some basic settings
-os.makedirs(config['path']['ap_ckpt'], exist_ok=True)
+os.makedirs(os.path.join(config['path']['ap_ckpt'], args.dataset), exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{args.dataset}/{model_name}'
-ckpt = os.path.join(config['path']['ap_ckpt'], f'{args.ckpt}0.pth.tar')
+    args.ckpt = model_name
+ckpt = os.path.join(config['path']['ap_ckpt'], args.dataset, f'{args.ckpt}0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1

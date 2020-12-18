@@ -11,6 +11,7 @@ python train_bert_mrc_span_mtl.py \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
     --max_length 320 \
     --max_epoch 40 \
@@ -19,5 +20,6 @@ python train_bert_mrc_span_mtl.py \
     --dice_alpha 0.6 \
     --adv fgm \
     --use_mtl_autoweighted_loss \
-    --optimizer adam
+    --optimizer adam \
+    --metric micro_f1 
 

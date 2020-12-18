@@ -6,20 +6,20 @@
 """
 
 from ...metrics import Mean, micro_p_r_f1_score
-from ...utils import *
+from ...losses import AutomaticWeightedLoss
+from ...utils.entity_extract import *
+from ...utils.adversarial import adversarial_perturbation_span_attr_mtl
 from .data_loader import MultiNERDataLoader
+from .base_framework import BaseFramework
 
 import os
-import datetime
 from collections import defaultdict
 
 import torch
-from torch import nn, optim
-from torch.nn import functional as F
-from torch.utils.tensorboard import SummaryWriter
+from torch import nn
 
 
-class MTL_Span_Attr(nn.Module):
+class MTL_Span_Attr(BaseFramework):
     """model(adaptive) + multitask learning by entity span and entity attr"""
     
     def __init__(self, 
@@ -37,18 +37,13 @@ class MTL_Span_Attr(nn.Module):
                 lr=1e-3,
                 bert_lr=3e-5,
                 weight_decay=1e-5,
+                early_stopping_step=3,
                 warmup_step=300,
                 max_grad_norm=5.0,
-                opt='sgd'):
-
-        super(MTL_Span_Attr, self).__init__()
-        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
-            self.is_bert_encoder = True
-        else:
-            self.is_bert_encoder = False
-        self.max_epoch = max_epoch
-        self.tagscheme = tagscheme
-        self.max_grad_norm = max_grad_norm
+                opt='sgd',
+                loss='ce',
+                mtl_autoweighted_loss=True,
+                dice_alpha=0.6):
 
         # Load Data
         if train_path != None:
@@ -84,78 +79,37 @@ class MTL_Span_Attr(nn.Module):
                 compress_seq=compress_seq
             )
 
-        # Model
-        self.model = model
-        self.parallel_model = nn.DataParallel(model)
-        # Criterion
-        self.criterion = nn.CrossEntropyLoss(reduction='none')  # nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
-        # Params and optimizer
-        self.lr = lr
-        self.bert_lr = lr
-        if self.is_bert_encoder:
-            encoder_params =self.parallel_model.module.sequence_encoder.parameters() # self.parallel_model.module equals to self.model
-            bert_params_id = list(map(id, encoder_params))
-        else:
-            bert_params_id = []
-            encoder_params = []
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parallel_model.parameters()))
-        grouped_params = [
-            {'params': encoder_params, 'lr':bert_lr},
-            {'params': other_params, 'lr':lr}
-        ]
-        if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
-        elif opt == 'adam':
-            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
-        elif opt == 'adamw': # Optimizer for BERT
-            from transformers import AdamW 
-            params = list(self.named_parameters())
-            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-            adamw_grouped_params = [
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': lr,
-                }
-            ]
-            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
-        else:
-            raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
-        # Warmup
-        if warmup_step > 0:
-            from transformers import get_linear_schedule_with_warmup
-            training_steps = len(self.train_loader) // batch_size * self.max_epoch
-            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-        else:
-            self.scheduler = None
-        # Cuda
-        if torch.cuda.is_available():
-            self.cuda()
-        # Ckpt
-        self.ckpt = ckpt
-        # logger
-        self.logger = logger
-        # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
+        # initialize base class
+        super(MTL_Span_Attr, self).__init__(
+            model=model,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            metric=metric,
+            adv=adv,
+            opt=opt,
+            loss=loss,
+            loss_weight=None, # weight_span and weigth_attr are different
+            dice_alpha=dice_alpha
+        )
+
+        self.tagscheme = tagscheme
+        # Automatic weighted loss for mtl
+        self.autoweighted_loss = None
+        if mtl_autoweighted_loss:
+            self.autoweighted_loss = AutomaticWeightedLoss(2)
 
 
-    def train_model(self, metric='micro_f1'):
-        best_metric = 0
+    def train_model(self):
+        train_state = self.make_train_state()
         global_step = 0
         span_negid = -1
         if 'O' in self.model.span2id:
@@ -169,6 +123,7 @@ class MTL_Span_Attr(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
+            train_state['epoch_index'] = epoch
             preds_kvpairs = []
             golds_kvpairs = []
             avg_loss = Mean()
@@ -191,33 +146,52 @@ class MTL_Span_Attr(nn.Module):
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq_span.size(0)
 
+                # loss and optimizer
+                if self.adv is None:
+                    if self.model.crf_span is None:
+                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
+                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                    else:
+                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
+                        loss_span = -log_likelihood / inputs_seq_len # B
+                    if self.model.crf_attr is None:
+                        loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
+                        tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
+                        # tag_masks = (outputs_seq_attr != attr_negid).float()
+                        loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
+                    else:
+                        log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
+                        loss_attr = -log_likelihood / inputs_seq_len # B
+                    loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
+                    if self.autoweighted_loss is not None:
+                        loss = self.autoweighted_loss(loss_span, loss_attr)
+                    else:
+                        loss = (loss_span + loss_attr) / 2
+                    loss.backward()
+                else:
+                    loss = adversarial_perturbation_span_attr_mtl(adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_span_out, outputs_attr_out, *data[2:])
+                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                if self.warmup_step > 0:
+                    self.scheduler.step()
+                self.optimizer.zero_grad()
+
+                # prediction/decode
                 if self.model.crf_span is None:
-                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
                     preds_seq_span = logits_span.argmax(dim=-1) # B * S
                 else:
-                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                    loss_span = -log_likelihood / inputs_seq_len # B
                     preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
                     preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-
                 if self.model.crf_attr is None:
-                    loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
-                    tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
-                    # tag_masks = (outputs_seq_attr != attr_negid).float()
-                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
-                    preds_seq_attr = F.softmax(logits_attr, dim=-1).argmax(dim=-1) # B * S
+                    preds_seq_attr = logits_attr.argmax(dim=-1) # B * S
                 else:
-                    log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
-                    loss_attr = -log_likelihood / inputs_seq_len # B
                     preds_seq_attr = self.model.crf_attr.decode(logits_attr, mask=inputs_mask) # List[List[int]]
                     for pred_seq_attr in preds_seq_attr:
                         pred_seq_attr.extend([attr_negid] * (outputs_seq_attr.size(1) - len(pred_seq_attr)))
                     preds_seq_attr = torch.tensor(preds_seq_attr).to(outputs_seq_attr.device) # B * S
-                loss = loss_span + loss_attr # 多任务loss汇总
-
+                
                 # get token sequence
                 preds_seq_span = preds_seq_span.detach().cpu().numpy()
                 preds_seq_attr = preds_seq_attr.detach().cpu().numpy()
@@ -257,7 +231,7 @@ class MTL_Span_Attr(nn.Module):
                 attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != attr_negid) * inputs_mask).sum()
 
                 # Log
-                avg_loss.update(loss.sum(), bs)
+                avg_loss.update(loss.item() * bs, bs)
                 avg_span_acc.update(span_acc, ((outputs_seq_span != span_negid) * inputs_mask).sum())
                 avg_attr_acc.update(attr_acc, ((outputs_seq_attr != attr_negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
@@ -276,35 +250,32 @@ class MTL_Span_Attr(nn.Module):
                     self.writer.add_scalar('train micro precision', prec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
+            micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
+            train_state['train_metrics'].append({'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg,'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
-                # Optimize
-                loss = loss.mean()
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
-                self.optimizer.step()
-                if self.scheduler is not None:
-                    self.scheduler.step()
-                self.optimizer.zero_grad()
-                
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.val_loader) 
-            self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], best_metric))
-            if result[metric] > best_metric:
-                self.logger.info("Best ckpt and saved.")
-                folder_path = '/'.join(self.ckpt.split('/')[:-1])
-                os.makedirs(folder_path, exist_ok=True)
-                self.save_model(self.ckpt)
-                best_metric = result[metric]
+            self.logger.info(f'Evaluation result: {result}.')
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            category_result = result.pop('category-p/r/f1')
+            train_state['val_metrics'].append(result)
+            result['category-p/r/f1'] = category_result
+            self.update_train_state(train_state)
+            if not self.warmup_step > 0:
+                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+            if train_state['stop_early']:
+                break
             
             # tensorboard val writer
+            self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val span acc', result['span_acc'], epoch)
             self.writer.add_scalar('val attr acc', result['attr_acc'], epoch)
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
-        self.logger.info("Best %s on val set: %f" % (metric, best_metric))
+        self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
 
 
     def eval_model(self, eval_loader):
@@ -319,6 +290,7 @@ class MTL_Span_Attr(nn.Module):
         preds_kvpairs = []
         golds_kvpairs = []
         category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
+        avg_loss = Mean()
         avg_span_acc = Mean()
         avg_attr_acc = Mean()
         prec = Mean()
@@ -339,6 +311,29 @@ class MTL_Span_Attr(nn.Module):
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq_span.size(0)
 
+                # loss
+                if self.model.crf_span is None:
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                else:
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
+                    loss_span = -log_likelihood / inputs_seq_len # B
+                if self.model.crf_attr is None:
+                    loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
+                    tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
+                    # tag_masks = (outputs_seq_attr != attr_negid).float()
+                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
+                else:
+                    log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
+                    loss_attr = -log_likelihood / inputs_seq_len # B
+                loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(loss_span, loss_attr)
+                else:
+                    loss = (loss_span + loss_attr) / 2
+                loss = loss.item()
+
+                # prediction/decode
                 if self.model.crf_span is None:
                     preds_seq_span = logits_span.argmax(dim=-1) # B
                 else:
@@ -346,7 +341,6 @@ class MTL_Span_Attr(nn.Module):
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
                     preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-
                 _, logits_attr = self.parallel_model(preds_seq_span, *args)
                 if self.model.crf_attr is None:
                     preds_seq_attr = logits_attr.argmax(dim=-1) # B
@@ -400,15 +394,15 @@ class MTL_Span_Attr(nn.Module):
                             category_result[triple[1]][2] += 1
                 span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
                 attr_acc = ((outputs_seq_attr == preds_seq_attr) * (outputs_seq_attr != attr_negid) * inputs_mask).sum()
-
-                # Log
                 avg_span_acc.update(span_acc, ((outputs_seq_span != span_negid) * inputs_mask).sum())
                 avg_attr_acc.update(attr_acc, ((outputs_seq_attr != attr_negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
+                avg_loss.update(loss * bs, bs)
+
+                # log
                 if (ith + 1) % 10 == 0:
-                    micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-                    self.logger.info(f'Evaluation...Batches: {ith + 1}, span_acc: {avg_span_acc.avg:.4f}, attr_acc: {avg_attr_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                    self.logger.info(f'Evaluation...Batches: {ith + 1} finished')
 
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v
@@ -421,16 +415,5 @@ class MTL_Span_Attr(nn.Module):
             category_result[k] = (cate_precision, cate_recall, cate_f1)
         category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
-        self.logger.info(f'Evaluation result: {result}.')
+        result = {'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
         return result
-
-
-    def load_model(self, ckpt):
-        state_dict = torch.load(ckpt)
-        self.model.load_state_dict(state_dict['model'])
-
-
-    def save_model(self, ckpt):
-        state_dict = {'model': self.model.state_dict()}
-        torch.save(state_dict, ckpt)

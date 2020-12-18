@@ -43,11 +43,11 @@ parser.add_argument('--tagscheme', default='bio', type=str,
         help='the sequence tag scheme')
 parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
-parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
+parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice', 'lsr'],
         help='loss function')
 
 # Data
-parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
+parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
         help='Metric for picking up best checkpoint')
 parser.add_argument('--dataset', default='none', #choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
         help='Dataset. If not none, the following args can be ignored')
@@ -87,6 +87,8 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
         help='max_grad_norm for gradient clip')
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
+parser.add_argument('--early_stopping_step', default=3, type=int,
+        help='max times of worse metric allowed to avoid overfit')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -115,6 +117,7 @@ def make_model_name():
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv == 'none':
         model_name += '_' + args.adv
+    model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
@@ -134,10 +137,10 @@ tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hpa
 #     raise Exception(f'path {tb_logdir} exists!')
 
 # Some basic settings
-os.makedirs(config['path']['ner_ckpt'], exist_ok=True)
+os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{dataset_name}/{model_name}'
-ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}0.pth.tar')
+    args.ckpt = model_name
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -217,13 +220,15 @@ framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
+    early_stopping_step=args.early_stopping_step,
     warmup_step=args.warmup_step,
     max_grad_norm=args.max_grad_norm,
-    adv=args.adv,
-    loss=args.loss,
     mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
-    dice_alpha=args.dice_alpha,
     opt=args.optimizer,
+    loss=args.loss,
+    adv=args.adv,
+    dice_alpha=args.dice_alpha,
+    metric=args.metric,
     sampler=sampler
 )
 
@@ -249,3 +254,4 @@ else:
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

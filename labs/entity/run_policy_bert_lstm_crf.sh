@@ -12,7 +12,9 @@ python train_bert_crf.py \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 40 \
-    --optimizer adam
+    --optimizer adam \
+    --metric micro_f1

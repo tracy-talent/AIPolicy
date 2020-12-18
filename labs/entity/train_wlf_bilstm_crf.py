@@ -38,7 +38,7 @@ parser.add_argument('--tagscheme', default='bio', type=str,
         help='the sequence tag scheme')
 
 # Data
-parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
+parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
         help='Metric for picking up best checkpoint')
 parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
         help='Dataset. If not none, the following args can be ignored')
@@ -58,8 +58,14 @@ parser.add_argument('--custom_dict', default='', type=str,
         help='user custom dict for tokenizer toolkit')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
+parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
+        help='embedding adversarial perturbation')
+parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice', 'lsr'],
+        help='loss function')
 
 # Hyper-parameters
+parser.add_argument('--dice_alpha', default=0.6, type=float,
+        help='alpha of dice loss')
 parser.add_argument('--batch_size', default=64, type=int,
         help='Batch size')
 parser.add_argument('--lr', default=1e-3, type=float,
@@ -70,6 +76,8 @@ parser.add_argument('--optimizer', default='adamw', type=str,
         help='optimizer:adam|sgd|adamw')
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
+parser.add_argument('--early_stopping_step', default=3, type=int,
+        help='max times of worse metric allowed to avoid overfit')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -99,6 +107,10 @@ def make_model_name():
         model_name = '_lstm' if model_name != '' else 'lstm'
     if args.use_crf:
         model_name += '_crf' if model_name != '' else 'crf'
+    model_name += '_' + args.loss
+    if len(args.adv) > 0 and args.adv != 'none':
+        model_name += '_' + args.adv
+    model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, lr, bs, wd, ml):
     return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
@@ -118,10 +130,10 @@ tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hpa
 #     raise Exception(f'path {tb_logdir} exists!')
 
 # Some basic settings
-os.makedirs(config['path']['ner_ckpt'], exist_ok=True)
+os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{dataset_name}/{model_name}'
-ckpt = os.path.join(config['path']['ner_ckpt'], f'{args.ckpt}0.pth.tar')
+    args.ckpt = model_name
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -201,8 +213,13 @@ framework = pasaner.framework.Model_CRF(
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
+    early_stopping_step=args.early_stopping_step,
     warmup_step=args.warmup_step,
-    opt=args.optimizer
+    opt=args.optimizer,
+    loss=args.loss,
+    adv=args.adv,
+    dice_alpha=args.dice_alpha,
+    metric=args.metric
 )
 
 # Load pretrained model
@@ -223,3 +240,4 @@ logging.info('Accuracy: {}'.format(result['acc']))
 logging.info('Micro precision: {}'.format(result['micro_p']))
 logging.info('Micro recall: {}'.format(result['micro_r']))
 logging.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

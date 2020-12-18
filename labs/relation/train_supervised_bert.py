@@ -100,8 +100,6 @@ config.read(os.path.join(project_path, 'config.ini'))
 fix_seed(args.random_seed)
 
 # construct save path name
-def make_hparam_string(op, lr, bs, wd, ml):
-    return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
 def make_model_name():
     model_name = args.bert_name + '_' + args.pooler + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
@@ -109,7 +107,10 @@ def make_model_name():
     if args.embed_entity_type:
         model_name += '_embed_entity'
     return model_name
+def make_hparam_string(op, blr, lr, bs, wd, ml):
+    return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
 model_name = make_model_name()
+hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batch_size, args.weight_decay, args.max_length)
 
 # logger
 os.makedirs(os.path.join(config['path']['re_log'], args.dataset, model_name), exist_ok=True)
@@ -118,15 +119,13 @@ logger = get_logger(sys.argv, os.path.join(config['path']['re_log'], args.datase
 
 # tensorboard
 os.makedirs(config['path']['re_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['re_tb'], args.dataset, model_name, 
-                    make_hparam_string(args.optimizer, args.lr, args.batch_size, args.weight_decay, args.max_length))
+tb_logdir = os.path.join(config['path']['re_tb'], args.dataset, model_name, hparam_str)
 
 # Some basic settings
-os.makedirs(config['path']['re_ckpt'], exist_ok=True)
+os.makedirs(os.path.join(config['path']['re_ckpt'], args.dataset), exist_ok=True)
 if len(args.ckpt) == 0:
-    args.ckpt = f'{args.dataset}/{model_name}'
-    # args.ckpt = os.path.join(args.dataset, model_name)
-ckpt = os.path.join(config['path']['re_ckpt'], f'{args.ckpt}0.pth.tar')
+    args.ckpt = model_name
+ckpt = os.path.join(config['path']['re_ckpt'], args.dataset, f'{args.ckpt}0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -145,10 +144,10 @@ if args.dataset != 'none':
     if not os.path.exists(args.test_file):
         logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
-    if args.dataset == 'wiki80' or args.dataset == 'fewrel':
-        args.metric = 'acc'
-    else:
-        args.metric = 'micro_f1'
+    # if args.dataset == 'wiki80' or args.dataset == 'fewrel':
+    #     args.metric = 'acc'
+    # else:
+    #     args.metric = 'micro_f1'
 else:
     if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(
             args.test_file) and os.path.exists(args.rel2id_file)):
@@ -240,3 +239,4 @@ logger.info('Accuracy: {}'.format(result['acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

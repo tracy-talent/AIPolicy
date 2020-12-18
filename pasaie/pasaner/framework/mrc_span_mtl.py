@@ -6,20 +6,20 @@
 """
 
 from ...metrics import Mean, micro_p_r_f1_score
-from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy, AutomaticWeightedLoss
-from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation, adversarial_perturbation_mrc_span_mtl
+from ...losses import AutomaticWeightedLoss
+from ...utils.adversarial import adversarial_perturbation_mrc_span_mtl
 from ...utils.entity_extract import extract_kvpairs_by_start_end
 from .data_loader import MRCSpanMultiNERDataLoader
+from .base_framework import BaseFramework
 
 import os
-import datetime
 from collections import defaultdict
 
 import torch
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
+from torch import nn
 
-class MRC_Span_MTL(nn.Module):
+
+class MRC_Span_MTL(BaseFramework):
     """train multi task for span_start and span_end"""
     
     def __init__(self, 
@@ -38,8 +38,10 @@ class MRC_Span_MTL(nn.Module):
                 lr=1e-3,
                 bert_lr=3e-5,
                 weight_decay=1e-2,
+                early_stopping_step=3,
                 warmup_step=300,
                 max_grad_norm=5.0,
+                metric='micro_f1',
                 opt='adam',
                 adv='fgm',
                 loss='dice',
@@ -48,15 +50,6 @@ class MRC_Span_MTL(nn.Module):
                 dice_alpha=0.6,
                 sampler=None):
 
-        super(MRC_Span_MTL, self).__init__()
-        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
-            self.is_bert_encoder = True
-        else:
-            self.is_bert_encoder = False
-        self.max_epoch = max_epoch
-        self.tagscheme = tagscheme
-        self.max_grad_norm = max_grad_norm
-        
         # Load Data
         if train_path != None:
             self.train_loader = MRCSpanMultiNERDataLoader(
@@ -92,21 +85,29 @@ class MRC_Span_MTL(nn.Module):
                 compress_seq=compress_seq
             )
 
-        # Model
-        self.model = model
-        self.parallel_model = nn.DataParallel(model)
-        # Criterion
-        if loss == 'ce':
-            # nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
-            self.criterion = nn.CrossEntropyLoss(reduction='none')
-        elif loss == 'focal':
-            self.criterion = FocalLoss(gamma=2., reduction='none')
-        elif loss == 'dice':
-            self.criterion = DiceLoss(alpha=dice_alpha, gamma=0., reduction='none')
-        elif loss == 'lsr':
-            self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
-        else:
-            raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
+        # initialize base class
+        super(MRC_Span_MTL, self).__init__(
+            model=model,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            metric=metric,
+            adv=adv,
+            opt=opt,
+            loss=loss,
+            loss_weight=self.train_loader.dataset.weight,
+            dice_alpha=dice_alpha
+        )
+
+        self.tagscheme = tagscheme
         self.span_bce = None
         if add_span_loss:
             self.span_bce = nn.BCEWithLogitsLoss()
@@ -114,83 +115,10 @@ class MRC_Span_MTL(nn.Module):
         self.autoweighted_loss = None
         if mtl_autoweighted_loss:
             self.autoweighted_loss = AutomaticWeightedLoss(3 if add_span_loss else 2)
-        # Params and optimizer
-        self.lr = lr
-        self.bert_lr = bert_lr
-        if self.is_bert_encoder:
-            encoder_params = self.parallel_model.module.sequence_encoder.parameters()
-            bert_params_id = list(map(id, encoder_params))
-        else:
-            encoder_params = []
-            bert_params_id = []
-        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
-        grouped_params = [
-            {'params': bert_params, 'lr':bert_lr},
-            {'params': other_params, 'lr':lr}
-        ]
-        if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
-        elif opt == 'adam':
-            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
-        elif opt == 'adamw': # Optimizer for BERT
-            from transformers import AdamW
-            params = list(self.named_parameters())
-            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-            adamw_grouped_params = [
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': lr,
-                }
-            ]
-            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
-        else:
-            raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
-        # Warmup
-        if warmup_step > 0:
-            from transformers import get_linear_schedule_with_warmup
-            training_steps = len(self.train_loader) // batch_size * self.max_epoch
-            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-        else:
-            self.scheduler = None
-        # Adversarial
-        if adv == 'fgm':
-            self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
-        elif adv == 'pgd':
-            self.adv = PGD(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
-        elif adv == 'flb':
-            self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
-        else:
-            self.adv = None
-        # Cuda
-        if torch.cuda.is_available():
-            self.cuda()
-        # Ckpt
-        self.ckpt = ckpt
-        # logger
-        self.logger = logger
-        # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
 
-    def train_model(self, metric='micro_f1'):
-        best_metric = 0
+    def train_model(self):
+        train_state = self.make_train_state()
         global_step = 0
         negid = -1
         if 'null' in self.model.tag2id:
@@ -201,6 +129,7 @@ class MRC_Span_MTL(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
+            train_state['epoch_index'] = epoch
             preds_kvpairs = []
             golds_kvpairs = []
             avg_loss = Mean()
@@ -250,7 +179,7 @@ class MRC_Span_MTL(nn.Module):
                         span_logits = self.model.span_fc(span_out).squeeze(dim=-1)
                         span_labels = torch.tensor(span_labels).float().to(span_logits.device)
 
-                # Loss and Optimize
+                # loss and optimize
                 if self.adv is None:
                     start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
                     start_loss = (torch.sum(start_loss * loss_mask, dim=-1) / valid_seq_len).mean()
@@ -273,7 +202,7 @@ class MRC_Span_MTL(nn.Module):
                     loss = adversarial_perturbation_mrc_span_mtl(self.adv, self.parallel_model, self.criterion, self.span_bce, self.autoweighted_loss, 3, 0., start_labels, end_labels, *data[3:])
                 # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-                if self.scheduler is not None:
+                if self.warmup_step > 0:
                     self.scheduler.step()
                 self.optimizer.zero_grad()
 
@@ -348,26 +277,32 @@ class MRC_Span_MTL(nn.Module):
                     self.writer.add_scalar('train micro precision', prec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
+            micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
+            train_state['train_metrics'].append({'loss': avg_loss.avg, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.val_loader) 
-            self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], best_metric))
-            if result[metric] > best_metric:
-                self.logger.info("Best ckpt and saved.")
-                folder_path = '/'.join(self.ckpt.split('/')[:-1])
-                os.makedirs(folder_path, exist_ok=True)
-                self.save_model(self.ckpt)
-                best_metric = result[metric]
+            self.logger.info(f'Evaluation result: {result}.')
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            category_result = result.pop('category-p/r/f1')
+            train_state['val_metrics'].append(result)
+            result['category-p/r/f1'] = category_result
+            self.update_train_state(train_state)
+            if not self.warmup_step > 0:
+                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+            if train_state['stop_early']:
+                break
             
             # tensorboard val writer
+            self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val start acc', result['start_acc'], epoch)
             self.writer.add_scalar('val end acc', result['end_acc'], epoch)
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
-        self.logger.info("Best %s on val set: %f" % (metric, best_metric))
+        self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
 
 
     def eval_model(self, eval_loader):
@@ -375,6 +310,7 @@ class MRC_Span_MTL(nn.Module):
         preds_kvpairs = []
         golds_kvpairs = []
         category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
+        avg_loss = Mean()
         avg_start_acc = Mean()
         avg_end_acc = Mean()
         prec = Mean()
@@ -419,6 +355,24 @@ class MRC_Span_MTL(nn.Module):
                     if len(span_out) > 0:
                         span_out = torch.stack(span_out, dim=0)
                         span_logits = self.model.span_fc(span_out).float().squeeze(dim=-1)
+
+                # loss
+                start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
+                start_loss = (torch.sum(start_loss * loss_mask, dim=-1) / valid_seq_len).mean()
+                end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
+                end_loss = (torch.sum(end_loss * loss_mask, dim=-1) / valid_seq_len).mean()
+                if self.span_bce is not None and len(span_out) > 0:
+                    span_loss = self.span_bce(span_logits, span_labels)
+                if self.autoweighted_loss is not None:
+                    if self.span_bce is not None and len(span_out) > 0:
+                        loss = self.autoweighted_loss(start_loss, end_loss, span_loss)
+                    else:
+                        loss = self.autoweighted_loss(start_loss, end_loss)
+                else:
+                    if self.span_bce is not None and len(span_out) > 0:
+                        loss = (start_loss + end_loss + span_loss) / 3
+                    else:
+                        loss = (start_loss + end_loss) / 2
 
                 # preds
                 start_preds = start_logits.argmax(dim=-1)
@@ -489,6 +443,7 @@ class MRC_Span_MTL(nn.Module):
                 avg_end_acc.update(end_acc, ((end_labels != 0) * loss_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
+                avg_loss.update(loss.item() * bs, bs)
 
                 # Log
                 if (ith + 1) % 20 == 0:
@@ -506,8 +461,7 @@ class MRC_Span_MTL(nn.Module):
             category_result[k] = (cate_precision, cate_recall, cate_f1)
         category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'start_acc': avg_start_acc.avg, 'end_acc': avg_end_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
-        self.logger.info(f'Evaluation result: {result}.')
+        result = {'loss': avg_loss.avg, 'start_acc': avg_start_acc.avg, 'end_acc': avg_end_acc.avg, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
         return result
 
 

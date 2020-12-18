@@ -7,19 +7,18 @@
 
 from ...metrics import Mean, micro_p_r_f1_score
 from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes
-from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
+from ...utils.adversarial import adversarial_perturbation
 from .data_loader import SingleNERDataLoader
+from .base_framework import BaseFramework
 
 import os
-import datetime
 from collections import defaultdict
 
 import torch
-from torch import nn, optim
-from torch.utils.tensorboard import SummaryWriter
+from torch import nn
 
 
-class Model_CRF(nn.Module):
+class Model_CRF(BaseFramework):
     """model(adaptive) + crf decoder"""
     
     def __init__(self, 
@@ -37,19 +36,14 @@ class Model_CRF(nn.Module):
                 lr=1e-3,
                 bert_lr=3e-5,
                 weight_decay=1e-5,
+                early_stopping_step=3,
                 warmup_step=300,
                 max_grad_norm=5.0,
+                metric='micro_f1',
                 adv='fgm',
-                opt='adam'):
-
-        super(Model_CRF, self).__init__()
-        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
-            self.is_bert_encoder = True
-        else:
-            self.is_bert_encoder = False
-        self.max_epoch = max_epoch
-        self.tagscheme = tagscheme
-        self.max_grad_norm = max_grad_norm
+                opt='adam',
+                loss='ce',
+                dice_alpha=0.6):
 
         # Load Data
         if train_path != None:
@@ -82,88 +76,33 @@ class Model_CRF(nn.Module):
                 compress_seq=compress_seq
             )
 
-        # Model
-        self.model = model
-        self.parallel_model = nn.DataParallel(model)
-        # Criterion
-        self.criterion = nn.CrossEntropyLoss(reduction='none')  # nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight)
-        # Params and optimizer
-        self.lr = lr
-        self.bert_lr = bert_lr
-        if self.is_bert_encoder:
-            encoder_params = self.parallel_model.module.sequence_encoder.parameters()
-            bert_params_id = list(map(id, encoder_params))
-        else:
-            encoder_params = []
-            bert_params_id = []
-        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parallel_model.parameters()))
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parallel_model.parameters()))
-        grouped_params = [
-            {'params': bert_params, 'lr':bert_lr},
-            {'params': other_params, 'lr':lr}
-        ]
-        if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
-        elif opt == 'adam':
-            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
-        elif opt == 'adamw': # Optimizer for BERT
-            from transformers import AdamW
-            params = list(self.parallel_model.named_parameters())
-            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-            adamw_grouped_params = [
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': weight_decay,
-                    'lr': lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': bert_lr,
-                },
-                {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
-                    'weight_decay': 0.0,
-                    'lr': lr,
-                }
-            ]
-            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
-        else:
-            raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
-        # Warmup
-        if warmup_step > 0:
-            from transformers import get_linear_schedule_with_warmup
-            training_steps = len(self.train_loader) // batch_size * self.max_epoch
-            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-        else:
-            self.scheduler = None
-        # Adversarial
-        if adv == 'fgm':
-            self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
-        elif adv == 'pgd':
-            self.adv = PGD(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
-        elif adv == 'flb':
-            self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
-        else:
-            self.adv = None
-        # Cuda
-        if torch.cuda.is_available():
-            self.cuda()
-        # Ckpt
-        self.ckpt = ckpt
-        # logger
-        self.logger = logger
-        # tensorboard writer
-        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
+        # initialize base class
+        super(Model_CRF, self).__init__(
+            model=model,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            metric=metric,
+            adv=adv,
+            opt=opt,
+            loss=loss,
+            loss_weight=self.train_loader.dataset.weight,
+            dice_alpha=dice_alpha
+        )
+
+        self.tagscheme = tagscheme
 
 
-    def train_model(self, metric='micro_f1'):
-        best_metric = 0
+    def train_model(self):
+        train_state = self.make_train_state()
         global_step = 0
         negid = -1
         if 'O' in self.model.tag2id:
@@ -174,6 +113,7 @@ class Model_CRF(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
+            train_state['epoch_index'] = epoch
             preds_kvpairs = []
             golds_kvpairs = []
             avg_loss = Mean()
@@ -194,15 +134,6 @@ class Model_CRF(nn.Module):
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
 
-                # prediction/ decode
-                if self.model.crf is None:
-                    preds_seq = logits.argmax(dim=-1) # B * S
-                else:
-                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
-                    for pred_seq in preds_seq:
-                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
-                    preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
-
                 # Optimize
                 if self.adv is None:
                     if self.model.crf is None:
@@ -217,10 +148,19 @@ class Model_CRF(nn.Module):
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
-                if self.scheduler is not None:
+                if self.warmup_step > 0:
                     self.scheduler.step()
                 self.optimizer.zero_grad()
 
+                # prediction/decode
+                if self.model.crf is None:
+                    preds_seq = logits.argmax(dim=-1) # B * S
+                else:
+                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
+                    for pred_seq in preds_seq:
+                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
+                    preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
+                
                 # get token sequence
                 preds_seq = preds_seq.detach().cpu().numpy()
                 outputs_seq = outputs_seq.detach().cpu().numpy()
@@ -272,25 +212,31 @@ class Model_CRF(nn.Module):
                     self.writer.add_scalar('train micro precision', prec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
+            micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
+            train_state['train_metrics'].append({'loss': avg_loss.avg, 'acc': avg_acc.avg, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.val_loader) 
-            self.logger.info('Metric {} current / best: {} / {}'.format(metric, result[metric], best_metric))
-            if result[metric] > best_metric:
-                self.logger.info("Best ckpt and saved.")
-                folder_path = '/'.join(self.ckpt.split('/')[:-1])
-                os.makedirs(folder_path, exist_ok=True)
-                self.save_model(self.ckpt)
-                best_metric = result[metric]
+            self.logger.info(f'Evaluation result: {result}.')
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            category_result = result.pop('category-p/r/f1')
+            train_state['val_metrics'].append(result)
+            result['category-p/r/f1'] = category_result
+            self.update_train_state(train_state)
+            if not self.warmup_step > 0:
+                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+            if train_state['stop_early']:
+                break
             
             # tensorboard val writer
+            self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val acc', result['acc'], epoch)
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
-        self.logger.info("Best %s on val set: %f" % (metric, best_metric))
+        self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
 
 
     def eval_model(self, eval_loader):
@@ -298,6 +244,7 @@ class Model_CRF(nn.Module):
         preds_kvpairs = []
         golds_kvpairs = []
         category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
+        avg_loss = Mean()
         avg_acc = Mean()
         prec = Mean()
         rec = Mean()
@@ -319,6 +266,17 @@ class Model_CRF(nn.Module):
                 inputs_seq, inputs_mask = data[1], data[-1]
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
+
+                # loss
+                if self.model.crf is None:
+                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                else:
+                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                    loss = -log_likelihood / inputs_seq_len
+                loss = loss.sum().item()
+
+                # prediction/decode
                 if self.model.crf is None:
                     preds_seq = logits.argmax(-1) # B * S
                 else:
@@ -326,7 +284,7 @@ class Model_CRF(nn.Module):
                     for pred_seq in preds_seq:
                         pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
-                
+
                 # get token sequence
                 preds_seq = preds_seq.detach().cpu().numpy()
                 outputs_seq = outputs_seq.detach().cpu().numpy()
@@ -367,11 +325,11 @@ class Model_CRF(nn.Module):
                 avg_acc.update(acc, ((outputs_seq != negid) * inputs_mask).sum())
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
+                avg_loss.update(loss, bs)
 
                 # Log
                 if (ith + 1) % 20 == 0:
-                    micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-                    self.logger.info(f'Evaluation...Batches: {ith + 1}, acc: {avg_acc.avg:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                    self.logger.info(f'Evaluation...Batches: {ith + 1} finished')
 
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v
@@ -384,16 +342,5 @@ class Model_CRF(nn.Module):
             category_result[k] = (cate_precision, cate_recall, cate_f1)
         category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
-        result = {'acc': round(avg_acc.avg, 4), 'micro_p': round(p, 4), 'micro_r': round(r, 4), 'micro_f1': round(f1, 4), 'category-p/r/f1':category_result}
-        self.logger.info(f'Evaluation result: {result}.')
+        result = {'loss': avg_loss.avg, 'acc': avg_acc.avg, 'micro_p': p, 'micro_r': r, 'micro_f1': f1, 'category-p/r/f1':category_result}
         return result
-
-
-    def load_model(self, ckpt):
-        state_dict = torch.load(ckpt)
-        self.model.load_state_dict(state_dict['model'])
-    
-    
-    def save_model(self, ckpt):
-        state_dict = {'model': self.model.state_dict()}
-        torch.save(state_dict, ckpt)
