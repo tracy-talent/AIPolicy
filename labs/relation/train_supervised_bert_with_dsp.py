@@ -1,5 +1,17 @@
+"""
+ Author: liujian
+ Date: 2020-12-17 22:14:32
+ Last Modified by: liujian
+ Last Modified time: 2020-12-17 22:14:32
+"""
+
 # coding:utf-8
 import sys
+sys.path.append('../..')
+from pasaie.utils import get_logger, fix_seed
+from pasaie.utils.sampler import get_relation_sampler
+from pasaie import pasare
+
 import torch
 import json
 import os
@@ -7,11 +19,8 @@ import re
 import datetime
 import argparse
 import configparser
+from ast import literal_eval
 
-sys.path.append('../..')
-from pasaie.utils import get_logger
-from pasaie.utils.sampler import get_relation_sampler
-from pasaie import pasare
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-uncased',
@@ -26,8 +35,6 @@ parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
 parser.add_argument('--mask_entity', action='store_true',
                     help='Mask entity mentions')
-parser.add_argument('--use_sampler', action='store_true',
-                    help='Use sampler')
 parser.add_argument('--use_attention', action='store_true',
                     help='whether use attention for DSP and Context feature')
 parser.add_argument('--embed_entity_type', action='store_true',
@@ -36,12 +43,12 @@ parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
         help='loss function')
+parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
+                    help='Metric for picking up best checkpoint')
 parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp'],
         help='DSP tool used')
 
 # Data
-parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'acc'],
-                    help='Metric for picking up best checkpoint')
 parser.add_argument('--dataset', default='none',
                     # choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'],
                     help='Dataset. If not none, the following args can be ignored')
@@ -57,6 +64,10 @@ parser.add_argument('--compress_seq', action='store_true',
                     help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 parser.add_argument('--dsp_preprocessed', action='store_true',
                     help='whether have preprocessed dsp path of head anf tail entity to root')
+parser.add_argument('--neg_classes', default='', type=str,
+                    help='list of negtive classes id')
+parser.add_argument('--use_sampler', action='store_true',
+                    help='Use sampler')
 
 # Hyper-parameters
 parser.add_argument('--dice_alpha', default=0.6, type=float,
@@ -75,6 +86,8 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
         help='max_grad_norm for gradient clip')
 parser.add_argument('--weight_decay', default=1e-2, type=float,
                     help='Weight decay')
+parser.add_argument('--early_stopping_step', default=3, type=int,
+                    help='max times of worse metric allowed to avoid overfit')
 parser.add_argument('--warmup_step', default=0, type=int,
                     help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=256, type=int,
@@ -83,12 +96,17 @@ parser.add_argument('--max_dsp_path_length', default=15, type=int,
                     help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12}, suggest 15 for ddp, 10 for ltp
 parser.add_argument('--max_epoch', default=3, type=int,
                     help='Max number of training epochs')
+parser.add_argument('--random_seed', default=12345, type=int,
+                    help='global random seed')
 
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
+
+# set global random seed
+fix_seed(args.random_seed)
 
 # construct save path name
 def make_hparam_string(op, lr, bs, wd, ml):
@@ -102,6 +120,8 @@ def make_model_name():
     model_name += '_' + args.dsp_tool + '_dsp'
     if args.use_attention:
         model_name += '_attention_cat'
+    else:
+        model_name += '_maxpool'
     return model_name
 model_name = make_model_name()
 
@@ -192,11 +212,15 @@ model = pasare.model.SoftmaxNN(
     rel2id=rel2id, 
     dropout_rate=args.dropout_rate)
 
+# Define the whole training framework
+if args.neg_classes:
+    args.neg_classes = literal_eval(args.neg_classes)
+else:
+    args.neg_classes = []
 if args.use_sampler:
     sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
 else:
     sampler = None
-# Define the whole training framework
 framework = pasare.framework.SentenceWithDSPRE(
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
@@ -205,6 +229,7 @@ framework = pasare.framework.SentenceWithDSPRE(
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    neg_classes=args.neg_classes,
     compress_seq=args.compress_seq,
     max_dsp_path_length=args.max_dsp_path_length if args.dsp_preprocessed else -1,
     dsp_tool=args.dsp_tool,
@@ -213,27 +238,31 @@ framework = pasare.framework.SentenceWithDSPRE(
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
+    early_stopping_step=args.early_stopping_step,
     warmup_step=args.warmup_step,
     max_grad_norm=args.max_grad_norm,
     dice_alpha=args.dice_alpha,
+    metric=args.metric,
     adv=args.adv,
     loss=args.loss,
     opt=args.optimizer,
     sampler=sampler
 )
+
+# Load pretrained model
 if ckpt_cnt > 0:
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
+    logger.info('load checkpoint')
+    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model()
+    framework.load_model(ckpt)
 
 # Test
-if not args.only_test:
-    framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
-
 # Print the result
-logger.info('Test set results:')
+logger.info('Test set best results:')
 logger.info('Accuracy: {}'.format(result['acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))

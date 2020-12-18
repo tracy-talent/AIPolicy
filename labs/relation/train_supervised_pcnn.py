@@ -1,16 +1,17 @@
 # coding:utf-8
 import sys
 sys.path.append('../..')
+from pasaie.utils import get_logger, fix_seed
+from pasaie import pasare
+
 import torch
 import numpy as np
 import json
-import pasare
-from pasare import encoder, model, framework
 import os
 import argparse
 import configparser
 import logging
-from utils import get_logger
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ckpt', default='', 
@@ -45,12 +46,17 @@ parser.add_argument('--max_length', default=40, type=int,
         help='Maximum sentence length')
 parser.add_argument('--max_epoch', default=100, type=int,
         help='Max number of training epochs')
+parser.add_argument('--random_seed', default=12345, type=int,
+                    help='global random seed')
 
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
+
+# set global random seed
+fix_seed(args.random_seed)
 
 # logger
 os.makedirs(config['path']['re_log'], exist_ok=True)
@@ -97,7 +103,7 @@ word2id = json.load(config['embedding']['glove.6b.50d_word2id.json'])
 word2vec = np.load(config['embedding']['glove.6b.50d_mat.npy'])
 
 # Define the sentence encoder
-sentence_encoder = opennre.encoder.PCNNEncoder(
+sentence_encoder = pasare.encoder.PCNNEncoder(
     token2id=word2id,
     max_length=args.max_length,
     word_size=50,
@@ -112,10 +118,10 @@ sentence_encoder = opennre.encoder.PCNNEncoder(
 
 
 # Define the model
-model = opennre.model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+model = pasare.model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
 
 # Define the whole training framework
-framework = opennre.framework.SentenceRE(
+framework = pasare.framework.SentenceRE(
     train_path=args.train_file,
     val_path=args.val_file,
     test_path=args.test_file,

@@ -260,7 +260,7 @@ class XLNet_CRF(nn.Module):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                torch.save({'model': self.model.state_dict()}, self.ckpt)
+                self.save_model(self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -366,5 +366,11 @@ class XLNet_CRF(nn.Module):
         return result
 
 
-    def load_state_dict(self, state_dict):
+    def load_model(self, ckpt):
+        state_dict = torch.load(ckpt)
         self.model.load_state_dict(state_dict['model'])
+    
+
+    def save_model(self, ckpt):
+        state_dict = {'model': self.model.state_dict()}
+        torch.save(state_dict, ckpt)

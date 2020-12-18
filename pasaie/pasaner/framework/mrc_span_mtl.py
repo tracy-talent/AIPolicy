@@ -357,10 +357,7 @@ class MRC_Span_MTL(nn.Module):
                 self.logger.info("Best ckpt and saved.")
                 folder_path = '/'.join(self.ckpt.split('/')[:-1])
                 os.makedirs(folder_path, exist_ok=True)
-                state_dict = {'model': self.model.state_dict()}
-                if self.autoweighted_loss is not None:
-                    state_dict['autoweighted_loss'] = self.autoweighted_loss.state_dict()
-                torch.save(state_dict, self.ckpt)
+                self.save_model(self.ckpt)
                 best_metric = result[metric]
             
             # tensorboard val writer
@@ -514,7 +511,15 @@ class MRC_Span_MTL(nn.Module):
         return result
 
 
-    def load_state_dict(self, state_dict):
+    def load_model(self, ckpt):
+        state_dict = torch.load(ckpt)
         self.model.load_state_dict(state_dict['model'])
         if self.autoweighted_loss is not None:
             self.autoweighted_loss.load_state_dict(state_dict['autoweighted_loss'])
+    
+
+    def save_model(self, ckpt):
+        state_dict = {'model': self.model.state_dict()}
+        if self.autoweighted_loss is not None:
+            state_dict.upadte({'autoweighted_loss': self.autoweighted_loss.state_dict()})
+        torch.save(state_dict, ckpt)

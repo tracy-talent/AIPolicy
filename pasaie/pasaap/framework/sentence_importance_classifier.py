@@ -1,16 +1,17 @@
+from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
+from .data_loader import SentenceImportanceDataset, get_train_val_dataloader
+from ...metrics import BatchMetric, Mean
+from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
+
 import os
 import datetime
 import time
 import operator
 from collections import defaultdict
+
 import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
-
-from ...utils.adversarial import FGM, PGD, FreeLB, adversarial_perturbation
-from .data_loader import SentenceImportanceDataset, get_train_val_dataloader
-from ...metrics import BatchMetric, Mean
-from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy
 
 
 class SentenceImportanceClassifier(nn.Module):
@@ -166,18 +167,18 @@ class SentenceImportanceClassifier(nn.Module):
     def make_train_state(self):
         return {'stop_early': False,
                 'early_stopping_step': 0,
-                'early_stopping_best_val': 1e8,
+                'early_stopping_best_val': 1e8 if 'loss' in self.metric else 0,
                 'epoch_index': 0,
                 'train_metrics': [], # [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
                 'val_metrics': [], # [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
                 }
     
     
-    def update_train_state(self):
+    def update_train_state(self, train_state):
         if 'loss' in self.metric:
-            cmp_op = operator.gte
+            cmp_op = operator.lt
         else:
-            cmp_op = operator.lte
+            cmp_op = operator.gt
         if train_state['epoch_index'] == 0:
             self.save_model(self.ckpt)
             train_state['early_stopping_best_val'] = train_state['val_metrics'][-1][self.metric]
@@ -185,10 +186,10 @@ class SentenceImportanceClassifier(nn.Module):
         elif train_state['epoch_index'] >= 1:
             metric_v2 = train_state['val_metrics'][-2][self.metric]
             metric_v1 = train_state['val_metrics'][-1][self.metric]
-            if cmp_op(metric_v1, metric_v2):
+            if not cmp_op(metric_v1, metric_v2):
                 train_state['early_stopping_step'] += 1
             else:
-                if not cmp_op(metric_v1, train_state['early_stopping_best_val']):
+                if cmp_op(metric_v1, train_state['early_stopping_best_val']):
                     self.save_model(self.ckpt)
                     train_state['early_stopping_best_val'] = metric_v1
                     self.logger.info("Best ckpt and saved.")
@@ -198,8 +199,8 @@ class SentenceImportanceClassifier(nn.Module):
 
 
     def train_model(self):
-        test_best_metric = 0
-        best_metric = 0
+        test_best_metric = 1e8 if 'loss' in self.metric else 0
+        best_metric = test_best_metric
         global_step = 0
         train_state = self.make_train_state()
 
@@ -207,8 +208,8 @@ class SentenceImportanceClassifier(nn.Module):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
             train_state['epoch_index'] = epoch
-            batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
             avg_loss = Mean()
+            batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
             for ith, data in enumerate(self.train_loader):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
@@ -276,13 +277,14 @@ class SentenceImportanceClassifier(nn.Module):
             category_result = result.pop('category-p/r/f1')
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
-            self.update_train_state(self.metric)
+            self.update_train_state(train_state)
             if not self.warmup_step > 0:
                 self.scheduler.step(train_state['val_metrics'][-1][self.metric])
             if train_state['stop_early']:
                 break
 
             # tensorboard val writer
+            self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val acc', result['acc'], epoch)
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
@@ -291,10 +293,15 @@ class SentenceImportanceClassifier(nn.Module):
 
             # test
             if hasattr(self, 'test_loader'):
+                self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
                 self.logger.info('Test result: {}.'.format(result))
                 self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
-                if result[self.metric] > test_best_metric:
+                if 'loss' in self.metric:
+                    cmp_op = operator.lt
+                else:
+                    cmp_op = operator.gt
+                if cmp_op(result[self.metric], test_best_metric):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-9] + '_test' + self.ckpt[-9:])
                     # torch.save({'model': self.model.state_dict()}, self.ckpt[:-9] + '_test' + self.ckpt[-9:])
@@ -307,9 +314,9 @@ class SentenceImportanceClassifier(nn.Module):
 
     def eval_model(self, eval_loader):
         self.eval()
-
-        batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
         avg_loss = Mean()
+        batch_metric = BatchMetric(num_classes=max(self.model.num_classes, 2), ignore_classes=self.neg_classes)
+
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -322,7 +329,7 @@ class SentenceImportanceClassifier(nn.Module):
                 args = data[1:]
                 logits = self.parallel_model(*args)
                 bs = label.size(0)
-
+                # metrics
                 if logits.size(-1) == 1:
                     pred = (torch.sigmoid(logits.squeeze(-1)) >= 0.5).long()
                 else:

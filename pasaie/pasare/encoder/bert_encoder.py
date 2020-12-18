@@ -9,7 +9,6 @@ import torch.nn.functional as F
 
 from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, AutoModel
 from transformers import BertModel, AlbertModel, BertTokenizer
-# from transformers import BertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):

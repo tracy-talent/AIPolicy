@@ -1,5 +1,5 @@
 python==3.7.7
-torch==1.6.0+cu101
+torch==1.6.0
 transformers==3.0.2
 pytest==5.3.2
 scikit-learn==0.22.1

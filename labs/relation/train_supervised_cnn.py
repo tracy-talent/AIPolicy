@@ -1,6 +1,9 @@
 # coding:utf-8
 import sys
 sys.path.append('../..')
+from pasaie.utils import get_logger, fix_seed
+from pasaie import pasare
+
 import torch
 import numpy as np
 import json
@@ -10,7 +13,7 @@ import os
 import argparse
 import configparser
 import logging
-from utils import get_logger
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--ckpt', default='', 
@@ -45,12 +48,17 @@ parser.add_argument('--max_length', default=40, type=int,
         help='Maximum sentence length')
 parser.add_argument('--max_epoch', default=100, type=int,
         help='Max number of training epochs')
+parser.add_argument('--random_seed', default=12345, type=int,
+                    help='global random seed')
 
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
+
+# set global random seed
+fix_seed(args.random_seed)
 
 # logger
 os.makedirs(config['path']['re_log'], exist_ok=True)

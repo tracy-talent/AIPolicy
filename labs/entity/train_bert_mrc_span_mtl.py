@@ -6,6 +6,12 @@
 """
 
 import sys
+sys.path.append('../..')
+from pasaie.utils import get_logger, fix_seed
+from pasaie.utils.sampler import get_entity_span_single_sampler
+from pasaie.tokenization.utils import load_vocab
+from pasaie import pasaner
+
 import torch
 import numpy as np
 import json
@@ -15,11 +21,6 @@ import datetime
 import argparse
 import configparser
 
-sys.path.append('../..')
-from pasaie.utils import get_logger
-from pasaie.utils.sampler import get_entity_span_single_sampler
-from pasaie.tokenization.utils import load_vocab
-from pasaie import pasaner
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
@@ -90,6 +91,8 @@ parser.add_argument('--max_length', default=128, type=int,
         help='Maximum sentence length')
 parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
+parser.add_argument('--random_seed', default=12345, type=int,
+                    help='global random seed')
 
 args = parser.parse_args()
 
@@ -97,6 +100,8 @@ project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
+# set global random seed
+fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -115,10 +120,11 @@ def make_model_name():
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     return model_name
-def make_hparam_string(op, lr, bs, wd, ml):
-    return "%s_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, lr, bs, wd, ml)
+def make_hparam_string(op, blr, lr, bs, wd, ml):
+    return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
 dataset_name = make_dataset_name()
 model_name = make_model_name()
+hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batch_size, args.weight_decay, args.max_length)
 
 # logger
 os.makedirs(os.path.join(config['path']['ner_log'], dataset_name, model_name), exist_ok=True)
@@ -127,7 +133,7 @@ logger = get_logger(sys.argv, os.path.join(config['path']['ner_log'], dataset_na
 
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
-tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, make_hparam_string(args.optimizer, args.bert_lr, args.batch_size, args.weight_decay, args.max_length))
+tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hparam_str)
 # if os.path.exists(tb_logdir):
 #     raise Exception(f'path {tb_logdir} exists!')
 
@@ -210,20 +216,18 @@ framework = pasaner.framework.MRC_Span_MTL(
     opt=args.optimizer,
 )
 
-# load model
+# Load pretrained model
 if ckpt_cnt > 0:
     logger.info('load checkpoint')
-    framework.load_state_dict(torch.load(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)))
+    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
     framework.train_model('micro_f1')
+    framework.load_model(ckpt)
 
 # Test
-if not args.only_test:
-    framework.load_state_dict(torch.load(ckpt))
 result = framework.eval_model(framework.test_loader)
-
 # Print the result
 logger.info('Test set results:')
 logger.info('Start Accuracy: {}'.format(result['start_acc']))
