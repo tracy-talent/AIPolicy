@@ -1,9 +1,9 @@
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_sentence_importance_classifier.py \
     --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --encoder bert \
     --bert_name bert \
-    --model textcnn \
+    --model bilstm \
     --metric micro_f1 \
     --dataset sentence_importance_judgement \
     --neg_classes [0] \

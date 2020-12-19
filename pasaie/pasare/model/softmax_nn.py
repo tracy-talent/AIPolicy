@@ -22,8 +22,8 @@ class SoftmaxNN(SentenceRE):
         self.rel2id = rel2id
         self.id2rel = {}
         self.drop = nn.Dropout(dropout_rate)
-        for rel, id in rel2id.items():
-            self.id2rel[id] = rel
+        for rel, rid in rel2id.items():
+            self.id2rel[rid] = rel
 
     def infer(self, item):
         self.eval()

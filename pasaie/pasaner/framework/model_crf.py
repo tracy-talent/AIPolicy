@@ -94,7 +94,7 @@ class Model_CRF(BaseFramework):
             adv=adv,
             opt=opt,
             loss=loss,
-            loss_weight=self.train_loader.dataset.weight,
+            loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
             dice_alpha=dice_alpha
         )
 
@@ -146,7 +146,7 @@ class Model_CRF(BaseFramework):
                     loss.backward()
                 else:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
-                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()

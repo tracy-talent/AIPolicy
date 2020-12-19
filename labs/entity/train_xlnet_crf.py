@@ -15,6 +15,7 @@ import torch
 import numpy as np
 import json
 import os
+import re
 import datetime
 import argparse
 import configparser
@@ -23,7 +24,7 @@ import configparser
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
         help='Pre-trained ckpt path / model name (hugginface)')
-parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
+parser.add_argument('--bert_name', default='xlnet', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -165,6 +166,7 @@ sequence_encoder = pasaner.encoder.XLNetEncoder(
 model = pasaner.model.BILSTM_CRF(
     sequence_encoder=sequence_encoder, 
     tag2id=tag2id, 
+    compress_seq=args.compress_seq,
     use_lstm=args.use_lstm, 
     use_crf=args.use_crf
 )
@@ -201,7 +203,7 @@ if ckpt_cnt > 0:
 
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model()
     framework.load_model(ckpt)
 
 # Test

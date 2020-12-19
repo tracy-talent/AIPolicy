@@ -10,6 +10,7 @@ import logging
 import torch
 import torch.nn as nn
 from transformers import XLNetModel, XLNetTokenizer
+from transformers import AutoTokenizer, AutoModel
 
 
 class XLNetEncoder(nn.Module):
@@ -23,8 +24,10 @@ class XLNetEncoder(nn.Module):
         super(XLNetEncoder, self).__init__()
 
         # self.xlnet = AutoModelForCausalLM.from_pretrained(pretrain_path, output_hidden_states=True) # permute(1,0,2)
-        self.xlnet = XLNetModel.from_pretrained(pretrain_path, mem_len=max_length)
-        self.tokenizer = XLNetTokenizer.from_pretrained(pretrain_path)
+        self.xlnet = AutoModel.from_pretrained(pretrain_path)
+        self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
+        # self.xlnet = XLNetModel.from_pretrained(pretrain_path, mem_len=max_length)
+        # self.tokenizer = XLNetTokenizer.from_pretrained(pretrain_path)
         # add missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         print(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -43,10 +46,10 @@ class XLNetEncoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
-        seq_out, _ = self.xlnet(input_ids=seqs, attention_mask=att_mask, token_type_ids=token_type_ids)
+        seq_out = self.xlnet(input_ids=seqs, attention_mask=att_mask, token_type_ids=token_type_ids)
         # if self.bert_name == 'xlnet':
             # seq_out = seq_out.permute(1, 0, 2)
-        return seq_out
+        return seq_out[0]
     
     def tokenize(self, *items): # items = (tokens, spans, [attrs, optional])
         """
@@ -57,12 +60,12 @@ class XLNetEncoder(nn.Module):
             token_type_ids (torch.tensor): token type ids, (1, L)
             att_mask (torch.tensor): token mask ids, (1, L)
         """
-        if isinstance(items[0], list) or isinstance(items[0], tuple):
-            sentence = items[0]
-            is_token = True
-        else:
+        if isinstance(items[0], str):
             sentence = items[0]
             is_token = False
+        else:
+            sentence = items[0]
+            is_token = True
         
         re_items = [[] for i in range(len(items))]
         if is_token:
@@ -143,24 +146,24 @@ class XLNetEncoder(nn.Module):
             #     items[2].extend(['null', 'null'])
             # tokens = items[0]
         else:
-            tokens = self.tokenizer.tokenize(sentence).extend(['<sep>', '<cls>'])
+            tokens = self.tokenizer.tokenize(sentence) + ['<sep>', '<cls>']
 
         if self.blank_padding:
             if len(tokens) < self.max_length:
                 indexed_tokens = [self.tokenizer.convert_tokens_to_ids('<pad>')] * (self.max_length - len(tokens))
                 token_type_ids = [3] * (self.max_length - len(tokens)) # 3 for <pad>
             else:
-                index_tokens = []
+                indexed_tokens = []
                 token_type_ids = []
         indexed_tokens.extend(self.tokenizer.convert_tokens_to_ids(tokens))
         token_type_ids.extend([0] * len(tokens))
         token_type_ids[-1] = 2 # 2 for <cls>
-        avail_len = torch.tensor([len(indexed_tokens)])
+        avail_len = torch.tensor([len(tokens)])
 
         if self.blank_padding:
             if len(indexed_tokens) > self.max_length:
-                indexed_tokens = indexed_tokens[:self.max_length - 2].extend(indexed_tokens[-2:])
-                token_type_ids = token_type_ids[:self.max_length - 1].append(2)
+                indexed_tokens = indexed_tokens[:self.max_length - 2] + indexed_tokens[-2:]
+                token_type_ids = token_type_ids[:self.max_length - 1] + token_type_ids[-1]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0) # (1, L)
         token_type_ids = torch.tensor(token_type_ids).long().unsqueeze(0) # (1, L)
 

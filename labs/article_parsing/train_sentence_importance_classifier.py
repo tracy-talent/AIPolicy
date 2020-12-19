@@ -90,7 +90,7 @@ def make_model_name():
         _model_name = '_'.join((args.encoder, args.model, args.loss))
     if len(args.adv) > 0 and args.adv != 'none':
         _model_name += '_' + args.adv
-    model_name += '_' + args.metric
+    _model_name += '_' + args.metric
     return _model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
@@ -110,7 +110,7 @@ tb_logdir = os.path.join(config['path']['ap_tb'], args.dataset, model_name, hpar
 os.makedirs(os.path.join(config['path']['ap_ckpt'], args.dataset), exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = model_name
-ckpt = os.path.join(config['path']['ap_ckpt'], args.dataset, f'{args.ckpt}0.pth.tar')
+ckpt = os.path.join(config['path']['ap_ckpt'], args.dataset, f'{args.ckpt}_0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1

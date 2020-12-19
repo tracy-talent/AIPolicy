@@ -17,6 +17,7 @@ import torch
 import numpy as np
 import json
 import os
+import re
 import datetime
 import argparse
 import configparser
@@ -104,7 +105,7 @@ def make_model_name():
     model_name = 'wlf'
 #     model_name = ''
     if args.use_lstm:
-        model_name = '_lstm' if model_name != '' else 'lstm'
+        model_name += '_lstm' if model_name != '' else 'lstm'
     if args.use_crf:
         model_name += '_crf' if model_name != '' else 'crf'
     model_name += '_' + args.loss
@@ -133,7 +134,7 @@ tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hpa
 os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = model_name
-ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}_0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -229,7 +230,7 @@ if ckpt_cnt > 0:
 
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model()
     framework.load_model(ckpt)
 
 # Test

@@ -40,8 +40,10 @@ class MTL_Span_Attr(BaseFramework):
                 early_stopping_step=3,
                 warmup_step=300,
                 max_grad_norm=5.0,
+                metric='micro_f1',
                 opt='sgd',
                 loss='ce',
+                adv='fgm',
                 mtl_autoweighted_loss=True,
                 dice_alpha=0.6):
 
@@ -169,8 +171,8 @@ class MTL_Span_Attr(BaseFramework):
                         loss = (loss_span + loss_attr) / 2
                     loss.backward()
                 else:
-                    loss = adversarial_perturbation_span_attr_mtl(adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_span_out, outputs_attr_out, *data[2:])
-                torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                    loss = adversarial_perturbation_span_attr_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr, *data[2:])
+                torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()
@@ -286,6 +288,8 @@ class MTL_Span_Attr(BaseFramework):
         if span_negid == -1:
             raise Exception("span negative tag not in 'O'")
         attr_negid = self.model.attr2id['null']
+        span_eid = self.model.span2id['E']
+        span_sid = self.model.span2id['S']
         
         preds_kvpairs = []
         golds_kvpairs = []

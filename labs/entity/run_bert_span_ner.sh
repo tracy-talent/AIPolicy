@@ -2,10 +2,8 @@ CUDA_VISIBLE_DEVICES=2 \
 python train_bert_span_ner.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
-    --model multi \
-    --metric micro_f1 \
+    --model single \
     --dataset policy \
-    --only_test \
     --compress_seq \
     --use_lstm \
     --tagscheme bmoes \
@@ -13,6 +11,7 @@ python train_bert_span_ner.py \
     --lr 1e-4 \
     --bert_lr 1e-5 \
     --weight_decay 0 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 200 \
@@ -24,5 +23,6 @@ python train_bert_span_ner.py \
     --loss dice \
     --dice_alpha 0.6 \
     --adv fgm \
-    --optimizer adam
+    --optimizer adam \
+    --metric micro_f1
 

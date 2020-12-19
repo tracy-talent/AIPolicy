@@ -41,7 +41,7 @@ class BaseFramework(nn.Module):
                  pos_weight=None,
                  opt='adam'):
 
-        super(SentenceImportanceClassifier, self).__init__()
+        super(BaseFramework, self).__init__()
         if 'bert' in model.sequence_encoder.__class__.__name__.lower():
             self.is_bert_encoder = True
         else:

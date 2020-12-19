@@ -140,7 +140,7 @@ tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hpa
 os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = model_name
-ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}_0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -204,33 +204,61 @@ if args.use_sampler and args.model == 'single':
     sampler = get_entity_span_single_sampler(args.train_file, tag2id, sequence_encoder, args.max_span, 'WeightedRandomSampler')
 else:
     sampler = None
-framework = eval(f'pasaner.framework.Span_{args.model.title()}_NER')(
-    model=model,
-    train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test else None,
-    test_path=args.test_file,
-    ckpt=ckpt,
-    logger=logger,
-    tb_logdir=tb_logdir,
-    max_span=args.max_span,
-    compress_seq=args.compress_seq,
-    tagscheme=args.tagscheme,
-    batch_size=args.batch_size,
-    max_epoch=args.max_epoch,
-    lr=args.lr,
-    bert_lr=args.bert_lr,
-    weight_decay=args.weight_decay,
-    early_stopping_step=args.early_stopping_step,
-    warmup_step=args.warmup_step,
-    max_grad_norm=args.max_grad_norm,
-    mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
-    opt=args.optimizer,
-    loss=args.loss,
-    adv=args.adv,
-    dice_alpha=args.dice_alpha,
-    metric=args.metric,
-    sampler=sampler
-)
+if args.model == 'multi':
+    framework = pasaner.framework.Span_Multi_NER(
+        model=model,
+        train_path=args.train_file if not args.only_test else None,
+        val_path=args.val_file if not args.only_test else None,
+        test_path=args.test_file,
+        ckpt=ckpt,
+        logger=logger,
+        tb_logdir=tb_logdir,
+        max_span=args.max_span,
+        compress_seq=args.compress_seq,
+        tagscheme=args.tagscheme,
+        batch_size=args.batch_size,
+        max_epoch=args.max_epoch,
+        lr=args.lr,
+        bert_lr=args.bert_lr,
+        weight_decay=args.weight_decay,
+        early_stopping_step=args.early_stopping_step,
+        warmup_step=args.warmup_step,
+        max_grad_norm=args.max_grad_norm,
+        mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
+        opt=args.optimizer,
+        loss=args.loss,
+        adv=args.adv,
+        dice_alpha=args.dice_alpha,
+        metric=args.metric,
+        sampler=sampler
+    )
+elif args.model == 'single':
+    framework = pasaner.framework.Span_Single_NER(
+        model=model,
+        train_path=args.train_file if not args.only_test else None,
+        val_path=args.val_file if not args.only_test else None,
+        test_path=args.test_file,
+        ckpt=ckpt,
+        logger=logger,
+        tb_logdir=tb_logdir,
+        max_span=args.max_span,
+        compress_seq=args.compress_seq,
+        tagscheme=args.tagscheme,
+        batch_size=args.batch_size,
+        max_epoch=args.max_epoch,
+        lr=args.lr,
+        bert_lr=args.bert_lr,
+        weight_decay=args.weight_decay,
+        early_stopping_step=args.early_stopping_step,
+        warmup_step=args.warmup_step,
+        max_grad_norm=args.max_grad_norm,
+        opt=args.optimizer,
+        loss=args.loss,
+        adv=args.adv,
+        dice_alpha=args.dice_alpha,
+        metric=args.metric,
+        sampler=sampler
+    )
 
 # Load pretrained model
 if ckpt_cnt > 0:
@@ -239,7 +267,7 @@ if ckpt_cnt > 0:
 
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model()
     framework.load_model(ckpt)
 
 # Test

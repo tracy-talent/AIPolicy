@@ -17,6 +17,7 @@ import torch
 import numpy as np
 import json
 import os
+import re
 import datetime
 import argparse
 import logging
@@ -110,13 +111,13 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = 'wlf'
+    model_name = 'wlf' # or ''
     if args.share_lstm:
-        model_name += '_sharelstm'
+        model_name += '_sharelstm' if model_name != '' else 'sharelstm'
     if args.span_use_lstm:
-        model_name += '_spanlstm'
+        model_name += '_spanlstm' if model_name != '' else 'spanlstm'
     if args.attr_use_lstm:
-        model_name += '_attrlstm'
+        model_name += '_attrlstm' if model_name != '' else 'attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
     if args.attr_use_crf:
@@ -140,14 +141,14 @@ logger = get_logger(sys.argv, os.path.join(config['path']['ner_log'], dataset_na
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
 tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hparam_str)
-if os.path.exists(tb_logdir):
-    raise Exception(f'path {tb_logdir} exists!')
+# if os.path.exists(tb_logdir):
+#     raise Exception(f'path {tb_logdir} exists!')
 
 # Some basic settings
 os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = model_name
-ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}_0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
@@ -242,7 +243,7 @@ if ckpt_cnt > 0:
 
 # Train the model
 if not args.only_test:
-    framework.train_model('micro_f1')
+    framework.train_model()
     framework.load_model(ckpt)
 
 # Test

@@ -15,7 +15,7 @@ from ...utils.entity_extract import *
 
 
 class BILSTM_CRF_Span_Attr(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=True, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -156,7 +156,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                         seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
                         attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
                     else:
-                        attr_seqs_hiddens = self.attr_bilstm(rep)
+                        attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                     attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
             elif self.attr_bilstm is not None:
                 if self.compress_seq:
@@ -166,7 +166,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                     seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
                     attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
                 else:
-                    attr_seqs_hiddens = self.attr_bilstm(rep)
+                    attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
 
         if span_labels is not None:

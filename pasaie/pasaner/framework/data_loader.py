@@ -102,7 +102,7 @@ class SingleNERDataset(data.Dataset):
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
-                if seqs[i].size(1) > 1:
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
                     seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)
                 else:
                     seqs[i] = seqs[i][sorted_length_indices]
@@ -200,22 +200,7 @@ class MultiNERDataset(data.Dataset):
         return len(self.data)
     
     def __getitem__(self, index):
-        items = self.data[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
-        seqs = list(self.tokenizer(*items, **self.kwargs))
-
-        length = seqs[0].size(1)
-        if length >= len(items[1]):
-            labels_span = [self.span2id[tag] for tag in items[1]]
-            labels_span.extend([self.span2id['O']] * (length - len(items[1])))
-            labels_attr = [self.attr2id[tag] for tag in items[2]]
-            labels_attr.extend([self.attr2id['null']] * (length - len(items[2])))
-        else:
-            labels_span = [self.span2id[tag] for tag in items[1][:length]]
-            labels_span[-1] = self.span2id['O']
-            labels_attr = [self.attr2id[tag] for tag in items[2][:length]]
-            labels_attr[-1] = self.attr2id['null']
-        res = [torch.tensor([labels_span]), torch.tensor([labels_attr])] + seqs
-        return res # label, seq1, seq2, ...
+        return self.data[index]
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -226,7 +211,7 @@ class MultiNERDataset(data.Dataset):
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
-                if seqs[i].size(1) > 1:
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
                     seqs[i] = compress_sequence(seqs[i][sorted_length_indices], seqs_len)
                 else:
                     seqs[i] = seqs[i][sorted_length_indices]
@@ -278,9 +263,9 @@ class XLNetSingleNERDataset(SingleNERDataset):
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
-                if seqs[i].size(1) > 1:
-                    seqs[i] = torch.from_numpy(seqs[i].numpy()[:,::-1])
-                    seqs[i] = torch.from_numpy(compress_sequence(seqs[i][sorted_length_indices], seqs_len).numpy()[:,::-1])
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
+                    seqs[i] = torch.from_numpy(seqs[i].numpy()[:,::-1].copy())
+                    seqs[i] = torch.from_numpy(compress_sequence(seqs[i][sorted_length_indices], seqs_len).numpy()[:,::-1].copy())
                 else:
                     seqs[i] = seqs[i][sorted_length_indices]
         else:
@@ -336,7 +321,7 @@ class XLNetMultiNERDataset(MultiNERDataset):
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
                 seqs[i] = torch.cat(seqs[i], dim=0)
-                if seqs[i].size(1) > 1:
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
                     seqs[i] = torch.from_numpy(seqs[i].numpy()[:,::-1])
                     seqs[i] = torch.from_numpy(compress_sequence(seqs[i][sorted_length_indices], seqs_len).numpy()[:,::-1])
                 else:

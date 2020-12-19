@@ -15,7 +15,7 @@ from ...utils.entity_extract import *
 
 
 class BILSTM_CRF(nn.Module):
-    def __init__(self, sequence_encoder, tag2id, compress_seq=True, use_lstm=False, use_crf=True, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, tag2id, compress_seq=False, use_lstm=False, use_crf=True, tagscheme='bmoes', batch_first=True):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence 

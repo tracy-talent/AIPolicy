@@ -70,13 +70,12 @@ class BERTEncoder(nn.Module):
             indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
             att_mask (torch.tensor): token mask ids, (1, L)
         """
-        if isinstance(items[0], list) or isinstance(items[0], tuple):
-            sentence = items[0]
-            is_token = True
-        else:
+        if isinstance(items[0], str):
             sentence = items[0]
             is_token = False
-        
+        else:
+            sentence = items[0]
+            is_token = True
         if is_token:
             items[0].insert(0, '[CLS]')
             items[0].append('[SEP]')
@@ -88,7 +87,7 @@ class BERTEncoder(nn.Module):
                 items[2].append('null')
             tokens = items[0]
         else:
-            tokens = ['[CLS]'] + self.tokenizer.tokenize(sentence) + ['SEP']
+            tokens = ['[CLS]'] + self.tokenizer.tokenize(sentence) + ['[SEP]']
         
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
         avail_len = torch.tensor([len(indexed_tokens)])
@@ -108,6 +107,8 @@ class BERTEncoder(nn.Module):
 
         return indexed_tokens, att_mask  # ensure the first and last is indexed_tokens and att_mask
 
+
+
 class MRC_BERTEncoder(BERTEncoder):
     def tokenize(self, *items): # items = (tokens, spans, query, [attrs, optional])
         """
@@ -117,12 +118,12 @@ class MRC_BERTEncoder(BERTEncoder):
             indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
             att_mask (torch.tensor): token mask ids, (1, L)
         """
-        if isinstance(items[0], list) or isinstance(items[0], tuple):
-            sentence = items[0]
-            is_token = True
-        else:
+        if isinstance(items[0], str):
             sentence = items[0]
             is_token = False
+        else:
+            sentence = items[0]
+            is_token = True
         
         query_tokens = self.tokenizer.tokenize(items[-1])
         if is_token:

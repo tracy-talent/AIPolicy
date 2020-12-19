@@ -193,7 +193,18 @@ class FreeLB():
         return self.emb_backup[param_name] + r
 
 
-def adversarial_step(adv, model, get_loss):
+def adversarial_step(adv, model, K, get_loss):
+    """[summary]
+
+    Args:
+        adv (object): instance object of adversarial class
+        model (object): instance object of model class
+        K (int, optional): number of perturbation . Defaults to 3.
+        get_loss (function): function of get loss
+
+    Returns:
+        loss_adv (torch.Tensor): loss, a scalar.
+    """
     if adv.__class__.__name__ == 'FGM':
         loss = get_loss()
         loss.backward()  # 反向传播，得到正常的grad
@@ -265,7 +276,7 @@ def adversarial_perturbation(adv, model, criterion, K=3, rand_init_mag=0., label
         logits = model(*args)
         if use_mask:
             mask = args[-1]
-            if hasattr(ori_model, 'crf'):
+            if hasattr(ori_model, 'crf') and ori_model.crf is not None:
                 log_likelihood = ori_model.crf(logits, labels, mask=mask, reduction='none')
                 loss = -log_likelihood / torch.sum(mask, dim=-1)
             else:
@@ -275,54 +286,7 @@ def adversarial_perturbation(adv, model, criterion, K=3, rand_init_mag=0., label
         loss = loss.mean()
         return loss
 
-    if adv.__class__.__name__ == 'FGM':
-        loss = get_loss()
-        loss.backward()  # 反向传播，得到正常的grad
-        # 对抗训练
-        adv.attack()  # 在embedding上添加对抗扰动
-        loss_adv = get_loss()
-        loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore()  # 恢复embedding参数
-    elif adv.__class__.__name__ == 'PGD':
-        loss = get_loss()
-        loss.backward()
-        adv.backup_grad()
-        # 对抗训练
-        adv.backup()  # first attack时备份param.data，在第一次loss.backword()后以保证有梯度
-        for t in range(K):
-            adv.attack()  # 在embedding上添加对抗扰动
-            if t != K - 1:
-                model.zero_grad()
-            else:
-                adv.restore_grad()
-            loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore()  # 恢复embedding参数
-    elif adv.__class__.__name__ == 'FreeLB':
-        # embedding_size = self.model.sentence_encoder.bert_hidden_size
-        # delta = torch.zeros_like(tuple(args[0].size) + (embedding_size,)).uniform(-1, 1) * args[-1].unsqueeze(2)
-        # dims = args[-1].sum(-1) * embedding_size
-        # mag = rand_init_mag / torch.sqrt(dims)
-        # delta = delta * mag.view(-1, 1, 1)
-        # delta.requires_grad_()
-        # 对抗训练
-        grad = defaultdict(lambda: 0)
-        for t in range(1, K + 1):
-            loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            for name, param in model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    grad[name] += param.grad / t
-            if t == 1:
-                adv.backup()  # first attack时备份param.data
-            adv.attack()  # 在embedding上添加对抗扰动
-            model.zero_grad()
-        adv.restore()  # 恢复embedding参数
-        # 梯度更新
-        for name, param in model.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                param.grad = grad[name]
-
+    loss_adv = adversarial_step(adv, model, K, get_loss)
     return loss_adv
 
 
@@ -339,11 +303,10 @@ def adversarial_perturbation_span_mtl(adv, model, criterion, autoweighted_loss=N
         start_labels (torch.tensor, optional): labels of span start pos. Defaults to None.
         end_labels (torch.tensor, optional): labels of span end pos. Defaults to None.
     """
-
+    mask = args[-1]
+    seqs_len = mask.sum(dim=-1)
     def get_loss():
-        mask = args[-1]
         start_logits, end_logits = model(start_labels, *args)
-        seqs_len = mask.sum(dim=-1)
         start_loss = torch.sum(criterion(start_logits.permute(0, 2, 1), start_labels) * mask, dim=-1) / seqs_len
         end_loss = torch.sum(criterion(end_logits.permute(0, 2, 1), end_labels) * mask, dim=-1) / seqs_len
         if autoweighted_loss is not None:
@@ -353,54 +316,7 @@ def adversarial_perturbation_span_mtl(adv, model, criterion, autoweighted_loss=N
         loss = loss.mean()
         return loss
 
-    if adv.__class__.__name__ == 'FGM':
-        loss = get_loss()
-        loss.backward()  # 反向传播，得到正常的grad
-        # 对抗训练
-        adv.attack()  # 在embedding上添加对抗扰动
-        loss_adv = get_loss()
-        loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore()  # 恢复embedding参数
-    elif adv.__class__.__name__ == 'PGD':
-        loss = get_loss()
-        loss.backward()
-        adv.backup_grad()
-        # 对抗训练
-        adv.backup()  # first attack时备份param.data，在第一次loss.backword()后以保证有梯度
-        for t in range(K):
-            adv.attack()  # 在embedding上添加对抗扰动
-            if t != K - 1:
-                model.zero_grad()
-            else:
-                adv.restore_grad()
-            loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore()  # 恢复embedding参数
-    elif adv.__class__.__name__ == 'FreeLB':
-        # embedding_size = self.model.sentence_encoder.bert_hidden_size
-        # delta = torch.zeros_like(tuple(args[0].size) + (embedding_size,)).uniform(-1, 1) * args[-1].unsqueeze(2)
-        # dims = args[-1].sum(-1) * embedding_size
-        # mag = rand_init_mag / torch.sqrt(dims)
-        # delta = delta * mag.view(-1, 1, 1)
-        # delta.requires_grad_()
-        # 对抗训练
-        grad = defaultdict(lambda: 0)
-        for t in range(1, K + 1):
-            loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            for name, param in model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    grad[name] += param.grad / t
-            if t == 1:
-                adv.backup()  # first attack时备份param.data
-            adv.attack()  # 在embedding上添加对抗扰动
-            model.zero_grad()
-        adv.restore()  # 恢复embedding参数
-        # 梯度更新
-        for name, param in model.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                param.grad = grad[name]
-    
+    loss_adv = adversarial_step(adv, model, K, get_loss)
     return loss_adv
 
 
@@ -412,13 +328,14 @@ def adversarial_perturbation_mrc_span_mtl(adv, model, criterion, span_bce=None, 
         criterion (object): instance object of loss class
         model (object): instance object of model class
         K (int, optional): number of perturbation . Defaults to 3.
-        rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0..
+        rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0.
         start_labels (torch.tensor, optional): labels of span start pos. Defaults to None.
         end_labels (torch.tensor, optional): labels of span end pos. Defaults to None.
     """
     margs = args[:-2] + args[-1:]
     loss_mask, inputs_mask = args[-2], args[-1]
     inputs_seq_len, valid_seq_len = inputs_mask.sum(dim=-1), loss_mask.sum(dim=-1)
+
     def get_loss():
         seq_out, start_logits, end_logits = model(*margs)
         if span_bce is not None:
@@ -456,54 +373,7 @@ def adversarial_perturbation_mrc_span_mtl(adv, model, criterion, span_bce=None, 
                 loss = (start_loss + end_loss) / 2
         return loss
 
-    if adv.__class__.__name__ == 'FGM':
-        loss = get_loss()
-        loss.backward() # 反向传播，得到正常的grad
-        # 对抗训练
-        adv.attack() # 在embedding上添加对抗扰动
-        loss_adv = get_loss()
-        loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore() # 恢复embedding参数
-    elif adv.__class__.__name__ == 'PGD':
-        loss = get_loss()
-        loss.backward()
-        adv.backup_grad()
-        # 对抗训练
-        adv.backup() # first attack时备份param.data，在第一次loss.backword()后以保证有梯度
-        for t in range(K):
-            adv.attack() # 在embedding上添加对抗扰动
-            if t != K-1:
-                model.zero_grad()
-            else:
-                adv.restore_grad()
-            loss_adv = get_loss()
-            loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-        adv.restore() # 恢复embedding参数
-    elif adv.__class__.__name__ == 'FreeLB':
-        # embedding_size = self.model.sentence_encoder.bert_hidden_size
-        # delta = torch.zeros_like(tuple(args[0].size) + (embedding_size,)).uniform(-1, 1) * args[-1].unsqueeze(2)
-        # dims = args[-1].sum(-1) * embedding_size
-        # mag = rand_init_mag / torch.sqrt(dims)
-        # delta = delta * mag.view(-1, 1, 1)
-        # delta.requires_grad_()
-        # 对抗训练
-        grad = defaultdict(lambda: 0)
-        for t in range(1, K+1):
-            loss_adv = get_loss()
-            loss_adv.backward() # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
-            for name, param in model.named_parameters():
-                if param.requires_grad and param.grad is not None:
-                    grad[name] += param.grad / t
-            if t == 1:
-                adv.backup() # first attack时备份param.data
-            adv.attack() # 在embedding上添加对抗扰动
-            model.zero_grad()
-        adv.restore() # 恢复embedding参数
-        # 梯度更新
-        for name, param in model.named_parameters():
-            if param.requires_grad and param.grad is not None:
-                param.grad = grad[name]
-    
+    loss_adv = adversarial_step(adv, model, K, get_loss)
     return loss_adv
 
 
@@ -517,29 +387,30 @@ def adversarial_perturbation_span_attr_mtl(adv, model, criterion, autoweighted_l
         model (object): instance object of model class
         K (int, optional): number of perturbation . Defaults to 3.
         rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0..
-        start_labels (torch.tensor, optional): labels of span start pos. Defaults to None.
-        end_labels (torch.tensor, optional): labels of span end pos. Defaults to None.
+        span_labels (torch.tensor, optional): labels of entity span. Defaults to None.
+        attr_labels (torch.tensor, optional): labels of entity attr. Defaults to None.
     """
+    mask = args[-1]
+    seqs_len = mask.sum(dim=-1)
+    ori_model = model.module if hasattr(model, 'module') else model
+    span_sid, span_eid = ori_model.span2id['S'], ori_model.span2id['E']
+
     def get_loss():
-        ori_model = model.module if hasattr(model, 'module') else model
-        span_sid, span_eid = ori_model.span2id['S'], ori_model.span2id['E']
-        mask = args[-1]
         span_logits, attr_logits = model(span_labels, *args)
-        seqs_len = mask.sum(dim=-1)
-        if ori_model.crf_span is None:
-            loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
-            loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
-        else:
+        if hasattr(ori_model, 'crf_span') and ori_model.crf_span is not None:
             log_likelihood = ori_model.crf_span(span_logits, span_labels, mask=mask, reduction='none') # B
             loss_span = -log_likelihood / seqs_len # B
-        if ori_model.crf_attr is None:
+        else:
+            loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
+            loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
+        if hasattr(ori_model, 'crf_attr') and ori_model.crf_attr is not None:
+            log_likelihood = ori_model.crf_attr(attr_logits, attr_labels, mask=mask, reduction='none') # B
+            loss_attr = -log_likelihood / seqs_len # B
+        else:
             loss_attr = criterion(attr_logits.permute(0, 2, 1), attr_labels) # B * S
             tag_masks = ((span_labels == span_eid) | (span_labels == span_sid)).float()
             # tag_masks = (attr_labels != attr_negid).float()
             loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
-        else:
-            log_likelihood = ori_model.crf_attr(attr_logits, attr_labels, mask=mask, reduction='none') # B
-            loss_attr = -log_likelihood / seqs_len # B
         loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
         if autoweighted_loss is not None:
             loss = autoweighted_loss(loss_span, loss_attr)
@@ -547,5 +418,41 @@ def adversarial_perturbation_span_attr_mtl(adv, model, criterion, autoweighted_l
             loss = (loss_span + loss_attr) / 2
         return loss
     
-    loss_adv = adversarial_step(adv, model, get_loss)
+    loss_adv = adversarial_step(adv, model, K, get_loss)
+    return loss_adv
+
+
+def adversarial_perturbation_xlnet_ner(adv, model, criterion, K=3, rand_init_mag=0.,
+                                      labels=None, *args):
+    """adversarial perturbation process
+
+    Args:
+        adv (object): instance object of adversarial class
+        criterion (object): instance object of loss class
+        model (object): instance object of model class
+        K (int, optional): number of perturbation . Defaults to 3.
+        rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0..
+        span_labels (torch.Tensor, optional): labels of entity span. Defaults to None.
+        attr_labels (torch.Tensor, optional): labels of entity attr. Defaults to None.
+    """
+    mask = args[-1]
+    seqs_len = mask.sum(dim=-1)
+    ori_model = model.module if hasattr(model, 'module') else model
+
+    def get_loss():
+        logits = model(*args)
+        if hasattr(ori_model, 'crf') and ori_model.crf is not None:
+            log_likelihood = []
+            for i in range(labels.size(0)):
+                log_likelihood.append(ori_model.crf(logits[i][-seqs_len[i]:].unsqueeze(0), labels[i][-seqs_len[i]:].unsqueeze(0), mask=mask[i][-seqs_len[i]:].unsqueeze(0), reduction='none'))
+            log_likelihood = torch.cat(log_likelihood, dim=0)
+            # log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+            loss = -log_likelihood / seqs_len
+        else:
+            loss_span = criterion(logits.permute(0, 2, 1), span_labels) # B * S
+            loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
+        loss = loss.mean()
+        return loss
+    
+    loss_adv = adversarial_step(adv, model, K, get_loss)
     return loss_adv

@@ -263,6 +263,8 @@ class BatchMetric(object):
             prec = prec[self.pos_classes].mean()
         elif reduction == 'micro':
             prec = self.tp[self.pos_classes].sum() / (self.tp + self.fp)[self.pos_classes].sum()
+            if np.isnan(prec) or np.isinf(prec):
+                prec = 0.
         self.prec.append(prec)
         return prec
 
@@ -283,6 +285,8 @@ class BatchMetric(object):
             recall = recall[self.pos_classes].mean()
         elif reduction == 'micro':
             recall = self.tp[self.pos_classes].sum() / (self.tp + self.fn)[self.pos_classes].sum()
+            if np.isnan(recall) or np.isinf(recall):
+                recall = 0.
         self.rec.append(recall)
         return recall
 

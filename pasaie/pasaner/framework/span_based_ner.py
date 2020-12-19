@@ -101,7 +101,7 @@ class Span_Single_NER(BaseFramework):
             adv=adv,
             opt=opt,
             loss=loss,
-            loss_weight=self.train_loader.dataset.weight,
+            loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
             dice_alpha=dice_alpha
         )
         
@@ -146,7 +146,7 @@ class Span_Single_NER(BaseFramework):
                     loss.backward()
                 else:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., labels, *args)
-                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()
@@ -303,7 +303,7 @@ class Span_Multi_NER(BaseFramework):
                 mtl_autoweighted_loss=True,
                 dice_alpha=0.6,
                 sampler=None):
-
+                
         # Load Data
         if train_path != None:
             self.train_loader = SpanMultiNERDataLoader(
@@ -414,7 +414,7 @@ class Span_Multi_NER(BaseFramework):
                     loss.backward()
                 else:
                     loss = adversarial_perturbation_span_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., start_labels, end_labels, *args)
-                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()

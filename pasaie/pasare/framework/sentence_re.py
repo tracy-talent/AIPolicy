@@ -95,7 +95,7 @@ class SentenceRE(BaseFramework):
             metric=metric,
             adv=adv,
             loss=loss,
-            loss_weight=self.train_loader.dataset.weight,
+            loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
             opt='sgd'
         )
 
@@ -138,7 +138,7 @@ class SentenceRE(BaseFramework):
                     loss.backward()
                 else:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., label, *args)
-                # torch.nn.utils.clip_grad_norm_(self.parallel_model.parameters(), self.max_grad_norm)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()
@@ -284,31 +284,12 @@ class SentenceWithDSPRE(SentenceRE):
                  opt='sgd',
                  sampler=None):
 
-        super(SentenceWithDSPRE, self).__init__(
-            model=model,
-            train_path=None,
-            val_path=None,
-            test_path=None,
-            ckpt=ckpt,
-            logger=logger,
-            tb_logdir=tb_logdir,
-            neg_classes=neg_classes,
-            compress_seq=compress_seq,
-            batch_size=batch_size,
-            max_epoch=max_epoch,
-            lr=lr,
-            bert_lr=bert_lr,
-            weight_decay=weight_decay,
-            early_stopping_step=early_stopping_step,
-            warmup_step=warmup_step,
-            max_grad_norm=max_grad_norm,
-            dice_alpha=dice_alpha,
-            metric=metric,
-            adv=adv,
-            loss=loss,
-            opt=opt,
-            sampler=sampler
-        )
+        # whether encoder is bert
+        if 'bert' in model.sentence_encoder.__class__.__name__.lower():
+            self.is_bert_encoder = True
+        else:
+            self.is_bert_encoder = False
+
         # Load data
         if train_path != None:
             self.train_loader = SentenceWithDSPRELoader(
@@ -353,3 +334,29 @@ class SentenceWithDSPRE(SentenceRE):
                 shuffle=False,
                 num_workers=0 if max_dsp_path_length < 0 else 8
             )
+
+        super(SentenceWithDSPRE, self).__init__(
+            model=model,
+            train_path=None,
+            val_path=None,
+            test_path=None,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            neg_classes=neg_classes,
+            compress_seq=compress_seq,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            dice_alpha=dice_alpha,
+            metric=metric,
+            adv=adv,
+            loss=loss,
+            opt=opt,
+            sampler=sampler
+        )

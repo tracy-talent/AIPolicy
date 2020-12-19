@@ -1,19 +1,24 @@
-CUDA_VISIBLE_DEVICES=0 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_wlf_bilstm_mtl_span_attr.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --metric micro_f1 \
     --dataset policy \
+    --compress_seq \
     --char2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
     --tagscheme bmoes \
-    --lstm_num 2 \
+    --span_use_lstm \
     --span_use_crf \
-    --attr_use_crf \
+    --attr_use_lstm \
     --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
+    --early_stopping_step 3 \
     --weight_decay 0 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 30 \
-    --optimizer adam
+    --optimizer adam \
+    --loss dice \
+    --adv fgm \
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
