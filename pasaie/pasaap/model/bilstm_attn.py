@@ -8,66 +8,53 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class BilstmAttn(nn.Module):
 
-    def __init__(self, sequence_encoder, num_class, hidden_size=128, num_layers=1, num_heads=8,
+    def __init__(self, sequence_encoder, num_class, hidden_size=128, num_layers=1,
                  dropout_rate=0.2, compress_seq=False, batch_first=True, use_attn=True):
         super(BilstmAttn, self).__init__()
+        self.lstm = nn.LSTM(sequence_encoder.hidden_size,
+                            hidden_size=hidden_size,
+                            num_layers=num_layers,
+                            bidirectional=True,
+                            batch_first=batch_first)
+        self.dropout = nn.Dropout(p=dropout_rate)
+        self.out = nn.Linear(hidden_size * 2, num_class)
+        self.hidden_map = nn.Linear(hidden_size * 2, hidden_size * 2)
+        self.weights = nn.Linear(hidden_size * 2, 1) if use_attn else None
+
         self.sequence_encoder = sequence_encoder
         self.num_classes = num_class
+        self.hidden_size = hidden_size
         self.compress_seq = compress_seq
-        self.batch_first = batch_first
         self.use_attn = use_attn
+        self.batch_first = batch_first
 
-        self.bilstm1 = nn.LSTM(input_size=sequence_encoder.hidden_size,
-                               num_layers=num_layers,
-                               hidden_size=hidden_size,
-                               dropout=0,
-                               bidirectional=True,
-                               batch_first=self.batch_first)
-        if use_attn:
-            self.bilstm2 = nn.LSTM(input_size=hidden_size,
-                                   num_layers=num_layers,
-                                   hidden_size=hidden_size,
-                                   dropout=0,
-                                   bidirectional=True,
-                                   batch_first=self.batch_first)
-
-            self.attn = MultiHeadedAttention(num_heads=num_heads,
-                                             d_model=hidden_size,
-                                             dropout=0.1)
-
-        self.fc = nn.Linear(hidden_size * 2, num_class, bias=True)
-        self.dropout = nn.Dropout(p=dropout_rate)
+    def attention_net(self, lstm_output):
+        bs = lstm_output.size(0)
+        matrix = F.tanh(lstm_output).view(-1, self.hidden_size * 2)
+        soft_attn_weights = F.softmax(self.weights(matrix).view(bs, -1), 1)
+        context = torch.bmm(lstm_output.transpose(1, 2), soft_attn_weights.unsqueeze(2)).squeeze(2)
+        return context, soft_attn_weights.data
 
     def forward(self, *args):
-        if not hasattr(self, '_flattened'):
-            self.bilstm1.flatten_parameters()
-            if self.use_attn:
-                self.bilstm2.flatten_parameters()
-            setattr(self, '_flattened', True)
-        rep = self.sequence_encoder(*args)
+        x = self.sequence_encoder(*args)
+        x = self.dropout(x)
+
         if self.compress_seq:
             att_mask = args[-1]
             seqs_length = att_mask.sum(dim=-1).detach().cpu()
-            seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
-            seqs_hiddens_packed, _ = self.bilstm1(seqs_rep_packed)
-            seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first)  # B, S, D
+            seqs_rep_packed = pack_padded_sequence(x, seqs_length, batch_first=self.batch_first)
+            output, _ = self.lstm(seqs_rep_packed)
+            output, _ = pad_packed_sequence(output, batch_first=True)
         else:
-            seqs_length = None
-            seqs_hiddens, _ = self.bilstm1(rep)
-        x = torch.add(*seqs_hiddens.chunk(2, dim=-1))
+            output, _ = self.lstm(x)
 
         if self.use_attn:
-            x = self.attn(x, x, x, mask=args[-1])
-            if self.compress_seq:
-                seqs_rep_packed2 = pack_padded_sequence(x, seqs_length, batch_first=self.batch_first)
-                seqs_hiddens_packed2, _ = self.bilstm2(seqs_rep_packed2)
-                x, _ = pad_packed_sequence(seqs_hiddens_packed2, batch_first=self.batch_first)  # B, S, D
-            else:
-                x, _ = self.bilstm2(x)
-            x = torch.add(*x.chunk(2, dim=-1))
-        x_last = torch.cat((x[:, 0, :], x[:, -1, :]), dim=-1)  # select the first and the last token's representation as output
-        logits = self.fc(x_last)
-        return logits
+            output, attention = self.attention_net(output)
+        else:
+            first_hidden = torch.add(*(output[:, 0, :].squeeze().chunk(2, dim=-1)))
+            last_hidden = torch.add(*(output[:, -1, :].squeeze().chunk(2, dim=-1)))
+            output = torch.cat([first_hidden, last_hidden], dim=-1)
+        return self.out(output)
 
     def infer(self, item):
         self.eval()
