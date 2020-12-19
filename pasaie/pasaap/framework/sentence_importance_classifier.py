@@ -5,7 +5,7 @@ from .base_framework import BaseFramework
 
 import os
 from collections import defaultdict
-
+import operator
 import torch
 from torch import nn
 
@@ -19,7 +19,7 @@ class SentenceImportanceClassifier(BaseFramework):
                  ckpt,
                  logger,
                  tb_logdir,
-                 compress_seq=False,
+                 compress_seq=True,
                  neg_classes=[0],
                  batch_size=32,
                  max_epoch=100,
@@ -52,6 +52,7 @@ class SentenceImportanceClassifier(BaseFramework):
             ckpt=ckpt,
             logger=logger,
             tb_logdir=tb_logdir,
+            neg_classes=neg_classes,
             batch_size=batch_size,
             max_epoch=max_epoch,
             lr=lr,
@@ -70,7 +71,7 @@ class SentenceImportanceClassifier(BaseFramework):
         )
 
         self.recall_alpha = recall_alpha
-
+        self.neg_classes = neg_classes
 
     def train_model(self):
         test_best_metric = 1e8 if 'loss' in self.metric else 0
@@ -140,14 +141,16 @@ class SentenceImportanceClassifier(BaseFramework):
                     self.writer.add_scalar('train micro precision', cur_prec, global_step=global_step)
                     self.writer.add_scalar('train micro recall', cur_rec, global_step=global_step)
                     self.writer.add_scalar('train micro f1', cur_f1, global_step=global_step)
-            alpha_f1 = self.recall_alpha * cur_rec + (1 - self.recall_alpha) * cur_prec
-            train_state['train_metrics'].append({'loss': cur_loss, 'acc': cur_acc, 'micro_p': cur_prec, 'micro_r': cur_rec, 'micro_f1': cur_f1, 'alpha_f1': alpha_f1})
+                alpha_f1 = self.recall_alpha * cur_rec + (1 - self.recall_alpha) * cur_prec
+                train_state['train_metrics'].append({'loss': cur_loss, 'acc': cur_acc, 'micro_p': cur_prec,
+                                                     'micro_r': cur_rec, 'micro_f1': cur_f1, 'alpha_f1': alpha_f1})
 
             # Val
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.eval_loader)
             self.logger.info('Evaluation result: {}.'.format(result))
-            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric],
+                                                                        train_state['early_stopping_best_val']))
             category_result = result.pop('category-p/r/f1')
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
@@ -163,7 +166,6 @@ class SentenceImportanceClassifier(BaseFramework):
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
-            print(f"Training time for epoch{epoch}: {batch_metric.epoch_time_interval()}s")
 
             # test
             if hasattr(self, 'test_loader'):

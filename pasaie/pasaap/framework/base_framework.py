@@ -41,7 +41,7 @@ class BaseFramework(nn.Module):
                  pos_weight=None,
                  opt='adam'):
 
-        super(SentenceImportanceClassifier, self).__init__()
+        super(BaseFramework, self).__init__()
         if 'bert' in model.sequence_encoder.__class__.__name__.lower():
             self.is_bert_encoder = True
         else:
@@ -130,8 +130,10 @@ class BaseFramework(nn.Module):
                                                              num_training_steps=training_steps)
         else:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
-                                                                mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
-                                                                patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
+                                                                  mode='min' if 'loss' in self.metric else 'max',
+                                                                  factor=0.8,
+                                                                  patience=1,
+                                                                  min_lr=5e-6)  # mode='min' for loss, 'max' for acc/p/r/f1
             # self.scheduler = None
         # Adversarial
         if adv == 'fgm':
@@ -152,17 +154,15 @@ class BaseFramework(nn.Module):
         # tensorboard writer
         self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
-
     def make_train_state(self):
         return {'stop_early': False,
                 'early_stopping_step': 0,
                 'early_stopping_best_val': 1e8 if 'loss' in self.metric else 0,
                 'epoch_index': 0,
-                'train_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
-                'val_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
+                'train_metrics': [],  # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
+                'val_metrics': [],  # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0, 'alpha_f1':0}]
                 }
-    
-    
+
     def update_train_state(self, train_state):
         if 'loss' in self.metric:
             cmp_op = operator.lt
@@ -183,20 +183,17 @@ class BaseFramework(nn.Module):
                     train_state['early_stopping_best_val'] = metric_v1
                     self.logger.info("Best ckpt and saved.")
                 train_state['early_stopping_step'] = 0
-            
-            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
 
+            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
 
     def train_model(self):
         pass
 
-
     def eval_model(self, eval_loader):
         pass
 
-
     def load_model(self, ckpt):
         self.model = torch.load(ckpt)
-    
+
     def save_model(self, ckpt):
         torch.save(self.model, ckpt)

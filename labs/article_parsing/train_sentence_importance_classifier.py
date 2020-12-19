@@ -90,7 +90,7 @@ def make_model_name():
         _model_name = '_'.join((args.encoder, args.model, args.loss))
     if len(args.adv) > 0 and args.adv != 'none':
         _model_name += '_' + args.adv
-    model_name += '_' + args.metric
+    _model_name += '_' + args.metric
     return _model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
