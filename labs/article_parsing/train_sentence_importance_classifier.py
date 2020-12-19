@@ -1,5 +1,6 @@
 # coding:utf-8
 import sys
+
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
 from pasaie.utils.embedding import load_wordvec
@@ -14,14 +15,13 @@ import configparser
 import datetime
 from ast import literal_eval
 
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--pretrain_path', default='hfl-chinese-bert-wwm-ext',
                     help='Pre-trained ckpt path / model name (hugginface) or pretrained embedding path')
-parser.add_argument('--encoder', default='bert', choices=['bert', 'base'], 
+parser.add_argument('--encoder', default='bert', choices=['bert', 'base'],
                     help='encoder name')
-parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'], 
-        help='bert series model name')
+parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'],
+                    help='bert series model name')
 parser.add_argument('--model', default='textcnn',
                     help='model name')
 parser.add_argument('--ckpt', default='',
@@ -32,7 +32,8 @@ parser.add_argument('--adv', default='none', choices=['fgm', 'pgd', 'flb', 'none
                     help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='bce', choices=['pwbce', 'bce', 'ce', 'wce', 'focal', 'dice', 'lsr'],
                     help='loss function')
-parser.add_argument('--metric', default='micro_f1', choices=['alpha_f1', 'micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
+parser.add_argument('--metric', default='micro_f1',
+                    choices=['alpha_f1', 'micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
                     help='Metric for picking up best checkpoint')
 
 # Dataset
@@ -74,13 +75,13 @@ parser.add_argument('--random_seed', default=12345, type=int,
                     help='global random seed')
 
 args = parser.parse_args()
-
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
 fix_seed(args.random_seed)
+
 
 # construct save path name
 def make_model_name():
@@ -92,10 +93,15 @@ def make_model_name():
         _model_name += '_' + args.adv
     _model_name += '_' + args.metric
     return _model_name
+
+
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
+
+
 model_name = make_model_name()
-hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batch_size, args.weight_decay, args.max_length)
+hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batch_size, args.weight_decay,
+                                args.max_length)
 
 # logger
 os.makedirs(os.path.join(config['path']['ap_log'], args.dataset, model_name), exist_ok=True)
@@ -136,30 +142,30 @@ if args.encoder == 'bert':
 elif args.encoder == 'base':
     word2id, word_emb_npy = load_wordvec(wv_file=args.pretrain_path)
     sentence_encoder = pasaap.encoder.BaseEncoder(token2id=word2id,
-                                                         max_length=256,
-                                                         word_emb_size=word_emb_npy.shape[-1],
-                                                         word2vec=word_emb_npy,
-                                                         blank_padding=True)
+                                                  max_length=256,
+                                                  word_emb_size=word_emb_npy.shape[-1],
+                                                  word2vec=word_emb_npy,
+                                                  blank_padding=True)
 else:
     raise NotImplementedError
 
 # Define the model
 if args.model == 'textcnn':
     model = pasaap.model.TextCnn(sequence_encoder=sentence_encoder,
-                                        num_class=1 if 'bce' in args.loss else 2,
-                                        num_filter=256,
-                                        kernel_sizes=[3, 4, 5],
-                                        dropout_rate=args.dropout_rate)
+                                 num_class=1 if 'bce' in args.loss else 2,
+                                 num_filter=256,
+                                 kernel_sizes=[3, 4, 5],
+                                 dropout_rate=args.dropout_rate)
 elif args.model == 'bilstm':
     model = pasaap.model.BilstmAttn(
         sequence_encoder=sentence_encoder,
         num_class=1 if 'bce' in args.loss else 2,
         hidden_size=128,
         num_layers=1,
-        num_heads=8,
         dropout_rate=0.2,
         compress_seq=args.compress_seq,
-        use_attn=True
+        use_attn=True,
+        batch_first=True
     )
 else:
     raise NotImplementedError
@@ -199,7 +205,7 @@ framework = pasaap.framework.SentenceImportanceClassifier(
 
 # Load pretrained model
 if ckpt_cnt > 0:
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt - 1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
