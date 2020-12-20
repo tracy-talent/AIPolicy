@@ -120,7 +120,7 @@ def make_model_name():
         model_name += '_attention_cat'
     else:
         model_name += '_maxpool'
-    model_name += args.metric
+    model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)

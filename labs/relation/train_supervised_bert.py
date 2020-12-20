@@ -106,6 +106,7 @@ def make_model_name():
         model_name += '_' + args.adv
     if args.embed_entity_type:
         model_name += '_embed_entity'
+    model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)

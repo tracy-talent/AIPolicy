@@ -117,7 +117,7 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
     if 'policy' in dataset_name:
         rel2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_rel2id.json'))
         tag2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_tag2id.json'))
-        if 'bert_entity_dsp' in model_name:
+        if 'dsp' in model_name:
             sentence_encoder = encoder.BERTEntityWithDSPEncoder(
                 pretrain_path=pretrain_path, max_length=256, max_dsp_path_length=15, compress_seq=False,
                 use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=None)

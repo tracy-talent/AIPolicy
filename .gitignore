@@ -9,3 +9,4 @@ test/test.py
 .ipynb_checkpoints
 .idea
 *.out
+*.csv
