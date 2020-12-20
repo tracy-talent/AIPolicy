@@ -24,10 +24,10 @@ class XLNetEncoder(nn.Module):
         super(XLNetEncoder, self).__init__()
 
         # self.xlnet = AutoModelForCausalLM.from_pretrained(pretrain_path, output_hidden_states=True) # permute(1,0,2)
-        self.xlnet = AutoModel.from_pretrained(pretrain_path)
-        self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
-        # self.xlnet = XLNetModel.from_pretrained(pretrain_path, mem_len=max_length)
-        # self.tokenizer = XLNetTokenizer.from_pretrained(pretrain_path)
+        #self.xlnet = AutoModel.from_pretrained(pretrain_path)
+        #self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path)
+        self.xlnet = XLNetModel.from_pretrained(pretrain_path, mem_len=max_length)
+        self.tokenizer = XLNetTokenizer.from_pretrained(pretrain_path)
         # add missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         print(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -46,10 +46,10 @@ class XLNetEncoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
-        seq_out = self.xlnet(input_ids=seqs, attention_mask=att_mask, token_type_ids=token_type_ids)
+        seq_out, _ = self.xlnet(input_ids=seqs, attention_mask=att_mask, token_type_ids=token_type_ids)
         # if self.bert_name == 'xlnet':
             # seq_out = seq_out.permute(1, 0, 2)
-        return seq_out[0]
+        return seq_out
     
     def tokenize(self, *items): # items = (tokens, spans, [attrs, optional])
         """

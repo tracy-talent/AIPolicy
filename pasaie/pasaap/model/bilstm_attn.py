@@ -19,7 +19,7 @@ class BilstmAttn(nn.Module):
         self.dropout = nn.Dropout(p=dropout_rate)
         self.out = nn.Linear(hidden_size * 2, num_class)
         self.hidden_map = nn.Linear(hidden_size * 2, hidden_size * 2)
-        self.weights = nn.Linear(hidden_size * 2, 1) if use_attn else None
+        self.query = nn.Linear(hidden_size * 2, 1) if use_attn else None
 
         self.sequence_encoder = sequence_encoder
         self.num_classes = num_class
@@ -28,12 +28,13 @@ class BilstmAttn(nn.Module):
         self.use_attn = use_attn
         self.batch_first = batch_first
 
-    def attention_net(self, lstm_output):
-        bs = lstm_output.size(0)
-        matrix = F.tanh(lstm_output).view(-1, self.hidden_size * 2)
-        soft_attn_weights = F.softmax(self.weights(matrix).view(bs, -1), 1)
-        context = torch.bmm(lstm_output.transpose(1, 2), soft_attn_weights.unsqueeze(2)).squeeze(2)
-        return context, soft_attn_weights.data
+
+    def dot_product_attention(self, attention_kv):
+        attention_score = self.query(attention_kv).squeeze(-1)
+        attention_weight = F.softmax(attention_score, dim=-1)
+        attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
+        return attention_output, attention_weight.data
+
 
     def forward(self, *args):
         x = self.sequence_encoder(*args)
@@ -49,7 +50,7 @@ class BilstmAttn(nn.Module):
             output, _ = self.lstm(x)
 
         if self.use_attn:
-            output, attention = self.attention_net(output)
+            output, attention = self.dot_product_attention(output)
         else:
             first_hidden = torch.add(*(output[:, 0, :].squeeze().chunk(2, dim=-1)))
             last_hidden = torch.add(*(output[:, -1, :].squeeze().chunk(2, dim=-1)))

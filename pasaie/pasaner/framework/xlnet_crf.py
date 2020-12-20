@@ -30,7 +30,7 @@ class XLNet_CRF(BaseFramework):
                 logger, 
                 tb_logdir, 
                 compress_seq=True,
-                tagscheme='bio', 
+                tagscheme='bmoes', 
                 batch_size=32, 
                 max_epoch=100, 
                 lr=1e-3,
@@ -144,14 +144,12 @@ class XLNet_CRF(BaseFramework):
                         log_likelihood = []
                         for i in range(bs):
                             log_likelihood.append(self.model.crf(logits[i][-inputs_seq_len[i]:].unsqueeze(0), outputs_seq[i][-inputs_seq_len[i]:].unsqueeze(0), mask=inputs_mask[i][-inputs_seq_len[i]:].unsqueeze(0), reduction='none'))
-                            loss += -log_likelihood[i] / inputs_seq_len[i]
+                            # loss += -log_likelihood[i] / inputs_seq_len[i]
                         log_likelihood = torch.cat(log_likelihood, dim=0)
-                        print(log_likelihood)
                         # log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
-                        # loss = -log_likelihood / inputs_seq_len
-                        loss /= bs
-                    # loss = loss.mean()
-                    print('loss: ', loss)
+                        loss = -log_likelihood / inputs_seq_len
+                        # loss /= bs
+                    loss = loss.mean()
                     loss.backward()
                 else:
                     loss = adversarial_perturbation_xlnet_ner(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *data[1:])
@@ -185,15 +183,13 @@ class XLNet_CRF(BaseFramework):
                     pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][-seqlen:][spos:tpos]]
                     gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][-seqlen:][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][-seqlen:][spos:tpos]]
-                    print(char_seq)
-                    print(pred_seq_tag)
-                    print(gold_seq_tag)
+                    # print(char_seq)
+                    # print(pred_seq_tag)
+                    # print(gold_seq_tag)
                     assert len(char_seq) == len(pred_seq_tag) == len(gold_seq_tag)
-                    # print()
 
                     pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(pred_seq_tag, char_seq)
                     gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(gold_seq_tag, char_seq)
-                    # print(pred_kvpairs)
                     preds_kvpairs.append(pred_kvpairs)
                     golds_kvpairs.append(gold_kvpairs)
 
@@ -239,10 +235,11 @@ class XLNet_CRF(BaseFramework):
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
             self.update_train_state(train_state)
-            if not self.warmup_step > 0:
-                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
-            if train_state['stop_early']:
-                break
+            if self.early_stopping_step > 0:
+                if not self.warmup_step > 0:
+                    self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+                if train_state['stop_early']:
+                    break
             
             # tensorboard val writer
             self.writer.add_scalar('val loss', result['loss'], epoch)

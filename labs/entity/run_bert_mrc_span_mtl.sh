@@ -1,8 +1,7 @@
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mrc_span_mtl.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
-    --metric micro_f1 \
     --dataset policy \
     --compress_seq \
     --use_lstm \

@@ -88,7 +88,7 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
 parser.add_argument('--early_stopping_step', default=3, type=int,
-        help='max times of worse metric allowed to avoid overfit')
+        help='max times of worse metric allowed to avoid overfit, off when <=0')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -204,7 +204,34 @@ if args.use_sampler and args.model == 'single':
     sampler = get_entity_span_single_sampler(args.train_file, tag2id, sequence_encoder, args.max_span, 'WeightedRandomSampler')
 else:
     sampler = None
-if args.model == 'multi':
+if args.model == 'single':
+    framework = pasaner.framework.Span_Single_NER(
+        model=model,
+        train_path=args.train_file if not args.only_test else None,
+        val_path=args.val_file if not args.only_test else None,
+        test_path=args.test_file,
+        ckpt=ckpt,
+        logger=logger,
+        tb_logdir=tb_logdir,
+        max_span=args.max_span,
+        compress_seq=args.compress_seq,
+        tagscheme=args.tagscheme,
+        batch_size=args.batch_size,
+        max_epoch=args.max_epoch,
+        lr=args.lr,
+        bert_lr=args.bert_lr,
+        weight_decay=args.weight_decay,
+        early_stopping_step=args.early_stopping_step,
+        warmup_step=args.warmup_step,
+        max_grad_norm=args.max_grad_norm,
+        opt=args.optimizer,
+        loss=args.loss,
+        adv=args.adv,
+        dice_alpha=args.dice_alpha,
+        metric=args.metric,
+        sampler=sampler
+    )
+elif args.model == 'multi':
     framework = pasaner.framework.Span_Multi_NER(
         model=model,
         train_path=args.train_file if not args.only_test else None,
@@ -225,33 +252,6 @@ if args.model == 'multi':
         warmup_step=args.warmup_step,
         max_grad_norm=args.max_grad_norm,
         mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
-        opt=args.optimizer,
-        loss=args.loss,
-        adv=args.adv,
-        dice_alpha=args.dice_alpha,
-        metric=args.metric,
-        sampler=sampler
-    )
-elif args.model == 'single':
-    framework = pasaner.framework.Span_Single_NER(
-        model=model,
-        train_path=args.train_file if not args.only_test else None,
-        val_path=args.val_file if not args.only_test else None,
-        test_path=args.test_file,
-        ckpt=ckpt,
-        logger=logger,
-        tb_logdir=tb_logdir,
-        max_span=args.max_span,
-        compress_seq=args.compress_seq,
-        tagscheme=args.tagscheme,
-        batch_size=args.batch_size,
-        max_epoch=args.max_epoch,
-        lr=args.lr,
-        bert_lr=args.bert_lr,
-        weight_decay=args.weight_decay,
-        early_stopping_step=args.early_stopping_step,
-        warmup_step=args.warmup_step,
-        max_grad_norm=args.max_grad_norm,
         opt=args.optimizer,
         loss=args.loss,
         adv=args.adv,

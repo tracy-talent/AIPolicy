@@ -80,7 +80,7 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
 parser.add_argument('--weight_decay', default=1e-2, type=float,
                     help='Weight decay')
 parser.add_argument('--early_stopping_step', default=3, type=int,
-                    help='max times of worse metric allowed to avoid overfit, mutually exclusive with warmup_step')
+                    help='max times of worse metric allowed to avoid overfit, mutually exclusive with warmup_step, off when <=0')
 parser.add_argument('--warmup_step', default=0, type=int,
                     help='warmup steps for learning rate scheduler, mutually exclusive with early_stopping_step')
 parser.add_argument('--max_length', default=128, type=int,

@@ -284,7 +284,7 @@ def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
         if s_tag == neg_tag:
             continue
         for j, e_tag in enumerate(end_seq[i:]):
-            if j > 0 and start_seq[j+i] != neg_tag:
+            if j > 0 and start_seq[j+i] != neg_tag or j + 1 > 30:
                 break
             if s_tag == e_tag:
                 pairs.append(((i, j + i + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:j+i+1]])))

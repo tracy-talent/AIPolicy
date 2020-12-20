@@ -20,4 +20,5 @@ python train_bert_mtl_span_attr.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.6 \
+    --use_mtl_autoweighted_loss \
     --metric micro_f1 \

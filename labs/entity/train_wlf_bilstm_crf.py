@@ -78,7 +78,7 @@ parser.add_argument('--optimizer', default='adamw', type=str,
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
 parser.add_argument('--early_stopping_step', default=3, type=int,
-        help='max times of worse metric allowed to avoid overfit')
+        help='max times of worse metric allowed to avoid overfit, off when <=0')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -236,9 +236,9 @@ if not args.only_test:
 # Test
 result = framework.eval_model(framework.test_loader)
 # Print the result
-logging.info('Test set results:')
-logging.info('Accuracy: {}'.format(result['acc']))
-logging.info('Micro precision: {}'.format(result['micro_p']))
-logging.info('Micro recall: {}'.format(result['micro_r']))
-logging.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Test set results:')
+logger.info('Accuracy: {}'.format(result['acc']))
+logger.info('Micro precision: {}'.format(result['micro_p']))
+logger.info('Micro recall: {}'.format(result['micro_r']))
+logger.info('Micro F1: {}'.format(result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

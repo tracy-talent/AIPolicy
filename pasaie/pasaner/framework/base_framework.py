@@ -18,6 +18,8 @@ from transformers import AdamW, get_linear_schedule_with_warmup
 
 
 class BaseFramework(nn.Module):
+    """if has other torch.nn.Module(exp. AutomaticWeightedLoss) except model, don't extend BaseFramework,
+        because it's optimizer will missed other module parameters"""
     
     def __init__(self, 
                 model, 
@@ -39,7 +41,8 @@ class BaseFramework(nn.Module):
                 loss_weight=None,
                 dice_alpha=0.6):
         super(BaseFramework, self).__init__()
-        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
+        encoder_name = model.sequence_encoder.__class__.__name__.lower()
+        if 'bert' in encoder_name or 'xlnet' in encoder_name:
             self.is_bert_encoder = True
         else:
             self.is_bert_encoder = False
@@ -73,8 +76,8 @@ class BaseFramework(nn.Module):
         else:
             encoder_params = []
             bert_params_id = []
-        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parallel_model.parameters()))
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parallel_model.parameters()))
+        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
+        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
         grouped_params = [
             {'params': bert_params, 'lr':bert_lr},
             {'params': other_params, 'lr':lr}

@@ -5,21 +5,26 @@
  Last Modified time: 2020-12-05 20:18:03
 """
 
+from ...losses import DiceLoss, FocalLoss, LabelSmoothingCrossEntropy, AutomaticWeightedLoss
 from ...metrics import Mean, micro_p_r_f1_score
-from ...losses import AutomaticWeightedLoss
+from ...utils.adversarial import FGM, PGD, FreeLB
 from ...utils.adversarial import adversarial_perturbation_mrc_span_mtl
 from ...utils.entity_extract import extract_kvpairs_by_start_end
 from .data_loader import MRCSpanMultiNERDataLoader
 from .base_framework import BaseFramework
 
 import os
+import operator
+import datetime
 from collections import defaultdict
 
 import torch
-from torch import nn
+from torch import nn, optim
+from torch.utils.tensorboard import SummaryWriter
+from transformers import AdamW, get_linear_schedule_with_warmup
 
 
-class MRC_Span_MTL(BaseFramework):
+class MRC_Span_MTL(nn.Module):
     """train multi task for span_start and span_end"""
     
     def __init__(self, 
@@ -32,7 +37,7 @@ class MRC_Span_MTL(BaseFramework):
                 logger, 
                 tb_logdir, 
                 compress_seq=True,
-                tagscheme='bio', 
+                tagscheme='bmoes', 
                 batch_size=32, 
                 max_epoch=100, 
                 lr=1e-3,
@@ -50,6 +55,17 @@ class MRC_Span_MTL(BaseFramework):
                 dice_alpha=0.6,
                 sampler=None):
 
+        super(MRC_Span_MTL, self).__init__()
+        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
+            self.is_bert_encoder = True
+        else:
+            self.is_bert_encoder = False
+        self.max_epoch = max_epoch
+        self.metric = metric
+        self.tagscheme = tagscheme
+        self.max_grad_norm = max_grad_norm
+        self.early_stopping_step = early_stopping_step
+        
         # Load Data
         if train_path != None:
             self.train_loader = MRCSpanMultiNERDataLoader(
@@ -85,36 +101,138 @@ class MRC_Span_MTL(BaseFramework):
                 compress_seq=compress_seq
             )
 
-        # initialize base class
-        super(MRC_Span_MTL, self).__init__(
-            model=model,
-            ckpt=ckpt,
-            logger=logger,
-            tb_logdir=tb_logdir,
-            batch_size=batch_size,
-            max_epoch=max_epoch,
-            lr=lr,
-            bert_lr=bert_lr,
-            weight_decay=weight_decay,
-            early_stopping_step=early_stopping_step,
-            warmup_step=warmup_step,
-            max_grad_norm=max_grad_norm,
-            metric=metric,
-            adv=adv,
-            opt=opt,
-            loss=loss,
-            loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
-            dice_alpha=dice_alpha
-        )
-
-        self.tagscheme = tagscheme
+        # Model
+        self.model = model
+        self.parallel_model = nn.DataParallel(model)
+        # Criterion
+        if loss == 'ce':
+            self.criterion = nn.CrossEntropyLoss(reduction='none')
+        elif loss == 'wce':
+            self.criterion = nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None, reduction='none')
+        elif loss == 'focal':
+            self.criterion = FocalLoss(gamma=2., reduction='none')
+        elif loss == 'dice':
+            self.criterion = DiceLoss(alpha=dice_alpha, gamma=0., reduction='none')
+        elif loss == 'lsr':
+            self.criterion = LabelSmoothingCrossEntropy(eps=0.1, reduction='none')
+        else:
+            raise ValueError("Invalid loss. Must be 'ce' or 'focal' or 'dice' or 'lsr'")
         self.span_bce = None
         if add_span_loss:
             self.span_bce = nn.BCEWithLogitsLoss()
-        # Automatic weighted loss for mtl
+        # Automatic weighted loss for mtl(submodule must after torch.nn.Module initialize)
         self.autoweighted_loss = None
         if mtl_autoweighted_loss:
             self.autoweighted_loss = AutomaticWeightedLoss(3 if add_span_loss else 2)
+        # Params and optimizer
+        self.lr = lr
+        self.bert_lr = bert_lr
+        if self.is_bert_encoder:
+            encoder_params = self.parallel_model.module.sequence_encoder.parameters()
+            bert_params_id = list(map(id, encoder_params))
+        else:
+            encoder_params = []
+            bert_params_id = []
+        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
+        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
+        grouped_params = [
+            {'params': bert_params, 'lr':bert_lr},
+            {'params': other_params, 'lr':lr}
+        ]
+        if opt == 'sgd':
+            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
+        elif opt == 'adam':
+            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
+        elif opt == 'adamw': # Optimizer for BERT
+            params = list(self.named_parameters())
+            no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+            adamw_grouped_params = [
+                {
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': bert_lr,
+                },
+                {
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': bert_lr,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': lr,
+                }
+            ]
+            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
+        else:
+            raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
+        # Warmup
+        self.warmup_step = warmup_step
+        if warmup_step > 0:
+            training_steps = len(self.train_loader) // batch_size * self.max_epoch
+            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
+        else:
+            self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
+                                                                mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
+                                                                patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
+            # self.scheduler = None
+        # Adversarial
+        if adv == 'fgm':
+            self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
+        elif adv == 'pgd':
+            self.adv = PGD(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        elif adv == 'flb':
+            self.adv = FreeLB(model=self.parallel_model, emb_name='word_embeddings', epsilon=1., alpha=0.3)
+        else:
+            self.adv = None
+        # Cuda
+        if torch.cuda.is_available():
+            self.cuda()
+        # Ckpt
+        self.ckpt = ckpt
+        # logger
+        self.logger = logger
+        # tensorboard writer
+        self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
+
+
+    def make_train_state(self):
+        return {'stop_early': False,
+                'early_stopping_step': 0,
+                'early_stopping_best_val': 1e8 if 'loss' in self.metric else 0,
+                'epoch_index': 0,
+                'train_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
+                'val_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
+                }
+    
+    
+    def update_train_state(self, train_state):
+        if 'loss' in self.metric:
+            cmp_op = operator.lt
+        else:
+            cmp_op = operator.gt
+        if train_state['epoch_index'] == 0:
+            self.save_model(self.ckpt)
+            train_state['early_stopping_best_val'] = train_state['val_metrics'][-1][self.metric]
+            self.logger.info("Best ckpt and saved.")
+        elif train_state['epoch_index'] >= 1:
+            metric_v2 = train_state['val_metrics'][-2][self.metric]
+            metric_v1 = train_state['val_metrics'][-1][self.metric]
+            if not cmp_op(metric_v1, metric_v2):
+                train_state['early_stopping_step'] += 1
+            else:
+                if cmp_op(metric_v1, train_state['early_stopping_best_val']):
+                    self.save_model(self.ckpt)
+                    train_state['early_stopping_best_val'] = metric_v1
+                    self.logger.info("Best ckpt and saved.")
+                train_state['early_stopping_step'] = 0
+            
+            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
 
 
     def train_model(self):
@@ -232,6 +350,10 @@ class MRC_Span_MTL(BaseFramework):
                     start_gold_seq = [attr_labels_name[i] if tid else 'null' for tid in start_labels[i][spos:tpos]]
                     end_gold_seq = [attr_labels_name[i] if tid else 'null' for tid in end_labels[i][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][spos:tpos]]
+                    # print(char_seq)
+                    # print(start_gold_seq)
+                    # print(end_gold_seq)
+                    assert len(char_seq) == len(start_gold_seq) == len(end_pred_seq)
                     if self.span_bce is not None:
                         if len(span_out) > 0:
                             pred_kvpairs = [(span_range[i][j], attr_labels_name[i], ''.join(char_seq[span_range[i][j][0]:span_range[i][j][1]])) for j in range(len(span_range[i])) if span_preds[span_cnt+j]]
@@ -278,7 +400,8 @@ class MRC_Span_MTL(BaseFramework):
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
             micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-            train_state['train_metrics'].append({'loss': avg_loss.avg, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
+            train_state['train_metrics'].append({'loss': avg_loss.avg, 'start_acc': avg_start_acc.avg, 'end_acc': avg_end_acc.avg, 
+                                                'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
@@ -289,10 +412,11 @@ class MRC_Span_MTL(BaseFramework):
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
             self.update_train_state(train_state)
-            if not self.warmup_step > 0:
-                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
-            if train_state['stop_early']:
-                break
+            if self.early_stopping_step > 0:
+                if not self.warmup_step > 0:
+                    self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+                if train_state['stop_early']:
+                    break
             
             # tensorboard val writer
             self.writer.add_scalar('val loss', result['loss'], epoch)
@@ -475,5 +599,5 @@ class MRC_Span_MTL(BaseFramework):
     def save_model(self, ckpt):
         state_dict = {'model': self.model.state_dict()}
         if self.autoweighted_loss is not None:
-            state_dict.upadte({'autoweighted_loss': self.autoweighted_loss.state_dict()})
+            state_dict.update({'autoweighted_loss': self.autoweighted_loss.state_dict()})
         torch.save(state_dict, ckpt)

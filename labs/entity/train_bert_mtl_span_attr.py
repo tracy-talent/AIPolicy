@@ -43,6 +43,8 @@ parser.add_argument('--span_use_crf', action='store_true',
         help='whether use crf for span sequence decode')
 parser.add_argument('--attr_use_crf', action='store_true', 
         help='whether use crf for attr sequence decode')
+parser.add_argument('--use_mtl_autoweighted_loss', action='store_true', 
+        help='whether use automatic weighted loss for multi task learning')
 parser.add_argument('--tagscheme', default='bio', type=str,
         help='the sequence tag scheme')
 parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
@@ -118,6 +120,8 @@ def make_model_name():
     if args.attr_use_crf:
         model_name += '_attrcrf'
     model_name += '_' + args.loss
+    if args.use_mtl_autoweighted_loss:
+        model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     model_name += '_' + args.metric
@@ -213,6 +217,7 @@ framework = pasaner.framework.MTL_Span_Attr(
     weight_decay=args.weight_decay,
     early_stopping_step=args.early_stopping_step,
     warmup_step=args.warmup_step, 
+    mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
     opt=args.optimizer,
     loss=args.loss,
     adv=args.adv,
@@ -233,10 +238,10 @@ if not args.only_test:
 # Test
 result = framework.eval_model(framework.test_loader)
 # Print the result
-logging.info('Test set results:')
-logging.info('Span Accuracy: {}'.format(result['span_acc']))
-logging.info('Attr Accuracy: {}'.format(result['attr_acc']))
-logging.info('Micro precision: {}'.format(result['micro_p']))
-logging.info('Micro recall: {}'.format(result['micro_r']))
-logging.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('Test set results:')
+logger.info('Span Accuracy: {}'.format(result['span_acc']))
+logger.info('Attr Accuracy: {}'.format(result['attr_acc']))
+logger.info('Micro precision: {}'.format(result['micro_p']))
+logger.info('Micro recall: {}'.format(result['micro_r']))
+logger.info('Micro F1: {}'.format(result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

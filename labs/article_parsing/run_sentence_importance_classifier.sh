@@ -1,10 +1,9 @@
 CUDA_VISIBLE_DEVICES=1 \
 python train_sentence_importance_classifier.py \
-    --pretrain_path ~/qmc/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.vec \
+    --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --encoder bert \
     --bert_name bert \
     --model bilstm \
-    --metric micro_f1 \
     --dataset sentence_importance_judgement \
     --neg_classes [0] \
     --batch_size 15 \

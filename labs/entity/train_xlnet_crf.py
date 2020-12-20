@@ -71,7 +71,7 @@ parser.add_argument('--optimizer', default='adamw', type=str,
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
 parser.add_argument('--early_stopping_step', default=3, type=int,
-        help='max times of worse metric allowed to avoid overfit')
+        help='max times of worse metric allowed to avoid overfit, off when <=0')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -126,7 +126,7 @@ tb_logdir = os.path.join(config['path']['ner_tb'], dataset_name, model_name, hpa
 os.makedirs(os.path.join(config['path']['ner_ckpt'], dataset_name), exist_ok=True)
 if len(args.ckpt) == 0:
     args.ckpt = model_name
-ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}0.pth.tar')
+ckpt = os.path.join(config['path']['ner_ckpt'], dataset_name, f'{args.ckpt}_0.pth.tar')
 ckpt_cnt = 0
 while os.path.exists(ckpt):
     ckpt_cnt += 1
