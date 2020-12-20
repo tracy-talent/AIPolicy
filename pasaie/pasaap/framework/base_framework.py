@@ -197,6 +197,7 @@ class BaseFramework(nn.Module):
 
     def load_model(self, ckpt):
         self.model = torch.load(ckpt)
+        self.parallel_model = nn.DataParallel(self.model)
 
     def save_model(self, ckpt):
         torch.save(self.model, ckpt)
