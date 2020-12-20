@@ -6,7 +6,7 @@
 """
 
 from ...metrics import Mean, micro_p_r_f1_score
-from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes
+from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes, extract_kvpairs_in_bioe
 from ...utils.adversarial import adversarial_perturbation
 from .data_loader import SingleNERDataLoader
 from .base_framework import BaseFramework
