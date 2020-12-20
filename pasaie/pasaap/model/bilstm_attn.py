@@ -30,7 +30,7 @@ class BilstmAttn(nn.Module):
 
     def attention_net(self, lstm_output):
         bs = lstm_output.size(0)
-        matrix = F.tanh(lstm_output).view(-1, self.hidden_size * 2)
+        matrix = F.tanh(lstm_output).reshape(-1, self.hidden_size * 2)
         soft_attn_weights = F.softmax(self.weights(matrix).view(bs, -1), 1)
         context = torch.bmm(lstm_output.transpose(1, 2), soft_attn_weights.unsqueeze(2)).squeeze(2)
         return context, soft_attn_weights.data
