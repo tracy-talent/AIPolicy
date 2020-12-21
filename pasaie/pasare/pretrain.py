@@ -120,11 +120,11 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
         if 'dsp' in model_name:
             sentence_encoder = encoder.BERTEntityWithDSPEncoder(
                 pretrain_path=pretrain_path, max_length=256, max_dsp_path_length=15, compress_seq=False,
-                use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=None)
+                use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
         elif 'bert_entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
                 max_length=256, pretrain_path=pretrain_path, mask_entity=False, 
-                blank_padding=False, tag2id=tag2id)
+                blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
         else:
             sentence_encoder = encoder.BERTEncoder(
                 pretrain_path=pretrain_path, max_length=256, blank_padding=False)

@@ -27,12 +27,16 @@ class SoftmaxNN(SentenceRE):
 
     def infer(self, item):
         self.eval()
-        item = self.sentence_encoder.tokenize(item)
-        logits = self.forward(*item)
-        logits = self.softmax(logits)
-        score, pred = logits.max(-1)
-        score = score.item()
-        pred = pred.item()
+        with torch.no_grad():
+            seqs = list(self.sentence_encoder.tokenize(item))
+            # if list(self.sentence_encoder.parameters())[0].device.type.startswith('cuda'):
+            #     for i in range(len(seqs)):
+            #         seqs[i] = seqs[i].cuda()
+            logits = self.forward(*seqs)
+            logits = self.softmax(logits)
+            score, pred = logits.max(-1)
+            score = score.item()
+            pred = pred.item()
         return self.id2rel[pred], score
     
     def forward(self, *args):

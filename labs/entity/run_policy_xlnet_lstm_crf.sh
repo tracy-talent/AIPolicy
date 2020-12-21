@@ -1,15 +1,15 @@
 CUDA_VISIBLE_DEVICES=2 \
 python train_xlnet_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-xlnet-base \
-    --bert_name largexlnet \
+    --bert_name basexlnet \
     --dataset policy \
     --compress_seq \
     --tagscheme bmoes \
     --use_lstm \
     --use_crf \
-    --batch_size 8 \
+    --batch_size 16 \
     --lr 1e-3 \
-    --bert_lr 1e-5 \
+    --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
