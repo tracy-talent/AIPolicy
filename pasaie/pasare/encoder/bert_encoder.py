@@ -1,5 +1,5 @@
 from .base_encoder import BaseEncoder
-from ...utils.dependency_parse import DDP_Parse, LTP_Parse
+from ...utils.dependency_parse import DDP_Parse, LTP_Parse, Stanza_Parse
 
 import logging
 import torch
@@ -12,11 +12,17 @@ from transformers import BertModel, AlbertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, bert_name='bert', blank_padding=True, mask_entity=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, blank_padding=True, mask_entity=False):
         """
         Args:
-            max_length: max length of sentence
-            pretrain_path: path of pretrain model
+            pretrain_path (str): path of pretrain model
+            bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
+            max_length (int, optional): max_length of sequence. Defaults to 256.
+            blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
+            mask_entity (bool, optional): whether do mask for entity. Defaults to False.
+        
+        Raises:
+            NotImplementedError: bert pretrained model is not implemented.
         """
         super().__init__()
         self.max_length = max_length
@@ -33,6 +39,8 @@ class BERTEncoder(nn.Module):
         elif 'bert' in bert_name:
             self.bert = BertModel.from_pretrained(pretrain_path)
             self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        else:
+            raise NotImplementedError(f'{bert_name} pretrained model is not implemented!')
         # add possible missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -88,16 +96,16 @@ class BERTEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            # sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            # ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            # sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            # ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            # sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
-            sent0 = sentence[:pos_min[0]]
-            ent0 = sentence[pos_min[0]:pos_min[1]]
-            sent1 = sentence[pos_min[1]:pos_max[0]]
-            ent1 = sentence[pos_max[0]:pos_max[1]]
-            sent2 = sentence[pos_max[1]:]
+            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            # sent0 = sentence[:pos_min[0]]
+            # ent0 = sentence[pos_min[0]:pos_min[1]]
+            # sent1 = sentence[pos_min[1]:pos_max[0]]
+            # ent1 = sentence[pos_max[0]:pos_max[1]]
+            # sent2 = sentence[pos_max[1]:]
 
         if self.mask_entity:
             ent0 = ['[unused5]'] if not rev else ['[unused6]']
@@ -137,11 +145,18 @@ class BERTEncoder(nn.Module):
 
 
 class BERTEntityEncoder(nn.Module):
-    def __init__(self, max_length, pretrain_path, bert_name='bert', tag2id=None, blank_padding=True, mask_entity=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False):
         """
         Args:
-            max_length: max length of sentence
-            pretrain_path: path of pretrain model
+            pretrain_path (str): path of pretrain model
+            bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
+            max_length (int, optional): max_length of sequence. Defaults to 256.
+            tag2id (dict, optional): entity type to id dictionary. Defaults to None.
+            blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
+            mask_entity (bool, optional): whether do mask for entity. Defaults to False.
+        
+        Raises:
+            NotImplementedError: bert pretrained model is not implemented.
         """
         super().__init__()
         self.max_length = max_length
@@ -161,6 +176,8 @@ class BERTEntityEncoder(nn.Module):
             # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
             self.bert = BertModel.from_pretrained(pretrain_path)
             self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        else:
+            raise NotImplementedError(f'{bert_name} pretrained model is not implemented!')
         # add possible missed tokens in vocab.txt
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
@@ -196,8 +213,8 @@ class BERTEntityEncoder(nn.Module):
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
         # x = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
-        context_conv = F.relu(self.conv(hidden.unsqueeze(1))).squeeze(3)
-        context_hidden = F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)
+        context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3)
+        context_hidden = F.relu(F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)) # maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
         rep_out = self.linear(rep_out)
         return rep_out
@@ -238,16 +255,16 @@ class BERTEntityEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            # sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            # ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            # sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            # ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            # sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
-            sent0 = sentence[:pos_min[0]]
-            ent0 = sentence[pos_min[0]:pos_min[1]]
-            sent1 = sentence[pos_min[1]:pos_max[0]]
-            ent1 = sentence[pos_max[0]:pos_max[1]]
-            sent2 = sentence[pos_max[1]:]
+            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            # sent0 = sentence[:pos_min[0]]
+            # ent0 = sentence[pos_min[0]:pos_min[1]]
+            # sent1 = sentence[pos_min[1]:pos_max[0]]
+            # ent1 = sentence[pos_max[0]:pos_max[1]]
+            # sent2 = sentence[pos_max[1]:]
 
         if self.mask_entity:
             ent0 = ['[unused1]'] if not rev else ['[unused2]']
@@ -302,12 +319,21 @@ class BERTEntityEncoder(nn.Module):
 
 
 class BERTWithDSPEncoder(BERTEncoder):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=320, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
-            max_length: max length of sentence
-            max_dsp_path_length: 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9).
-            pretrain_path: path of pretrain model
+            pretrain_path (str): path of pretrain model
+            bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
+            max_length (int, optional): max_length of sequence. Defaults to 256.
+            max_dsp_path_length (int, optional): 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9). Defaults to 15.
+            dsp_tool (str, optional): DSP tool used: ltp, ddp or stanza. Defaults to 'ddp'.
+            use_attention (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.
+            blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
+            mask_entity (bool, optional): whether do mask for entity. Defaults to False.
+            compress_seq (bool, optional): whether compress sequence. Defaults to False.
+
+        Raises:
+            NotImplementedError: DSP tool is not implemented.
         """
         super(BERTWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
                                                 max_length=max_length, 
@@ -321,8 +347,10 @@ class BERTWithDSPEncoder(BERTEncoder):
                 self.parser = DDP_Parse()
             elif dsp_tool == 'ltp':
                 self.parser = LTP_Parse()
+            elif dsp_tool == 'stanza':
+                self.parser = Stanza_Parse()
             else:
-                raise NotImplementedError(f'{dsp_tool} DSP tool is not imlemented')
+                raise NotImplementedError(f'{dsp_tool} DSP tool is not implemented')
         bert_hidden_size = self.bert.config.hidden_size
         self.hidden_size = self.bert.config.hidden_size * 2
 
@@ -429,13 +457,23 @@ class BERTWithDSPEncoder(BERTEncoder):
 
 
 class BERTEntityWithDSPEncoder(BERTEntityEncoder):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=320, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
                 use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
         """
         Args:
-            max_length: max length of sentence
-            max_dsp_path_length: 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9).
-            pretrain_path: path of pretrain model
+            pretrain_path (str): path of pretrain model
+            bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
+            max_length (int, optional): max_length of sequence. Defaults to 256.
+            max_dsp_path_length (int, optional): 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9). Defaults to 15.
+            dsp_tool (str, optional): DSP tool used: ltp, ddp or stanza. Defaults to 'ddp'.
+            tag2id (dict, optional): entity type to id dictionary. Defaults to None.
+            use_attention (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.
+            blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
+            mask_entity (bool, optional): whether do mask for entity. Defaults to False.
+            compress_seq (bool, optional): whether compress sequence. Defaults to False.
+
+        Raises:
+            NotImplementedError: DSP tool is not implemented.
         """
         super(BERTEntityWithDSPEncoder, self).__init__(pretrain_path=pretrain_path, 
                                                     bert_name=bert_name,
@@ -450,8 +488,10 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
                 self.parser = DDP_Parse()
             elif dsp_tool == 'ltp':
                 self.parser = LTP_Parse()
+            elif dsp_tool == 'stanza':
+                self.parser = Stanza_Parse()
             else:
-                raise NotImplementedError(f'{dsp_tool} DSP tool is not imlemented')
+                raise NotImplementedError(f'{dsp_tool} DSP tool is not implemented')
         bert_hidden_size = self.bert.config.hidden_size
         self.bilstm = nn.LSTM(input_size=bert_hidden_size, 
                             hidden_size=bert_hidden_size, 
@@ -520,7 +560,8 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
             context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
-            context_hidden = F.relu(F.max_pool1d(context_conv, context_conv.size(2)).squeeze(2)) # (B, d)
+            context_hidden = F.relu(F.max_pool1d(context_conv, 
+                                    context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
 
         # dsp encode, get dsp hidden
         ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)

@@ -115,7 +115,7 @@ def make_model_name():
         model_name += '_' + args.adv
     if args.embed_entity_type:
         model_name += '_embed_entity'
-    model_name += '_' + args.dsp_tool + '_dsp'
+    model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
     if args.use_attention:
         model_name += '_attention_cat'
     else:

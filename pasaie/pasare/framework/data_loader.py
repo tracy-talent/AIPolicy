@@ -136,8 +136,8 @@ class SentenceWithDSPREDataset(SentenceREDataset):
     def _construct_data(self):
         if self.max_dsp_path_length > 0:
             self.dsp_path = []
-            dsp_path = [self.path[:-4] + f'_{self.dsp_tool}_dsp_path.txt' for datasp in ['train', 'val', 'test'] if datasp in self.path][0]
-            with open(dsp_path, 'r', encoding='utf-8') as f:
+            dsp_file_path = self.path[:-4] + f'_tail_bert_{self.dsp_tool}_dsp_path.txt'
+            with open(dsp_file_path, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     line = eval(line.strip())
                     ent_h_path = line['ent_h_path']

@@ -155,10 +155,11 @@ class SentenceImportanceClassifier(BaseFramework):
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
             self.update_train_state(train_state)
-            if not self.warmup_step > 0:
-                self.scheduler.step(train_state['val_metrics'][-1][self.metric])
-            if train_state['stop_early']:
-                break
+            if self.early_stopping_step > 0:
+                if not self.warmup_step > 0:
+                    self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+                if train_state['stop_early']:
+                    break
 
             # tensorboard val writer
             self.writer.add_scalar('val loss', result['loss'], epoch)

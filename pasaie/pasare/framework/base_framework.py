@@ -43,7 +43,7 @@ class BaseFramework(nn.Module):
                  opt='sgd'):
 
         super(BaseFramework, self).__init__()
-        encoder_name = model.sequence_encoder.__class__.__name__.lower()
+        encoder_name = model.sentence_encoder.__class__.__name__.lower()
         if 'bert' in encoder_name or 'xlnet' in encoder_name:
             self.is_bert_encoder = True
         else:

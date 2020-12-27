@@ -117,17 +117,42 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
     if 'policy' in dataset_name:
         rel2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_rel2id.json'))
         tag2id = load_json(os.path.join(config['path']['re_dataset'], f'{dataset_name}/{dataset_name}_tag2id.json'))
+        bert_name = 'bert'
+        if 'roberta' in model_name:
+            bert_name = 'roberta'
+        elif 'albert' in model_name:
+            bert_name = 'albert'
+        elif 'xlnet' in model_name:
+            bert_name = 'xlnet'
         if 'dsp' in model_name:
-            sentence_encoder = encoder.BERTEntityWithDSPEncoder(
-                pretrain_path=pretrain_path, max_length=256, max_dsp_path_length=15, compress_seq=False,
-                use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
+            max_dsp_path_length = 10
+            dsp_tool = 'ltp'
+            if 'ddp' in model_name:
+                max_dsp_path_length = 15
+                dsp_tool = 'ddp'
+            elif 'ltp' in model_name:
+                max_dsp_path_length = 10
+                dsp_tool = 'ltp'
+            elif 'stanza' in model_name:
+                max_dsp_path_length = 10
+                dsp_tool = 'stanza'
+            else:
+                raise NotImplementedError(f'DSP tool used in model_name:{model_name} is not implemented')
+            if 'bert_entity' in model_name:
+                sentence_encoder = encoder.BERTEntityWithDSPEncoder(
+                    pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, compress_seq=False, use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
+            else:
+                sentence_encoder = encoder.BERTWithDSPEncoder(
+                    pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, 
+                    compress_seq=False, use_attention=('attention' in model_name), mask_entity=False, blank_padding=False
+                )
         elif 'bert_entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
-                max_length=256, pretrain_path=pretrain_path, mask_entity=False, 
+                pretrain_path=pretrain_path, bert_name='bert', max_length=256, mask_entity=False, 
                 blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
         else:
             sentence_encoder = encoder.BERTEncoder(
-                pretrain_path=pretrain_path, max_length=256, blank_padding=False)
+                pretrain_path=pretrain_path, bert_name='bert', max_length=256, mask_entity=False, blank_padding=False)
         relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
         relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         relation_model.eval()
