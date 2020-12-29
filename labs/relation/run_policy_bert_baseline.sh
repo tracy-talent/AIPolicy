@@ -5,15 +5,16 @@ python train_supervised_bert.py \
     --metric micro_f1 \
     --dataset test-policy \
     --dropout_rate 0.5 \
+    --neg_classes [1] \
     --compress_seq \
-    --embed_entity_type \
-    --adv none \
-    --loss ce \
+    --adv fgm \
+    --loss dice \
     --dice_alpha 0.6 \
-    --batch_size 16 \
-    --lr 1e-3 \
+    --batch_size 12 \
+    --lr 1e-5 \
     --bert_lr 1e-5 \
     --weight_decay 0 \
+    --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
     --max_epoch 20 \

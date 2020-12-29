@@ -1,14 +1,14 @@
 """
  Author: liujian 
- Date: 2020-10-25 12:38:37 
+ Date: 2020-10-25 12:40:05 
  Last Modified by: liujian 
- Last Modified time: 2020-10-25 12:38:37 
+ Last Modified time: 2020-10-25 12:40:05 
 """
 
+# coding:utf-8
 import sys
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
-from pasaie.utils.sampler import get_entity_span_single_sampler
 from pasaie.tokenization.utils import load_vocab
 from pasaie import pasaner
 
@@ -19,6 +19,7 @@ import os
 import re
 import datetime
 import argparse
+import logging
 import configparser
 
 
@@ -29,12 +30,17 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
-parser.add_argument('--use_sampler', action='store_true',
-                    help='Use sampler')
 parser.add_argument('--only_test', action='store_true', 
         help='Only run test')
-parser.add_argument('--use_lstm', action='store_true', 
-        help='whether add lstm encoder on top of bert')
+parser.add_argument('--share_lstm', action='store_true', 
+        help='whether make span and attr share the same lstm after encoder, \
+                share_lstm and (span_use_lstm/attr_use_lstm) are mutually exclusive')
+parser.add_argument('--span_use_lstm', action='store_true', 
+        help='whether use lstm for span sequence after encoder')
+parser.add_argument('--attr_use_lstm', action='store_true', 
+        help='whether use lstm for attr sequence after encoder')
+parser.add_argument('--span_use_crf', action='store_true', 
+        help='whether use crf for span sequence decode')
 parser.add_argument('--use_mtl_autoweighted_loss', action='store_true', 
         help='whether use automatic weighted loss for multi task learning')
 parser.add_argument('--tagscheme', default='bio', type=str,
@@ -43,13 +49,11 @@ parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
         help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice', 'lsr'],
         help='loss function')
-parser.add_argument('--add_span_loss', action='store_true', 
-        help='whether add span loss')
 
 # Data
-parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'loss'],
+parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'span_acc', 'attr_start_acc', 'attr_end_acc', 'loss'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='none', #choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
+parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -57,10 +61,10 @@ parser.add_argument('--val_file', default='', type=str,
         help='Validation data file')
 parser.add_argument('--test_file', default='', type=str,
         help='Test data file')
-parser.add_argument('--query_file', default='', type=str,
-        help='mrc query file')
-parser.add_argument('--tag2id_file', default='', type=str,
-        help='Relation to ID file')
+parser.add_argument('--span2id_file', default='', type=str,
+        help='entity span to ID file')
+parser.add_argument('--attr2id_file', default='', type=str,
+        help='entity attr to ID file')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -73,20 +77,14 @@ parser.add_argument('--lr', default=1e-3, type=float,
         help='Learning rate')
 parser.add_argument('--bert_lr', default=3e-5, type=float,
         help='Bert Learning rate')
-parser.add_argument('--dropout_rate', default=0.1, type=float,
-        help='dropout rate')
-parser.add_argument('--ffn_hidden_size', default=150, type=int,
-        help='hidden size of FeedForwardNetwork')
-parser.add_argument('--width_embedding_size', default=150, type=int,
-        help='embedding size of width embedding')
-parser.add_argument('--optimizer', default='adamw', type=str,
+parser.add_argument('--optimizer', default='adam', type=str,
         help='optimizer:adam|sgd|adamw')
-parser.add_argument('--max_grad_norm', default=5.0, type=float,
-        help='max_grad_norm for gradient clip')
 parser.add_argument('--weight_decay', default=1e-5, type=float,
         help='Weight decay')
+parser.add_argument('--soft_label', default=False, type=bool, 
+        help="whether use one hot for entity span's start label when cat with encoder output")
 parser.add_argument('--early_stopping_step', default=3, type=int,
-        help='max times of worse metric allowed to avoid overfit, off when <=0')
+        help='max times of worse metric allowed to avoid overfit')
 parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
@@ -110,12 +108,15 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    if args.use_lstm:
-        model_name = args.bert_name + '_lstm_mrc'
-    else:
-        model_name = args.bert_name + '_mrc'
-    if args.add_span_loss:
-        model_name += '_spanloss'
+    model_name = 'mtl_span_attr_boundary_bert'
+    if args.share_lstm:
+        model_name += '_sharelstm'
+    if args.span_use_lstm:
+        model_name += '_spanlstm'
+    if args.attr_use_lstm:
+        model_name += '_attrlstm'
+    if args.span_use_crf:
+        model_name += '_spancrf'
     model_name += '_' + args.loss
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
@@ -132,7 +133,7 @@ hparam_str = make_hparam_string(args.optimizer, args.bert_lr, args.lr, args.batc
 # logger
 os.makedirs(os.path.join(config['path']['ner_log'], dataset_name, model_name), exist_ok=True)
 logger = get_logger(sys.argv, os.path.join(config['path']['ner_log'], dataset_name, model_name, 
-                    f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log')) 
+                                f'{datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S")}.log')) 
 
 # tensorboard
 os.makedirs(config['path']['ner_tb'], exist_ok=True)
@@ -152,30 +153,36 @@ while os.path.exists(ckpt):
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
-    args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
-    args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
-    args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
-    args.query_file = os.path.join(config['path']['ner_dataset'], args.dataset, 'query.txt')
+    if args.dataset == 'msra.cn' or args.dataset == 'onto4ner.cn':
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
+    else:
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
+    args.span2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'span2id.{args.tagscheme}')
+    args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
-        logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
+        logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
     elif not os.path.exists(args.val_file):
-        logger.warning("Val file {} does not exist! Use test file instead".format(args.val_file))
+        logger.warn("Val file {} does not exist! Use test file instead".format(args.val_file))
         args.val_file = args.test_file
 else:
-    if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.tag2id_file)):
-        raise Exception('--train_file, --val_file, --test_file and --tag2id_file are not specified or files do not exist. Or specify --dataset')
+    if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.span2id_file) and os.path.exists(args.attr2id_file)):
+        raise Exception('--train_file, --val_file, --test_file and --rel2id_file are not specified or files do not exist. Or specify --dataset')
 
 logger.info('Arguments:')
 for arg in vars(args):
     logger.info('{}: {}'.format(arg, getattr(args, arg)))
 
 #  load tag and vocab
-tag2id = load_vocab(args.tag2id_file)
+span2id = load_vocab(args.span2id_file)
+attr2id = load_vocab(args.attr2id_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.MRC_BERTEncoder(
+sequence_encoder = pasaner.encoder.BERTEncoder(
     max_length=args.max_length,
     pretrain_path=args.pretrain_path,
     bert_name=args.bert_name,
@@ -183,42 +190,42 @@ sequence_encoder = pasaner.encoder.MRC_BERTEncoder(
 )
 
 # Define the model
-model = pasaner.model.MRC_Span_Pos_CLS(
+model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
     sequence_encoder=sequence_encoder, 
-    tag2id=tag2id, 
-    use_lstm=args.use_lstm, 
-    compress_seq=args.compress_seq, 
-    add_span_loss=args.add_span_loss,
-    dropout_rate=args.dropout_rate
+    span2id=span2id,
+    attr2id=attr2id,
+    compress_seq=args.compress_seq,
+    share_lstm=args.share_lstm, # False
+    span_use_lstm=args.span_use_lstm, # True
+    attr_use_lstm=args.attr_use_lstm, # False
+    span_use_crf=args.span_use_crf,
+    soft_label=args.soft_label
 )
 
 # Define the whole training framework
-framework = pasaner.framework.MRC_Span_MTL(
+framework = pasaner.framework.MTL_Span_Attr_Boundary(
     model=model,
-    train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test else None,
+    train_path=args.train_file,
+    val_path=args.val_file,
     test_path=args.test_file,
-    query_path=args.query_file,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
     compress_seq=args.compress_seq,
-    tagscheme=args.tagscheme,
+    tagscheme=args.tagscheme, 
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
     early_stopping_step=args.early_stopping_step,
-    warmup_step=args.warmup_step,
-    max_grad_norm=args.max_grad_norm,
-    add_span_loss=args.add_span_loss,
+    warmup_step=args.warmup_step, 
     mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
     opt=args.optimizer,
     loss=args.loss,
     adv=args.adv,
     dice_alpha=args.dice_alpha,
-    metric=args.metric
+    metric=args.metric,
 )
 
 # Load pretrained model
@@ -235,8 +242,12 @@ if not args.only_test:
 result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
-logger.info('Start Accuracy: {}'.format(result['start_acc']))
-logger.info('End Accuracy: {}'.format(result['end_acc']))
+logger.info('Span Accuracy: {}'.format(result['span_acc']))
+logger.info('Attr Start Accuracy: {}'.format(result['attr_start_acc']))
+logger.info('Attr End Accuracy: {}'.format(result['attr_start_acc']))
+logger.info('Span Micro precision: {}'.format(result['span_micro_p']))
+logger.info('Span Micro recall: {}'.format(result['span_micro_r']))
+logger.info('Span Micro F1: {}'.format(result['span_micro_f1']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))

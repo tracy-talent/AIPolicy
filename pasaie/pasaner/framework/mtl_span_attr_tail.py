@@ -23,7 +23,7 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import AdamW, get_linear_schedule_with_warmup
 
 
-class MTL_Span_Attr(nn.Module):
+class MTL_Span_Attr_Tail(nn.Module):
     """model(adaptive) + multitask learning by entity span and entity attr"""
     
     def __init__(self, 
@@ -51,7 +51,7 @@ class MTL_Span_Attr(nn.Module):
                 mtl_autoweighted_loss=True,
                 dice_alpha=0.6):
 
-        super(MTL_Span_Attr, self).__init__()
+        super(MTL_Span_Attr_Tail, self).__init__()
         if 'bert' in model.sequence_encoder.__class__.__name__.lower():
             self.is_bert_encoder = True
         else:
@@ -491,8 +491,6 @@ class MTL_Span_Attr(nn.Module):
                     gold_seq_attr_tag = [self.model.id2attr[aid] for aid in outputs_seq_attr[i][:seqlen][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(cid)) for cid in inputs_seq[i][:seqlen][spos:tpos]]
 
-                    pred_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(pred_seq_span_tag, pred_seq_attr_tag)]
-                    gold_seq_tag = [span + '-' + attr if span != 'O' else 'O' for span, attr in zip(gold_seq_span_tag, gold_seq_attr_tag)]
                     pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
                     gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
 

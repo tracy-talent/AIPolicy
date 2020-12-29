@@ -325,7 +325,7 @@ class BERTWithDSPEncoder(BERTEncoder):
             pretrain_path (str): path of pretrain model
             bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
             max_length (int, optional): max_length of sequence. Defaults to 256.
-            max_dsp_path_length (int, optional): 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9). Defaults to 15.
+            max_dsp_path_length (int, optional): 15 for ddp/stanza(true_max_len=12), 10 for ltp(true_max_len=9). Defaults to 15.
             dsp_tool (str, optional): DSP tool used: ltp, ddp or stanza. Defaults to 'ddp'.
             use_attention (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.
             blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
@@ -464,7 +464,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             pretrain_path (str): path of pretrain model
             bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
             max_length (int, optional): max_length of sequence. Defaults to 256.
-            max_dsp_path_length (int, optional): 15 for ddp(max_dsp_path_len=12), 10 for ltp(max_dsp_path_len=9). Defaults to 15.
+            max_dsp_path_length (int, optional): 15 for ddp/stanza(true_max_len=12), 10 for ltp(true_max_len=9). Defaults to 15.
             dsp_tool (str, optional): DSP tool used: ltp, ddp or stanza. Defaults to 'ddp'.
             tag2id (dict, optional): entity type to id dictionary. Defaults to None.
             use_attention (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.

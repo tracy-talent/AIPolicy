@@ -191,11 +191,15 @@ model = pasare.model.SoftmaxNN(
     dropout_rate=args.dropout_rate
 )
 
+# Define the whole training framework
+if args.neg_classes:
+    args.neg_classes = literal_eval(args.neg_classes)
+else:
+    args.neg_classes = []
 if args.use_sampler:
     sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
 else:
     sampler = None
-# Define the whole training framework
 framework = pasare.framework.SentenceRE(
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,

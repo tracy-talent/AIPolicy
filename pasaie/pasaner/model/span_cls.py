@@ -166,7 +166,7 @@ class Span_Pos_CLS(nn.Module):
         start_logits, end_logits = self.forward(None, *seqs)
         start_preds = start_logits[:,:seq_len,:].argmax(dim=-1).squeeze().detach().cpu().numpy()
         end_preds = end_logits[:,:seq_len,:].argmax(dim=-1).squeeze().detach().cpu().numpy()
-        spos, tpos = 0, 0
+        spos, tpos = 0, seq_len
         if 'bert' in self.sequence_encoder.__class__.__name__.lower():
             spos, tpos = 1, -1
         start_preds_seq = [self.id2tag[tid] for tid in start_preds[spos:tpos]]

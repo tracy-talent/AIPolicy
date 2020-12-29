@@ -1,10 +1,9 @@
-CUDA_VISIBLE_DEVICES=0 \
+CUDA_VISIBLE_DEVICES=3 \
 python train_supervised_bert_with_dsp.py \
     --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --pooler entity \
-    --metric micro_f1 \
     --dataset test-policy \
-    --dropout_rate 0.1 \
+    --dropout_rate 0.5 \
     --neg_classes [1] \
     --compress_seq \
     --dsp_preprocessed \
@@ -22,7 +21,7 @@ python train_supervised_bert_with_dsp.py \
     --max_dsp_path_length 10 \
     --max_epoch 20 \
     --metric micro_f1 \
-    --dsp_tool ltp \
+    --dsp_tool ddp \
     --optimizer adam \
     --use_sampler 
 

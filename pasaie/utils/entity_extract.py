@@ -178,6 +178,38 @@ def extract_kvpairs_in_bmoes(bmoes_seq, word_seq):
     return pairs
 
 
+# 严格按照BMOES一致类型抽取实体
+def extract_kvpairs_in_bmoes_without_attr(bmoes_seq, word_seq):
+    assert len(bmoes_seq) == len(word_seq)
+    pairs = list()
+    pre_bmoes = "O"
+    v = ""
+    spos = -1
+    for i, bmoes in enumerate(bmoes_seq):
+        word = word_seq[i]
+        if bmoes == "O":
+            v = ""
+        elif bmoes[0] == "B":
+            v = word[2:] if word.startswith('##') else word
+            spos = i
+        elif bmoes[0] == "M":
+            if pre_bmoes[0] in "OES" or v == "":
+                v = ""
+            else:
+                v += word[2:] if word.startswith('##') else word
+        elif bmoes[0] == 'E':
+            if pre_bmoes[0] in 'BM' and v != "":
+                v += word[2:] if word.startswith('##') else word
+                pairs.append(((spos, i + 1), v))
+            v = ""
+        elif bmoes[0] == 'S':
+            v = word[2:] if word.startswith('##') else word
+            pairs.append(((i, i + 1), v))
+            v = ""
+        pre_bmoes = bmoes
+    return pairs
+
+
 # 取实体最后一个词对应的分类结果，作为实体类型，应用于多任务中
 def extract_kvpairs_in_bmoes_by_endtag(bioes_seq, word_seq, attr_seq):
     assert len(bioes_seq) == len(word_seq) == len(attr_seq)

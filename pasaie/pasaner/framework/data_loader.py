@@ -233,6 +233,46 @@ def MultiNERDataLoader(path, span2id, attr2id, tokenizer, batch_size,
     return data_loader
 
 
+class SpanAttrBoundaryNERDataset(MultiNERDataset):
+    """
+    ner dataset for three task(seq decode, left and right border of entity attr prediction) learning
+    """
+    def _construct_data(self):
+        self.data = []
+        for index in range(len(self.corpus)):
+            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
+            seqs = list(self.tokenizer(*items, **self.kwargs))
+            
+            length = seqs[0].size(1)
+            if length >= len(items[1]):
+                span_labels = [self.span2id[tag] for tag in items[1]]
+                span_labels.extend([self.span2id['O']] * (length - len(items[1])))
+                attr_start_labels = [self.attr2id[at] if st == 'B' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+                attr_start_labels.extend([self.attr2id['null']] * (length - len(items[2])))
+                attr_end_labels = [self.attr2id[at] if st == 'E' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+                attr_end_labels.extend([self.attr2id['null']] * (length - len(items[2])))
+            else:
+                span_labels = [self.span2id[tag] for tag in items[1][:length]]
+                span_labels[-1] = self.span2id['O']
+                attr_start_labels = [self.attr2id[at] if st == 'B' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+                attr_start_labels[-1] = self.attr2id['null']
+                attr_end_labels = [self.attr2id[at] if st == 'E' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+                attr_end_labels[-1] = self.attr2id['null']
+            item = [torch.tensor([span_labels]), torch.tensor([attr_start_labels]), torch.tensor([attr_end_labels])] + seqs # make labels size (1, L)
+            self.data.append(item)
+
+def SpanAttrBoundaryNERDataLoader(path, span2id, attr2id, tokenizer, batch_size, 
+        shuffle, compress_seq=True, num_workers=8, collate_fn=SpanAttrBoundaryNERDataset.collate_fn, **kwargs):
+    dataset = SpanAttrBoundaryNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, **kwargs)
+    data_loader = data.DataLoader(dataset=dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            pin_memory=True,
+            num_workers=num_workers,
+            collate_fn=partial(collate_fn, compress_seq))
+    return data_loader
+
+
 class XLNetSingleNERDataset(SingleNERDataset):
     """
     named entity recognition dataset for XLNet

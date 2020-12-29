@@ -93,7 +93,7 @@ parser.add_argument('--warmup_step', default=0, type=int,
 parser.add_argument('--max_length', default=256, type=int,
                     help='Maximum sentence length')
 parser.add_argument('--max_dsp_path_length', default=15, type=int,
-                    help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12}, suggest 15 for ddp, 10 for ltp
+                    help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12, stanza:12}, suggest 15 for ddp/stanza, 10 for ltp
 parser.add_argument('--max_epoch', default=3, type=int,
                     help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,

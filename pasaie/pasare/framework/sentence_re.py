@@ -11,6 +11,7 @@ from .data_loader import SentenceRELoader, SentenceWithDSPRELoader
 from .base_framework import BaseFramework
 
 import os
+import operator
 from collections import defaultdict
 
 import torch
@@ -96,7 +97,7 @@ class SentenceRE(BaseFramework):
             adv=adv,
             loss=loss,
             loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
-            opt='sgd'
+            opt=opt
         )
 
 
