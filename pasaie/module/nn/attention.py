@@ -1,3 +1,10 @@
+"""
+ Author: liujian
+ Date: 2020-12-29 23:45:49
+ Last Modified by: liujian
+ Last Modified time: 2020-12-29 23:45:49
+"""
+
 import torch
 import math
 import copy
@@ -21,6 +28,7 @@ class MultiHeadedAttention(nn.Module):
         self.attention_weights = None
         self.dropout = nn.Dropout(p=dropout)
 
+
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
@@ -31,6 +39,34 @@ class MultiHeadedAttention(nn.Module):
         """
         x = x.view(batch_size, -1, self.num_heads, self.d_k)
         return x.permute(0, 2, 1, 3)
+
+
+    def scaled_dot_product_attention(self, query, key, value, mask=None, dropout=None):
+        """"Compute 'Scaled Dot Product Attention' for MultiHeadedAttention"
+
+        Args:
+            query (torch.Tensor): attention query, size(B, h, S, D).
+            key (torch.Tensor): attention key, size(B, h, S, D).
+            value (torch.Tensor): attention value, size(B, h, S, D)
+            mask (torch.Tensor, optional): attention mask in transformer encoder. Defaults to None.
+            dropout (float, optional): dropout attention weight when dropout is not None. Defaults to None.
+
+        Returns:
+            attention_output (torch.Tensor): attention output matrix.
+            attention_weight (torch.Tensor): attention weight matrix.
+        """
+        
+        d_k = query.size(-1)
+        attention_score = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
+        if mask is not None:
+            mask = mask[:, None, None, :] # (B, 1, 1, d_k)
+            attention_score.masked_fill_(mask == 0, -1e9)
+        attention_weight = F.softmax(attention_score, dim=-1)
+        if dropout is not None:
+            attention_weight = dropout(attention_weight)
+        attention_output = torch.matmul(attention_weight, value)
+        return attention_output, attention_weight
+
 
     def forward(self, query, key, value, mask=None):
         """
@@ -55,24 +91,93 @@ class MultiHeadedAttention(nn.Module):
         value = self.split_heads(value, batch_size)
 
         # 2) Apply attention on all the projected vectors in batch.
-        attention_outputs, self.attention_weights = scaled_dot_product_attention(query, key, value, mask=mask, dropout=self.dropout)
+        attention_output, self.attention_weight = self.scaled_dot_product_attention(query, key, value, mask=mask, dropout=self.dropout)
 
         # 3) "Concat" using a view and apply a final linear.
-        attention_outputs = attention_outputs.permute(0, 2, 1, 3).contiguous().view(batch_size, -1, self.d_model)
-        attention_outputs = self.dense(attention_outputs)
+        attention_output = attention_output.permute(0, 2, 1, 3).contiguous().view(batch_size, -1, self.d_model)
+        attention_output = self.dense(attention_output)
 
-        return attention_outputs
+        return attention_output
 
 
-def scaled_dot_product_attention(query, key, value, mask=None, dropout=None):
-    "Compute 'Scaled Dot Product Attention'"
-    d_k = query.size(-1)
-    attention_scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
-    if mask is not None:
-        mask = mask[:, None, None, :] # (B, 1, 1, d_k)
-        attention_scores.masked_fill_(mask == 0, -1e9)
-    attention_weights = F.softmax(attention_scores, dim=-1)
-    if dropout is not None:
-        attention_weights = dropout(attention_weights)
-    attention_outputs = torch.matmul(attention_weights, value)
-    return attention_outputs, attention_weights
+
+class DotProductAttention(nn.Module):
+    def __init__(self, hidde_size):
+        """
+        Args:
+            hidde_size (int): dimension of attention_kv.
+        """
+        super(DotProductAttention, self).__init__()
+        self.query = nn.Linear(hidden_size, 1)
+
+    def forward(self, attention_kv):
+        """
+        Args:
+            attention_kv (torch.Tensor): attention key/value matrix, size(B, S, H).
+
+        Returns:
+            attention_output (torch.Tensor): attention output matrix.
+            attention_weight (torch.Tensor): attention weight matrix.
+        """
+        attention_score = self.query(attention_kv).squeeze(-1)
+        attention_weight = F.softmax(attention_score, dim=-1)
+        attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
+        return attention_output, attention_weight
+
+
+
+class MultiplicativeAttention(nn.Module):
+    def __init__(self, hidde_size):
+        """
+        Args:
+            hidde_size (int): dimension of attention_kv.
+        """
+        super(MultiplicativeAttention, self).__init__()
+        self.weight_matrix = nn.Linear(hidden_size, hidden_size)
+        self.query = nn.Linear(hidden_size, 1)
+
+    def forward(self, attention_kv):
+        """
+        Args:
+            attention_kv (torch.Tensor): attention key/value matrix, size(B, S, H).
+
+        Returns:
+            attention_output (torch.Tensor): attention output matrix.
+            attention_weight (torch.Tensor): attention weight matrix.
+        """
+        attention_score = self.query(self.weight_matrix(attention_kv)).squeeze(-1)
+        attention_weight = F.softmax(attention_score, dim=-1)
+        attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
+        return attention_output, attention_weight
+
+
+
+class AdditiveAttention(nn.Module):
+    def __init__(self, kv_hidden_size, query_hidden_size):
+        """
+        Args:
+            kv_hidden_size (int): dimension of attention_kv.
+            query_hidden_size (int): dimension of attention_query.
+        """
+        super(AdditiveAttention, self).__init__()
+        self.weight_matrix_kv = nn.Linear(kv_hidden_size, kv_hidden_size)
+        self.weight_matrix_query = nn.Linear(query_hidden_size, query_hidden_size)
+        self.weight_vector = nn.Linear(hidden_size, 1)
+
+
+    def forward(self, attention_kv, attention_query):
+        """[summary]
+
+        Args:
+            attention_kv (torch.Tensor): attention key/value matrix, size(B, S, H).
+            attention_query (torch.Tensor): attention query matrix, size(B, H).
+
+        Returns:
+            attention_output (torch.Tensor): attention output matrix.
+            attention_weight (torch.Tensor): attention weight matrix.
+        """
+        attention_hidden_state = torch.tanh(self.weight_matrix_kv(attention_kv) + self.weight_matrix_query(attention_query).unsqueeze(1))
+        attention_score = self.weight_vector(attention_hidden_state)
+        attention_weight = F.softmax(attention_score, dim=-1)
+        attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
+        return attention_output, attention_weight

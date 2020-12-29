@@ -1,9 +1,10 @@
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=3 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --dataset resume \
+    --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \
+    --only_test \
     --bert_name bert \
     --span_use_lstm \
     --span_use_crf \
@@ -13,9 +14,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
-    --early_stopping_step 5 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
-    --max_length 200 \
+    --max_length 256 \
     --max_epoch 40 \
     --optimizer adam \
     --loss dice \

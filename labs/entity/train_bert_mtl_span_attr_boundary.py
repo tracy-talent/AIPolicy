@@ -28,6 +28,8 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
+parser.add_argument('--add_start_prior', action='store_true', #choices=['', 'StartPrior], 
+        help='whether add start prior for entity end token attr prediction')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -108,7 +110,10 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = 'mtl_span_attr_boundary_bert'
+    if args.add_start_prior:
+        model_name = 'mtl_span_attr_boundary_startprior_bert'
+    else:
+        model_name = 'mtl_span_attr_boundary_bert'
     if args.share_lstm:
         model_name += '_sharelstm'
     if args.span_use_lstm:
@@ -153,7 +158,7 @@ while os.path.exists(ckpt):
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    if args.dataset == 'msra.cn' or args.dataset == 'onto4ner.cn':
+    if args.dataset == 'msra' or args.dataset == 'ontonotes4':
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
         args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
@@ -190,17 +195,29 @@ sequence_encoder = pasaner.encoder.BERTEncoder(
 )
 
 # Define the model
-model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
-    sequence_encoder=sequence_encoder, 
-    span2id=span2id,
-    attr2id=attr2id,
-    compress_seq=args.compress_seq,
-    share_lstm=args.share_lstm, # False
-    span_use_lstm=args.span_use_lstm, # True
-    attr_use_lstm=args.attr_use_lstm, # False
-    span_use_crf=args.span_use_crf,
-    soft_label=args.soft_label
-)
+if args.add_start_prior:
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        soft_label=args.soft_label
+    )
+else:
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf
+    )
 
 # Define the whole training framework
 framework = pasaner.framework.MTL_Span_Attr_Boundary(

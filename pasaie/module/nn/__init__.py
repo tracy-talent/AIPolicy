@@ -6,7 +6,7 @@ from .cnn import CNN
 from .rnn import RNN
 from .lstm import LSTM
 from .linear import FeedForwardNetwork, PoolerStartLogits, PoolerEndLogits
-from .attention import MultiHeadedAttention
+from .attention import MultiHeadedAttention, DotProductAttention, MultiplicativeAttention, AdditiveAttention
 
 
 __all__ = [
@@ -16,5 +16,8 @@ __all__ = [
     'FeedForwardNetwork',
     'PoolerStartLogits',
     'PoolerEndLogits',
-    'MultiHeadedAttention'
+    'MultiHeadedAttention',
+    'DotProductAttention',
+    'MultiplicativeAttention',
+    'AdditiveAttention'
 ]
