@@ -153,16 +153,17 @@ class MultiplicativeAttention(nn.Module):
 
 
 class AdditiveAttention(nn.Module):
-    def __init__(self, kv_hidden_size, query_hidden_size):
+    def __init__(self, kv_hidden_size, query_hidden_size, attention_hidden_size):
         """
         Args:
             kv_hidden_size (int): dimension of attention_kv.
             query_hidden_size (int): dimension of attention_query.
+            attention_hidden_size (int): dimension of attention_hidden_state.
         """
         super(AdditiveAttention, self).__init__()
-        self.weight_matrix_kv = nn.Linear(kv_hidden_size, kv_hidden_size)
-        self.weight_matrix_query = nn.Linear(query_hidden_size, query_hidden_size)
-        self.weight_vector = nn.Linear(hidden_size, 1)
+        self.weight_matrix_kv = nn.Linear(kv_hidden_size, attention_hidden_size)
+        self.weight_matrix_query = nn.Linear(query_hidden_size, attention_hidden_size)
+        self.weight_vector = nn.Linear(attention_hidden_size, 1)
 
 
     def forward(self, attention_kv, attention_query):
@@ -176,8 +177,16 @@ class AdditiveAttention(nn.Module):
             attention_output (torch.Tensor): attention output matrix.
             attention_weight (torch.Tensor): attention weight matrix.
         """
-        attention_hidden_state = torch.tanh(self.weight_matrix_kv(attention_kv) + self.weight_matrix_query(attention_query).unsqueeze(1))
-        attention_score = self.weight_vector(attention_hidden_state)
-        attention_weight = F.softmax(attention_score, dim=-1)
-        attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
+        if len(attention_query.size()) == 3:
+            attention_hidden_state = torch.tanh(self.weight_matrix_kv(attention_kv).unsqueeze(1) + 
+                                        self.weight_matrix_query(attention_query).unsqueeze(2))
+            attention_score = self.weight_vector(attention_hidden_state).squeeze(-1)
+            attention_weight = F.softmax(attention_score, dim=-1)
+            attention_output = torch.matmul(attention_weight.unsqueeze(2), attention_kv.unsqueeze(1)).squeeze(2)
+        else:
+            attention_hidden_state = torch.tanh(self.weight_matrix_kv(attention_kv) + 
+                                        self.weight_matrix_query(attention_query).unsqueeze(1))
+            attention_score = self.weight_vector(attention_hidden_state).squeeze(-1)
+            attention_weight = F.softmax(attention_score, dim=-1)
+            attention_output = torch.matmul(attention_weight.unsqueeze(1), attention_kv).squeeze(1)
         return attention_output, attention_weight

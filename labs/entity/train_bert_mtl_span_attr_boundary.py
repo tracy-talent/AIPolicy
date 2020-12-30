@@ -28,8 +28,8 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--add_start_prior', action='store_true', #choices=['', 'StartPrior], 
-        help='whether add start prior for entity end token attr prediction')
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention'], 
+        help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -110,8 +110,10 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    if args.add_start_prior:
+    if args.model_type == 'startprior':
         model_name = 'mtl_span_attr_boundary_startprior_bert'
+    elif args.model_type == 'attention':
+        model_name = 'mtl_span_attr_boundary_attention_bert'
     else:
         model_name = 'mtl_span_attr_boundary_bert'
     if args.share_lstm:
@@ -195,7 +197,18 @@ sequence_encoder = pasaner.encoder.BERTEncoder(
 )
 
 # Define the model
-if args.add_start_prior:
+if args.model_type == 'attention':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_Attention(
+            sequence_encoder=sequence_encoder, 
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=args.compress_seq,
+            share_lstm=args.share_lstm, # False
+            span_use_lstm=args.span_use_lstm, # True
+            attr_use_lstm=args.attr_use_lstm, # False
+            span_use_crf=args.span_use_crf,
+        )
+elif args.model_type == 'startprior':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,

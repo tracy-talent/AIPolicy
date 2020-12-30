@@ -1,10 +1,10 @@
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --dataset weibo \
+    --model_type '' \
+    --dataset msra \
     --compress_seq \
     --tagscheme bmoes \
-    --only_test \
     --bert_name bert \
     --span_use_lstm \
     --span_use_crf \
