@@ -202,7 +202,7 @@ class SentenceRE(BaseFramework):
                     cmp_op = operator.gt
                 if cmp_op(result[self.metric], test_best_metric):
                     self.logger.info('Best test ckpt and saved')
-                    self.save_model(self.ckpt[:-9] + '_test' + self.ckpt[-9:])
+                    self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))

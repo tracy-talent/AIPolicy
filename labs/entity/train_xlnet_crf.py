@@ -134,9 +134,14 @@ while os.path.exists(ckpt):
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
-    args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
-    args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
+    if args.dataset == 'msra' or args.dataset == 'ontonotes4':
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
+    else:
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
     args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
         logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
@@ -174,8 +179,8 @@ model = pasaner.model.BILSTM_CRF(
 # Define the whole training framework
 framework = pasaner.framework.XLNet_CRF(
     model=model,
-    train_path=args.train_file,
-    val_path=args.val_file,
+    train_path=args.train_file if not args.only_test else None,
+    val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
     ckpt=ckpt,
     logger=logger,

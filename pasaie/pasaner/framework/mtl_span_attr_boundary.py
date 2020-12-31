@@ -229,6 +229,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
 
     def train_model(self):
         train_state = self.make_train_state()
+        test_best_metric = 1e8 if 'loss' in self.metric else 0
         global_step = 0
         span_negid = -1
         if 'O' in self.model.span2id:
@@ -255,6 +256,9 @@ class MTL_Span_Attr_Boundary(nn.Module):
             span_rec = Mean()
             prec = Mean()
             rec = Mean()
+            log_steps = 5
+            if len(self.train_loader) > 1000:
+                log_steps = 10
             for ith, data in enumerate(self.train_loader):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
@@ -380,13 +384,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 prec.update(hits, p_sum)
                 rec.update(hits, r_sum)
                 global_step += 1
-                if global_step % 5 == 0:
+                if global_step % log_steps == 0:
                     span_micro_f1 = 2 * span_prec.avg * span_rec.avg / (span_prec.avg + span_rec.avg) if (span_prec.avg + span_rec.avg) > 0 else 0
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, span_acc: {avg_span_acc.avg:.4f}, attr_start_acc: {avg_attr_start_acc.avg:.4f}, attr_end_acc: {avg_attr_end_acc.avg:.4f}, span_micro_p: {span_prec.avg:.4f}, span_micro_r: {span_rec.avg:.4f}, span_micro_f1: {span_micro_f1:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
                 # tensorboard training writer
-                if global_step % 5 == 0:
+                if global_step % log_steps == 0:
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
                     self.writer.add_scalar('train loss', avg_loss.avg, global_step=global_step)
                     self.writer.add_scalar('train span acc', avg_span_acc.avg, global_step=global_step)
@@ -424,9 +428,25 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
+
+            # test
+            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+                self.logger.info("=== Epoch %d test ===" % epoch)
+                result = self.eval_model(self.test_loader)
+                self.logger.info('Test result: {}.'.format(result))
+                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                if 'loss' in self.metric:
+                    cmp_op = operator.lt
+                else:
+                    cmp_op = operator.gt
+                if cmp_op(result[self.metric], test_best_metric):
+                    self.logger.info('Best test ckpt and saved')
+                    self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
+                    test_best_metric = result[self.metric]
             
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
-
+        if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+            self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
 
     def eval_model(self, eval_loader):
         self.eval()

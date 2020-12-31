@@ -29,7 +29,7 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
-parser.add_argument('--model', default='single', choices=['single', 'multi'], 
+parser.add_argument('--model', default='single', choices=['single', 'multi', 'startprior'], 
         help='used for model choice')
 parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
@@ -148,9 +148,14 @@ while os.path.exists(ckpt):
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
-    args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
-    args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
+    if args.dataset == 'msra' or args.dataset == 'ontonotes4':
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
+    else:
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
     args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
         logger.warning("Test file {} does not exist! Use val file instead".format(args.test_file))
@@ -196,6 +201,14 @@ elif args.model == 'multi':
         use_lstm=args.use_lstm, 
         compress_seq=args.compress_seq, 
         soft_label=args.soft_label,
+        dropout_rate=args.dropout_rate
+    )
+elif args.model == 'startprior':
+    model = pasaner.model.Span_Pos_CLS_StartPrior(
+        sequence_encoder=sequence_encoder, 
+        tag2id=tag2id, 
+        use_lstm=args.use_lstm, 
+        compress_seq=args.compress_seq, 
         dropout_rate=args.dropout_rate
     )
 

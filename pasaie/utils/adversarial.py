@@ -32,23 +32,27 @@ class FGM():
         self.model = model
         self.epsilon = epsilon
         self.emb_name = emb_name
-        self.backup = {}
+        self.emb_backup = {}
 
     def attack(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and param.grad is not None and self.emb_name in name:
-                self.backup[name] = param.data.clone()
                 norm = torch.norm(param.grad)
                 if norm != 0 and not torch.isnan(norm) and not torch.isinf(norm):
                     r_at = self.epsilon * param.grad / norm
                     param.data.add_(r_at)
 
+    def backup(self):
+        for name, param in self.model.named_parameters():
+            if param.requires_grad and param.grad is not None and self.emb_name in name:
+                self.emb_backup[name] = param.data.clone()
+
     def restore(self):
         for name, param in self.model.named_parameters():
             if param.requires_grad and param.grad is not None and self.emb_name in name:
-                assert name in self.backup
-                param.data = self.backup[name]
-        self.backup = {}
+                assert name in self.emb_backup
+                param.data = self.emb_backup[name]
+        self.emb_backup = {}
 
 
 class PGD():
@@ -209,6 +213,7 @@ def adversarial_step(adv, model, K, get_loss):
         loss = get_loss()
         loss.backward()  # 反向传播，得到正常的grad
         # 对抗训练
+        adv.backup() # 备份param.data
         adv.attack()  # 在embedding上添加对抗扰动
         loss_adv = get_loss()
         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
@@ -403,14 +408,23 @@ def adversarial_perturbation_span_attr_mtl(adv, model, criterion, autoweighted_l
         else:
             loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
             loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
+        if loss_span.isnan().any():
+            loss_span[loss_span.isnan()] = 0.
+            print('adversarial.py/adversarial_perturbation_span_attr_mtl: loss_span has nan')
         if hasattr(ori_model, 'crf_attr') and ori_model.crf_attr is not None:
             log_likelihood = ori_model.crf_attr(attr_logits, attr_labels, mask=mask, reduction='none') # B
             loss_attr = -log_likelihood / seqs_len # B
         else:
             loss_attr = criterion(attr_logits.permute(0, 2, 1), attr_labels) # B * S
             tag_masks = ((span_labels == span_eid) | (span_labels == span_sid)).float()
+            tag_len = tag_masks.sum(dim=-1)
+            if (tag_len == 0.).any():
+                print('tag_len:', tag_len)
             # tag_masks = (attr_labels != attr_negid).float()
             loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
+        if loss_attr.isnan().any():
+            loss_attr[loss_attr.isnan()] = 0.
+            print('adversarial.py/adversarial_perturbation_span_attr_mtl: loss_attr has nan')
         loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
         if autoweighted_loss is not None:
             loss = autoweighted_loss(loss_span, loss_attr)
@@ -438,6 +452,8 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
     mask = args[-1]
     seqs_len = mask.sum(dim=-1)
     ori_model = model.module if hasattr(model, 'module') else model
+    if (seqs_len == 0.).any():
+        print('adversarial.py: seq_len has 0')
 
     def get_loss():
         if 'StartPrior' in ori_model.__class__.__name__:
@@ -450,10 +466,19 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
         else:
             loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
             loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
+        if loss_span.isnan().any():
+            loss_span[loss_span.isnan()] = 0.
+            print('adversarial.py/adversarial_perturbation_span_attr_boundary_mtl: loss_span has nan')
         loss_attr_start = criterion(attr_start_logits.permute(0, 2, 1), attr_start_labels) # B * S
         loss_attr_start = torch.sum(loss_attr_start * mask, dim=-1) / seqs_len # B
+        if loss_attr_start.isnan().any():
+            loss_attr_start[loss_attr_start.isnan()] = 0.
+            print('adversarial.py/adversarial_perturbation_span_attr_boundary_mtl: loss_attr_start has nan')
         loss_attr_end = criterion(attr_end_logits.permute(0, 2, 1), attr_end_labels) # B * S
         loss_attr_end = torch.sum(loss_attr_end * mask, dim=-1) / seqs_len # B
+        if loss_attr_end.isnan().any():
+            loss_attr_end[loss_attr_end.isnan()] = 0.
+            print('adversarial.py/adversarial_perturbation_span_attr_boundary_mtl: loss_attr_end has nan')
         loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
         if autoweighted_loss is not None:
             loss = autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)

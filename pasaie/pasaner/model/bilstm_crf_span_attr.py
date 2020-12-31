@@ -7,6 +7,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 from ..encoder import BERTEncoder
@@ -177,7 +178,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                         spos = j
                     elif span_labels[i][j].item() == span_eid:
                         attr_seqs_hiddens[i][j] = torch.mean(attr_seqs_hiddens[i][spos:j+1], dim=0)
-
+        
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr = self.mlp_attr(attr_seqs_hiddens) # B, S, V
         
@@ -549,6 +550,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
         self.tagscheme = tagscheme
         self.sequence_encoder = sequence_encoder
         self.attention = AdditiveAttention(sequence_encoder.hidden_size, sequence_encoder.hidden_size, sequence_encoder.hidden_size)
+        self.mlp_span2attr = nn.Linear(sequence_encoder.hidden_size, sequence_encoder.hidden_size)
         self.mlp_span = nn.Linear(sequence_encoder.hidden_size, len(span2id))
         self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
         self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
@@ -627,6 +629,21 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
 
         return text, pos_attr_entities
 
+    def dot_product_attention(self, attention_kv, attention_query):
+        """dot product attention for attr_hidden_state to attend span_hidden_state.
+
+        Args:
+            attention_kv (torch.Tensor): key and value matrix of attention mechanism, size(B, S, H).
+            attention_query (torch.Tensor): query matrix of attention mechanism, size(B, S, H)
+
+        Returns:
+            attention_output (torch.Tensor): attention output matrix, size(B, S, H).
+            attention_weight (torch.Tensor): attention weight matrix, size(B, S, S).
+        """
+        attention_score = torch.matmul(attention_query, attention_kv.transpose(1, 2))
+        attention_weight = F.softmax(attention_score, dim=-1)
+        attention_output = torch.matmul(attention_weight, attention_kv)
+        return attention_output, attention_weight
 
     def forward(self, *args):
         if not hasattr(self, '_flattened'):
@@ -682,11 +699,15 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
                     attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
 
+        # dot product attention
+        # span_attention_output = self.dot_product_attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
+        # additive attention
         # attr_start_attention_output = [self.attention(span_seqs_hiddens, attr_seqs_hiddens[:,i,:])[0] 
         #                                     for i in range(attr_seqs_hiddens.size(1))]
         # attr_start_attention_output = torch.stack(attr_start_attention_output, dim=1)
-        attr_start_attention_output = self.attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
-        attr_seqs_hiddens = torch.cat([attr_seqs_hiddens, attr_start_attention_output], dim=-1)
+        span_attention_output = self.attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
+        attr_attention_output = torch.tanh(self.mlp_span2attr(span_attention_output))
+        attr_seqs_hiddens = torch.cat([attr_seqs_hiddens, attr_attention_output], dim=-1)
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr_start = self.mlp_attr_start(attr_seqs_hiddens) # B, S, V
         logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens) # B, S, V

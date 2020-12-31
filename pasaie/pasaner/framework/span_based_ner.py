@@ -512,7 +512,10 @@ class Span_Multi_NER(nn.Module):
                         except:
                             pass
                 args = data[2:]
-                start_logits, end_logits = self.parallel_model(data[0], *args)
+                if 'StartPrior' in self.model.__class__.__name__:
+                    start_logits, end_logits = self.parallel_model(data[0], *args)
+                else:
+                    start_logits, end_logits = self.parallel_model(*args)
                 start_labels = data[0] # (B, S)
                 end_labels = data[1] # (B, S)
                 inputs_seq, inputs_mask = data[2], data[-1] # (B, S), (B, S)
@@ -652,7 +655,10 @@ class Span_Multi_NER(nn.Module):
                         except:
                             pass
                 args = data[2:]
-                start_logits, end_logits = self.parallel_model(None, *args)
+                if 'StartPrior' in self.model.__class__.__name__:
+                    start_logits, end_logits = self.parallel_model(None, *args)
+                else:
+                    start_logits, end_logits = self.parallel_model(*args)
                 start_labels = data[0] # (B, S)
                 end_labels = data[1] # (B, S)
                 inputs_seq, inputs_mask = data[2], data[-1] # (B, S), (B, S)

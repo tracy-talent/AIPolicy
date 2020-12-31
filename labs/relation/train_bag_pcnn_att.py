@@ -125,8 +125,8 @@ model = pasare.model.BagAttention(sentence_encoder, len(rel2id), rel2id)
 
 # Define the whole training framework
 framework = pasare.framework.BagRE(
-    train_path=args.train_file,
-    val_path=args.val_file,
+    train_path=args.train_file if not args.only_test else None,
+    val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
     model=model,
     ckpt=ckpt,

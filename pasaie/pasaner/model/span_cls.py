@@ -106,8 +106,9 @@ class Span_Cat_CLS(nn.Module):
         return logits
 
 
+
 class Span_Pos_CLS(nn.Module):
-    def __init__(self, sequence_encoder, tag2id, use_lstm=False, compress_seq=False, soft_label=False, dropout_rate=0.1):
+    def __init__(self, sequence_encoder, tag2id, use_lstm=False, compress_seq=False, dropout_rate=0.1):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -118,6 +119,104 @@ class Span_Pos_CLS(nn.Module):
             dropout_rate (float, optional): dropout rate. Defaults to 0.1.
         """
         super(Span_Pos_CLS, self).__init__()
+        self.sequence_encoder = sequence_encoder
+        self.num_labels = len(tag2id)
+        self.tag2id = tag2id
+        self.id2tag = {}
+        for tag, tid in tag2id.items():
+            self.id2tag[tid] = tag
+
+        if use_lstm:
+            self.bilstm = nn.LSTM(input_size=sequence_encoder.hidden_size, 
+                                hidden_size=sequence_encoder.hidden_size, 
+                                num_layers=1, 
+                                bidirectional=True, 
+                                batch_first=True)
+        else:
+            self.bilstm = None
+        self.compress_seq = compress_seq
+
+        self.dropout = nn.Dropout(dropout_rate)
+        self.start_fc = nn.Linear(self.sequence_encoder.hidden_size, self.num_labels)
+        self.end_fc = nn.Linear(self.sequence_encoder.hidden_size, self.num_labels)
+        
+
+    def infer(self, text):
+        """model inference
+        Args:
+            text (str or list): tokens list or sentence string
+        
+        Returns:
+            pos_attr_entities (list[tuple]): list of (pos, entity_attr, entity)
+        """
+        self.eval()
+        negid = -1
+        if 'null' in self.tag2id:
+            negid = self.tag2id['null']
+        if negid == -1:
+            raise Exception("negative tag not in 'null'")
+        seqs = list(self.sequence_encoder.tokenize(text))
+        # if list(self.sequence_encoder.parameters())[0].device.type.startswith('cuda'):
+        #     for i in range(len(seqs)):
+        #         seqs[i] = seqs[i].cuda()
+        seq_len = seqs[-1].sum().item()
+        start_logits, end_logits = self.forward(None, *seqs)
+        start_preds = start_logits[:,:seq_len,:].argmax(dim=-1).squeeze().detach().cpu().numpy()
+        end_preds = end_logits[:,:seq_len,:].argmax(dim=-1).squeeze().detach().cpu().numpy()
+        spos, tpos = 0, seq_len
+        if 'bert' in self.sequence_encoder.__class__.__name__.lower():
+            spos, tpos = 1, -1
+        start_preds_seq = [self.id2tag[tid] for tid in start_preds[spos:tpos]]
+        end_preds_seq = [self.id2tag[tid] for tid in end_preds[spos:tpos]]
+        if isinstance(text, str):
+            text = self.sequence_encoder.tokenizer.tokenize(text)
+        pos_attr_entities = extract_kvpairs_by_start_end(start_preds_seq, end_preds_seq, text, self.id2tag[negid])
+            
+        return text, pos_attr_entities
+
+
+    def forward(self, *args):
+        """
+        Args:
+            start_labels (torch.tensor, optional): labels of entity span start position, (B, S). Defaults to None.
+
+        Returns:
+            start_logits (torch.tensor): model outputs for entity span start position, (B, S, d)
+            end_logits (torch.tensor): model outputs for entity span end position, (B, S, d)
+        """
+        seq_out = self.sequence_encoder(*args)
+        if self.bilstm is not None:
+            if self.compress_seq:
+                att_mask = args[-1]
+                seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                seqs_rep_packed = pack_padded_sequence(seq_out, seqs_length, batch_first=True)
+                seqs_hiddens_packed, _ = self.bilstm(seqs_rep_packed)
+                seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=True) # B, S, D
+            else:
+                seqs_hiddens, _ = self.bilstm(seq_out)
+            # seqs_hiddens = nn.functional.dropout(seqs_hiddens, 0.2)
+            seq_out = torch.add(*seqs_hiddens.chunk(2, dim=-1))
+
+        seq_out = self.dropout(seq_out)
+        start_logits = self.start_fc(seq_out)
+        end_logits = self.end_fc(seq_out, label_logits)
+
+        return start_logits, end_logits
+
+
+
+class Span_Pos_CLS_StartPrior(nn.Module):
+    def __init__(self, sequence_encoder, tag2id, use_lstm=False, compress_seq=False, soft_label=False, dropout_rate=0.1):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            tag2id (dict): map from tag to id
+            use_lstm (bool, optional): whether add lstm layer. Defaults to False.
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            soft_label (bool, optional): use one hot if soft_label is True. Defaults to False.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.1.
+        """
+        super(Span_Pos_CLS_StartPrior, self).__init__()
         self.sequence_encoder = sequence_encoder
         self.soft_label = soft_label
         self.num_labels = len(tag2id)
