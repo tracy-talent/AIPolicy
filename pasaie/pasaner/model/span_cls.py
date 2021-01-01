@@ -199,7 +199,7 @@ class Span_Pos_CLS(nn.Module):
 
         seq_out = self.dropout(seq_out)
         start_logits = self.start_fc(seq_out)
-        end_logits = self.end_fc(seq_out, label_logits)
+        end_logits = self.end_fc(seq_out)
 
         return start_logits, end_logits
 

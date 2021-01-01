@@ -200,7 +200,6 @@ elif args.model == 'multi':
         tag2id=tag2id, 
         use_lstm=args.use_lstm, 
         compress_seq=args.compress_seq, 
-        soft_label=args.soft_label,
         dropout_rate=args.dropout_rate
     )
 elif args.model == 'startprior':
@@ -208,6 +207,7 @@ elif args.model == 'startprior':
         sequence_encoder=sequence_encoder, 
         tag2id=tag2id, 
         use_lstm=args.use_lstm, 
+        soft_label=args.soft_label,
         compress_seq=args.compress_seq, 
         dropout_rate=args.dropout_rate
     )

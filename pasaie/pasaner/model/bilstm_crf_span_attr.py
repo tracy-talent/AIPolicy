@@ -18,7 +18,7 @@ from ...module.nn import PoolerStartLogits, PoolerEndLogits
 
 
 class BILSTM_CRF_Span_Attr(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, attr_use_crf=False, tagscheme='bmoes', batch_first=True, dropout_rate=0.3):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -31,6 +31,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
             span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
             attr_use_crf (bool, optional): whether add attr crf layer. Defaults to False.
             batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
         """
         
         super(BILSTM_CRF_Span_Attr, self).__init__()
@@ -40,6 +41,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
         self.sequence_encoder = sequence_encoder
         self.mlp_span = nn.Linear(sequence_encoder.hidden_size, len(span2id))
         self.mlp_attr = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
+        self.dropout = nn.Dropout(dropout_rate)
         self.span2id = span2id
         self.id2span = {}
         for span, sid in span2id.items():
@@ -169,6 +171,10 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                     attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
 
+        # dropout layer
+        span_seqs_hiddens = self.dropout(span_seqs_hiddens)
+        attr_seqs_hiddens = self.dropout(attr_seqs_hiddebs)
+        # reduce entity information to end token
         if span_labels is not None:
             span_bid, span_eid = self.span2id['B'], self.span2id['E']
             spos = -1
@@ -178,7 +184,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
                         spos = j
                     elif span_labels[i][j].item() == span_eid:
                         attr_seqs_hiddens[i][j] = torch.mean(attr_seqs_hiddens[i][spos:j+1], dim=0)
-        
+        # output layer
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr = self.mlp_attr(attr_seqs_hiddens) # B, S, V
         
@@ -186,7 +192,7 @@ class BILSTM_CRF_Span_Attr(nn.Module):
 
 
 class BILSTM_CRF_Span_Attr_Boundary(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -198,6 +204,7 @@ class BILSTM_CRF_Span_Attr_Boundary(nn.Module):
             span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
             span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
             batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
         """
         
         super(BILSTM_CRF_Span_Attr_Boundary, self).__init__()
@@ -208,6 +215,7 @@ class BILSTM_CRF_Span_Attr_Boundary(nn.Module):
         self.mlp_span = nn.Linear(sequence_encoder.hidden_size, len(span2id))
         self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
         self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
+        self.dropout = nn.Dropout(dropout_rate)
         self.span2id = span2id
         self.id2span = {}
         for span, sid in span2id.items():
@@ -337,7 +345,11 @@ class BILSTM_CRF_Span_Attr_Boundary(nn.Module):
                 else:
                     attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
-
+        
+        # dropout layer
+        span_seqs_hiddens = self.dropout(span_seqs_hiddens)
+        attr_seqs_hiddens = self.dropout(attr_seqs_hiddens)
+        # output layer
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr_start = self.mlp_attr_start(attr_seqs_hiddens) # B, S, V
         logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens) # B, S, V
@@ -346,7 +358,7 @@ class BILSTM_CRF_Span_Attr_Boundary(nn.Module):
 
 
 class BILSTM_CRF_Span_Attr_Boundary_StartPrior(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, soft_label=False, dropout_rate=0.1):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, soft_label=False, dropout_rate=0.3):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -359,7 +371,7 @@ class BILSTM_CRF_Span_Attr_Boundary_StartPrior(nn.Module):
             span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
             batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
             soft_label (bool, optional): use one hot if soft_label is True. Defaults to False.
-            dropout_rate (float, optional): dropout rate. Defaults to 0.1.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
         """
         
         super(BILSTM_CRF_Span_Attr_Boundary_StartPrior, self).__init__()
@@ -530,7 +542,7 @@ class BILSTM_CRF_Span_Attr_Boundary_StartPrior(nn.Module):
 
 
 class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
@@ -542,6 +554,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
             span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
             span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
             batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
         """
         
         super(BILSTM_CRF_Span_Attr_Boundary_Attention, self).__init__()
@@ -554,6 +567,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
         self.mlp_span = nn.Linear(sequence_encoder.hidden_size, len(span2id))
         self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
         self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
+        self.dropout = nn.Dropout(dropout_rate)
         self.span2id = span2id
         self.id2span = {}
         for span, sid in span2id.items():
@@ -698,16 +712,20 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(nn.Module):
                 else:
                     attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
-
+        
         # dot product attention
-        # span_attention_output = self.dot_product_attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
+        span_attention_output = self.dot_product_attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
         # additive attention
         # attr_start_attention_output = [self.attention(span_seqs_hiddens, attr_seqs_hiddens[:,i,:])[0] 
         #                                     for i in range(attr_seqs_hiddens.size(1))]
         # attr_start_attention_output = torch.stack(attr_start_attention_output, dim=1)
-        span_attention_output = self.attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
+        #span_attention_output = self.attention(span_seqs_hiddens, attr_seqs_hiddens)[0] # accelerate
         attr_attention_output = torch.tanh(self.mlp_span2attr(span_attention_output))
         attr_seqs_hiddens = torch.cat([attr_seqs_hiddens, attr_attention_output], dim=-1)
+        # dropout layer
+        span_seqs_hiddens = self.dropout(span_seqs_hiddens)
+        attr_seqs_hiddens = self.dropout(attr_seqs_hiddens)
+        # output layer
         logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
         logits_attr_start = self.mlp_attr_start(attr_seqs_hiddens) # B, S, V
         logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens) # B, S, V

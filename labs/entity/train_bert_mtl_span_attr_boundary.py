@@ -79,9 +79,11 @@ parser.add_argument('--lr', default=1e-3, type=float,
         help='Learning rate')
 parser.add_argument('--bert_lr', default=3e-5, type=float,
         help='Bert Learning rate')
+parser.add_argument('--dropout_rate', default=0.3, type=float,
+        help='dropout rate')
 parser.add_argument('--optimizer', default='adam', type=str,
         help='optimizer:adam|sgd|adamw')
-parser.add_argument('--weight_decay', default=1e-5, type=float,
+parser.add_argument('--weight_decay', default=0.05, type=float,
         help='Weight decay')
 parser.add_argument('--soft_label', default=False, type=bool, 
         help="whether use one hot for entity span's start label when cat with encoder output")
@@ -207,6 +209,7 @@ if args.model_type == 'attention':
             span_use_lstm=args.span_use_lstm, # True
             attr_use_lstm=args.attr_use_lstm, # False
             span_use_crf=args.span_use_crf,
+            dropout_rate=args.dropout_rate
         )
 elif args.model_type == 'startprior':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
@@ -218,7 +221,8 @@ elif args.model_type == 'startprior':
         span_use_lstm=args.span_use_lstm, # True
         attr_use_lstm=args.attr_use_lstm, # False
         span_use_crf=args.span_use_crf,
-        soft_label=args.soft_label
+        soft_label=args.soft_label,
+        dropout_rate=args.dropout_rate
     )
 else:
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(
@@ -229,7 +233,8 @@ else:
         share_lstm=args.share_lstm, # False
         span_use_lstm=args.span_use_lstm, # True
         attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate
     )
 
 # Define the whole training framework
@@ -259,9 +264,9 @@ framework = pasaner.framework.MTL_Span_Attr_Boundary(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0:
-    logger.info('load checkpoint')
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+#if ckpt_cnt > 0:
+#    logger.info('load checkpoint')
+#    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:

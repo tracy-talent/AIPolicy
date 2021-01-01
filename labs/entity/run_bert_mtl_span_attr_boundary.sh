@@ -1,8 +1,8 @@
-CUDA_VISIBLE_DEVICES=0 \
+CUDA_VISIBLE_DEVICES=3 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type attention \
-    --dataset ontonotes4 \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
@@ -10,7 +10,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \

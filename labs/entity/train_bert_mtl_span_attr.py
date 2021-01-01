@@ -79,6 +79,8 @@ parser.add_argument('--lr', default=1e-3, type=float,
         help='Learning rate')
 parser.add_argument('--bert_lr', default=3e-5, type=float,
         help='Bert Learning rate')
+parser.add_argument('--dropout_rate', default=0.3, type=float,
+        help='dropout rate')
 parser.add_argument('--optimizer', default='adam', type=str,
         help='optimizer:adam|sgd|adamw')
 parser.add_argument('--weight_decay', default=1e-5, type=float,
@@ -201,7 +203,8 @@ model = pasaner.model.BILSTM_CRF_Span_Attr(
     span_use_lstm=args.span_use_lstm, # True
     attr_use_lstm=args.attr_use_lstm, # False
     span_use_crf=args.span_use_crf,
-    attr_use_crf=args.attr_use_crf
+    attr_use_crf=args.attr_use_crf,
+    dropout_rate=args.dropout_rate
 )
 
 # Define the whole training framework
