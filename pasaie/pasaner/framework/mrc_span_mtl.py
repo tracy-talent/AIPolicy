@@ -237,6 +237,7 @@ class MRC_Span_MTL(nn.Module):
 
     def train_model(self):
         train_state = self.make_train_state()
+        test_best_metric = 1e8 if 'loss' in self.metric else 0
         global_step = 0
         negid = -1
         if 'null' in self.model.tag2id:
@@ -426,7 +427,24 @@ class MRC_Span_MTL(nn.Module):
             self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
+            # test
+            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+                self.logger.info("=== Epoch %d test ===" % epoch)
+                result = self.eval_model(self.test_loader)
+                self.logger.info('Test result: {}.'.format(result))
+                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                if 'loss' in self.metric:
+                    cmp_op = operator.lt
+                else:
+                    cmp_op = operator.gt
+                if cmp_op(result[self.metric], test_best_metric):
+                    self.logger.info('Best test ckpt and saved')
+                    self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
+                    test_best_metric = result[self.metric]
+
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
+        if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+            self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
 
 
     def eval_model(self, eval_loader):

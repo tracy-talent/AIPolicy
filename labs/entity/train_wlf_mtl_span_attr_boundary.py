@@ -9,6 +9,7 @@
 import sys
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
+from pasaie.utils.embedding import load_wordvec
 from pasaie.tokenization.utils import load_vocab
 from pasaie import pasaner
 
@@ -28,7 +29,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -67,6 +68,12 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
+parser.add_argument('--char2vec_file', default='', type=str,
+        help='character embedding file')
+parser.add_argument('--word2vec_file', default='', type=str,
+        help='word2vec embedding file')
+parser.add_argument('--custom_dict', default='', type=str,
+        help='user custom dict for tokenizer toolkit')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -113,13 +120,11 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = 'mtl_span_attr_boundary_startprior_bert'
+        model_name = 'mtl_span_attr_boundary_startprior_wlf'
     elif args.model_type == 'attention':
-        model_name = 'mtl_span_attr_boundary_attention_bert'
-    elif args.model_type == 'mmoe':
-        model_name = 'mtl_span_attr_boundary_mmoe_bert'
+        model_name = 'mtl_span_attr_boundary_attention'
     else:
-        model_name = 'mtl_span_attr_boundary_bert'
+        model_name = 'mtl_span_attr_boundary_wlf'
     if args.share_lstm:
         model_name += '_sharelstm'
     if args.span_use_lstm:
@@ -128,7 +133,7 @@ def make_model_name():
         model_name += '_attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
-    model_name += '_' + args.loss + '_' + str(args.dice_alpha)
+    model_name += '_' + args.loss
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
@@ -191,12 +196,30 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
+# load embedding and vocab
+char2id, char2vec = load_wordvec(args.char2vec_file)
+if args.char2vec_file == args.word2vec_file:
+    word2id, word2vec = char2id, char2vec
+else:
+    word2id, word2vec = load_wordvec(args.word2vec_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BERTEncoder(
+#sequence_encoder = pasaner.encoder.BaseWLFEncoder(
+#    char2id=char2id,
+#    word2id=word2id,
+#    max_length=args.max_length,
+#    char_size=char2vec.shape[-1],
+#    word_size=word2vec.shape[-1],
+#    char2vec=char2vec,
+#    word2vec=word2vec,
+#    custom_dict=args.custom_dict,
+#    blank_padding=True
+#)
+sequence_encoder = pasaner.encoder.BaseEncoder(
+    token2id=char2id,
     max_length=args.max_length,
-    pretrain_path=args.pretrain_path,
-    bert_name=args.bert_name,
+    word_size=char2vec.shape[-1],
+    word2vec=char2vec,
     blank_padding=True
 )
 
@@ -289,3 +312,4 @@ logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
+

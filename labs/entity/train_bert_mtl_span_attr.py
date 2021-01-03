@@ -41,8 +41,6 @@ parser.add_argument('--attr_use_lstm', action='store_true',
         help='whether use lstm for attr sequence after encoder')
 parser.add_argument('--span_use_crf', action='store_true', 
         help='whether use crf for span sequence decode')
-parser.add_argument('--attr_use_crf', action='store_true', 
-        help='whether use crf for attr sequence decode')
 parser.add_argument('--use_mtl_autoweighted_loss', action='store_true', 
         help='whether use automatic weighted loss for multi task learning')
 parser.add_argument('--tagscheme', default='bio', type=str,
@@ -119,8 +117,6 @@ def make_model_name():
         model_name += '_attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
-    if args.attr_use_crf:
-        model_name += '_attrcrf'
     model_name += '_' + args.loss
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
@@ -194,7 +190,7 @@ sequence_encoder = pasaner.encoder.BERTEncoder(
 )
 
 # Define the model
-model = pasaner.model.BILSTM_CRF_Span_Attr(
+model = pasaner.model.BILSTM_CRF_Span_Attr_Tail(
     sequence_encoder=sequence_encoder, 
     span2id=span2id,
     attr2id=attr2id,
@@ -203,7 +199,6 @@ model = pasaner.model.BILSTM_CRF_Span_Attr(
     span_use_lstm=args.span_use_lstm, # True
     attr_use_lstm=args.attr_use_lstm, # False
     span_use_crf=args.span_use_crf,
-    attr_use_crf=args.attr_use_crf,
     dropout_rate=args.dropout_rate
 )
 
