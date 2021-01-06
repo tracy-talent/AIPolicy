@@ -112,10 +112,10 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = args.model + '_' + args.bert_name + '_' + args.loss
+    model_name = args.model + '_' + args.bert_name + '_' + args.loss + '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
-    if len(args.adv) > 0 and args.adv == 'none':
+    if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     model_name += '_' + args.metric
     return model_name

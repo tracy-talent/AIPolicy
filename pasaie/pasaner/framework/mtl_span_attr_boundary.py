@@ -115,7 +115,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         # Automatic weighted loss for mtl(submodule must after torch.nn.Module initialize)
         self.autoweighted_loss = None
         if mtl_autoweighted_loss:
-            self.autoweighted_loss = AutomaticWeightedLoss(3)
+            self.autoweighted_loss = AutomaticWeightedLoss(num=3, mode='cls')
         # Params and optimizer
         self.lr = lr
         self.bert_lr = bert_lr
@@ -258,7 +258,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             prec = Mean()
             rec = Mean()
             log_steps = 5
-            if len(self.train_loader) > 1000:
+            if len(self.train_loader.dataset) > 1000:
                 log_steps = 10
             for ith, data in enumerate(self.train_loader):
                 if torch.cuda.is_available():

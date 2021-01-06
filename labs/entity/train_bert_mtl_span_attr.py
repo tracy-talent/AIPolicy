@@ -117,7 +117,7 @@ def make_model_name():
         model_name += '_attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
-    model_name += '_' + args.loss
+    model_name += '_' + args.loss + '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':

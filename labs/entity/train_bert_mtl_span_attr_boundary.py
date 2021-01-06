@@ -28,7 +28,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -118,6 +118,8 @@ def make_model_name():
         model_name = 'mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
         model_name = 'mtl_span_attr_boundary_mmoe_bert'
+    elif args.model_type == 'ple':
+        model_name = 'mtl_span_attr_boundary_ple_bert'
     else:
         model_name = 'mtl_span_attr_boundary_bert'
     if args.share_lstm:
@@ -128,6 +130,7 @@ def make_model_name():
         model_name += '_attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
+    #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
     model_name += '_' + args.loss + '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
@@ -225,6 +228,32 @@ elif args.model_type == 'startprior':
         span_use_crf=args.span_use_crf,
         soft_label=args.soft_label,
         dropout_rate=args.dropout_rate
+    )
+elif args.model_type == 'mmoe':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_MMoE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate
+    )
+elif args.model_type == 'ple':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=2,
+        experts_num=2
     )
 else:
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(

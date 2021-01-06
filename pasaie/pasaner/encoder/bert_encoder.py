@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, AutoModel
 from transformers import BertModel, AlbertModel, BertTokenizer
+from transformers.modeling_bert import BertEmbeddings
 
 
 class BERTEncoder(nn.Module):
@@ -42,6 +43,7 @@ class BERTEncoder(nn.Module):
         num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
         print(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
         self.bert.resize_token_embeddings(len(self.tokenizer))
+        # self.embeddings = BertEmbeddings(self.bert.config)
 
         self.hidden_size = self.bert.config.hidden_size
         self.max_length = max_length
@@ -60,6 +62,8 @@ class BERTEncoder(nn.Module):
             seq_out, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
         else:
             seq_out, _ = self.bert(seqs, attention_mask=att_mask)
+        # seq_embedding = self.embeddings(seqs)
+
         return seq_out
     
     def tokenize(self, *items): # items = (tokens, spans, [attrs, optional])
