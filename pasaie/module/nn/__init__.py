@@ -5,7 +5,7 @@ from __future__ import print_function
 from .cnn import CNN
 from .rnn import RNN
 from .lstm import LSTM
-from .linear import FeedForwardNetwork, PoolerStartLogits, PoolerEndLogits
+from .linear import FeedForwardNetwork, PoolerStartLogits, PoolerEndLogits, Linear3D, LinearSequence
 from .attention import MultiHeadedAttention, DotProductAttention, MultiplicativeAttention, AdditiveAttention
 
 
@@ -16,6 +16,7 @@ __all__ = [
     'FeedForwardNetwork',
     'PoolerStartLogits',
     'PoolerEndLogits',
+    'Linear3D',
     'MultiHeadedAttention',
     'DotProductAttention',
     'MultiplicativeAttention',

@@ -28,7 +28,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -120,6 +120,8 @@ def make_model_name():
         model_name = 'mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
         model_name = 'mtl_span_attr_boundary_ple_bert'
+    elif args.model_type == 'plethree':
+        model_name = 'mtl_span_attr_three_boundary_ple_bert'
     else:
         model_name = 'mtl_span_attr_boundary_bert'
     if args.share_lstm:
@@ -136,6 +138,7 @@ def make_model_name():
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
+    #model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -243,6 +246,20 @@ elif args.model_type == 'mmoe':
     )
 elif args.model_type == 'ple':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=2,
+        experts_num=2
+    )
+elif args.model_type == 'plethree':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Three_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,
         attr2id=attr2id,

@@ -5,11 +5,11 @@
  Last Modified time: 2020-10-26 17:48:40
 """
 
-from .base_model import Base_BILSTM_CRF_Span_Attr
+from .base_model import Base_BILSTM_CRF_Span_Attr, Base_BILSTM_CRF_Span_Attr_Three
 from ..decoder import CRF
 from ...utils.entity_extract import *
 from ...module.nn.attention import AdditiveAttention, DotProductAttention, MultiplicativeAttention
-from ...module.nn import PoolerStartLogits, PoolerEndLogits
+from ...module.nn.linear import PoolerStartLogits, PoolerEndLogits, Linear3D, LinearSequence
 
 import math
 
@@ -320,26 +320,10 @@ class BILSTM_CRF_Span_Attr_Boundary_MMoE(Base_BILSTM_CRF_Span_Attr):
             batch_first=batch_first,
             dropout_rate=dropout_rate
         )
-        moe_gate1_weight = torch.Tensor(sequence_encoder.max_length, sequence_encoder.hidden_size, 2)
-        moe_gate1_bias = torch.Tensor(sequence_encoder.max_length, 2)
-        self.reset_parameters(moe_gate1_weight, moe_gate1_bias)
-        self.moe_gate1_weight = nn.Parameter(moe_gate1_weight)
-        self.moe_gate1_bias = nn.Parameter(moe_gate1_bias)
-        moe_gate2_weight = torch.Tensor(sequence_encoder.max_length, sequence_encoder.hidden_size, 2)
-        moe_gate2_bias = torch.Tensor(sequence_encoder.max_length, 2)
-        self.reset_parameters(moe_gate2_weight, moe_gate2_bias)
-        self.moe_gate2_weight = nn.Parameter(moe_gate2_weight)
-        self.moe_gate2_bias = nn.Parameter(moe_gate2_bias)
+        self.moe_gate1 = LinearSequence(sequence_encoder.max_length, sequence_encoder.hidden_size, 2)
+        self.moe_gate2 = LinearSequence(sequence_encoder.max_length, sequence_encoder.hidden_size, 2)
         # self.moe_gate1 = nn.Linear(sequence_encoder.hidden_size, 2)
         # self.moe_gate2 = nn.Linear(sequence_encoder.hidden_size, 2)
-
-
-    def reset_parameters(self, weight, bias=None):
-        nn.init.xavier_uniform_(weight)
-        if bias is not None:
-            fan_in = weight.size(1)
-            bound = 1 / math.sqrt(fan_in)
-            nn.init.uniform_(bias, -bound, bound)
 
 
     def expert_fusion(self, input_hiddens, *expert_hiddens):
@@ -353,12 +337,9 @@ class BILSTM_CRF_Span_Attr_Boundary_MMoE(Base_BILSTM_CRF_Span_Attr):
             attention_output (torch.Tensor): attention output matrix, size(B, S, H).
             attention_weight (torch.Tensor): attention weight matrix, size(B, S, S).
         """
-        seq_len = input_hiddens.size(1)
-        # gate1_expert_score = self.moe_gate1(input_hiddens) # same for every token in sequence
-        gate1_expert_score = torch.matmul(input_hiddens.unsqueeze(2), self.moe_gate1_weight[:seq_len,:,:].unsqueeze(0)).squeeze(2) + self.moe_gate1_bias
+        gate1_expert_score = self.moe_gate1(input_hiddens)
         gate1_expert_weight = F.softmax(gate1_expert_score, dim=-1)
-        # gate2_expert_score = self.moe_gate2(input_hiddens) # same for every token in sequence
-        gate2_expert_score = torch.matmul(input_hiddens.unsqueeze(2), self.moe_gate2_weight[:seq_len,:,:].unsqueeze(0)).squeeze(2) + self.moe_gate2_bias
+        gate2_expert_score = self.moe_gate2(input_hiddens)
         gate2_expert_weight = F.softmax(gate2_expert_score, dim=-1)
         expert_hiddens = torch.stack(expert_hiddens, dim=2)
         expert_fusion_output1 = torch.matmul(gate1_expert_weight.unsqueeze(2), expert_hiddens).squeeze(2)
@@ -380,28 +361,6 @@ class BILSTM_CRF_Span_Attr_Boundary_MMoE(Base_BILSTM_CRF_Span_Attr):
         
         return logits_span, logits_attr_start, logits_attr_end
 
-
-
-class Linear3D(nn.Module):
-    def __init__(self, input_size, output_size1, output_size2):
-        super(Linear3D, self).__init__()
-        self.weight = nn.Parameter(torch.Tensor(input_size, output_size1, output_size2))
-        self.bias = nn.Parameter(torch.Tensor(output_size1, output_size2))
-        self.reset_parameters(self.weight, self.bias)
-    
-
-    def reset_parameters(self, weight, bias=None):
-        nn.init.xavier_uniform_(weight)
-        if bias is not None:
-            fan_in = weight.size(0)
-            bound = 1 / math.sqrt(fan_in)
-            nn.init.uniform_(bias, -bound, bound)
-
-
-    def forward(self, input):
-        output = torch.einsum('...k, kxy -> ...xy', input, self.weight)
-        output = torch.add(output, self.bias)
-        return output
 
 
 class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
@@ -455,27 +414,12 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
 
             # gates shared
             self.layers_experts_shared_gate.append(nn.Linear(hidden_size, experts_num * 3))            
-            # experts_weight = torch.Tensor(hidden_size, experts_num * 3)
-            # experts_bias = torch.Tensor(experts_num * 3)
-            # self.reset_parameters(experts_weight, experts_bias)
-            # self.layers_gate_experts_shared_weight.append(nn.Parameter(experts_weight))            
-            # self.layers_gate_experts_shared_bias.append(nn.Parameter(experts_bias))
 
             # gate task1
             self.layers_experts_task1_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num))            
-            # experts_weight = torch.Tensor(hidden_size, experts_num * self.selector_num)
-            # experts_bias = torch.Tensor(experts_num * self.selector_num)
-            # self.reset_parameters(experts_weight, experts_bias)
-            # self.layers_gate_experts_task1_weight.append(nn.Parameter(experts_weight))            
-            # self.layers_gate_experts_task1_bias.append(nn.Parameter(experts_bias))
 
             # gate task2
             self.layers_experts_task2_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num))            
-            # experts_weight = torch.Tensor(hidden_size, experts_num * self.selector_num)
-            # experts_bias = torch.Tensor(experts_num * self.selector_num)
-            # self.reset_parameters(experts_weight, experts_bias)
-            # self.layers_gate_experts_task2_weight.append(nn.Parameter(experts_weight))            
-            # self.layers_gate_experts_task2_bias.append(nn.Parameter(experts_bias))
 
 
     def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final):
@@ -525,3 +469,259 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
         logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens) # B, S, V
         
         return logits_span, logits_attr_start, logits_attr_end
+
+
+
+class BILSTM_CRF_Span_Attr_Boundary_Sequence_PLE(BILSTM_CRF_Span_Attr_Boundary_PLE):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Boundary_Sequence_PLE, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate,
+            experts_layers=experts_layers,
+            experts_num=2
+        )
+        hidden_size = sequence_encoder.hidden_size
+        sequence_size = sequence_encoder.max_length
+        self.layers_experts_shared = nn.ModuleList([])
+        self.layers_experts_task1 = nn.ModuleList([])
+        self.layers_experts_task2 = nn.ModuleList([])
+        self.layers_experts_shared_gate = nn.ModuleList([])
+        self.layers_experts_task1_gate = nn.ModuleList([])
+        self.layers_experts_task2_gate = nn.ModuleList([])
+        for i in range(experts_layers):
+            # experts shared
+            self.layers_experts_shared.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))        
+
+            # experts task1
+            self.layers_experts_task1.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))            
+
+            # experts task2
+            self.layers_experts_task2.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))       
+
+            # gates shared
+            self.layers_experts_shared_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * 3))            
+
+            # gate task1
+            self.layers_experts_task1_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * self.selector_num))            
+
+            # gate task2
+            self.layers_experts_task2_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * self.selector_num))            
+
+
+
+class BILSTM_CRF_Span_Attr_Three_Boundary_PLE(Base_BILSTM_CRF_Span_Attr_Three):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Three_Boundary_PLE, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate
+        )
+        self.experts_layers = experts_layers
+        self.experts_num = experts_num
+        self.selector_num = 2
+        hidden_size = sequence_encoder.hidden_size
+        self.layers_experts_shared = nn.ModuleList([])
+        self.layers_experts_task1 = nn.ModuleList([])
+        self.layers_experts_task2 = nn.ModuleList([])
+        self.layers_experts_task3 = nn.ModuleList([])
+        self.layers_experts_shared_gate = nn.ModuleList([])
+        self.layers_experts_task1_gate = nn.ModuleList([])
+        self.layers_experts_task2_gate = nn.ModuleList([])
+        self.layers_experts_task3_gate = nn.ModuleList([])
+        for i in range(experts_layers):
+            # experts shared
+            self.layers_experts_shared.append(Linear3D(hidden_size, hidden_size, experts_num))        
+
+            # experts task1
+            self.layers_experts_task1.append(Linear3D(hidden_size, hidden_size, experts_num))            
+
+            # experts task2
+            self.layers_experts_task2.append(Linear3D(hidden_size, hidden_size, experts_num))       
+
+            # experts task3
+            self.layers_experts_task3.append(Linear3D(hidden_size, hidden_size, experts_num))       
+
+            # gates shared
+            self.layers_experts_shared_gate.append(nn.Linear(hidden_size, experts_num * 4))            
+
+            # gate task1
+            self.layers_experts_task1_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num))            
+
+            # gate task2
+            self.layers_experts_task2_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num))            
+
+            # gate task3
+            self.layers_experts_task3_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num)) 
+
+
+    def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final, gate_task3_output_final):
+        for i in range(self.experts_layers):
+            # shared  output
+            experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            
+            # task1 output
+            experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+
+            # task2 output
+            experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+
+            # task3 output
+            experts_task3_output = torch.relu(self.layers_experts_task2[i](gate_task3_output_final))
+
+            # gate shared output
+            gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)
+            gate_shared_output = F.softmax(gate_shared_output, dim=-1)
+            gate_shared_output = torch.matmul(gate_shared_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_task2_output, experts_task3_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            gate_shared_output_final = gate_shared_output
+
+            # gate task1 output
+            gate_task1_output = self.layers_experts_task1_gate[i](gate_task1_output_final) # (B, S, C)
+            gate_task1_output = F.softmax(gate_task1_output, dim=-1)
+            gate_task1_output = torch.matmul(gate_task1_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            gate_task1_output_final = gate_task1_output
+
+            # gate task2 output
+            gate_task2_output = self.layers_experts_task2_gate[i](gate_task2_output_final) # (B, S, C)
+            gate_task2_output = F.softmax(gate_task2_output, dim=-1)
+            gate_task2_output = torch.matmul(gate_task2_output.unsqueeze(-2), 
+                                    torch.cat([experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            gate_task2_output_final = gate_task2_output
+
+            # gate task3 output
+            gate_task3_output = self.layers_experts_task3_gate[i](gate_task3_output_final) # (B, S, C)
+            gate_task3_output = F.softmax(gate_task3_output, dim=-1)
+            gate_task3_output = torch.matmul(gate_task3_output.unsqueeze(-2), 
+                                    torch.cat([experts_task3_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            gate_task3_output_final = gate_task3_output
+        
+        return gate_shared_output_final, gate_task1_output_final, gate_task2_output_final, gate_task2_output_final
+
+
+    def forward(self, *args):
+        span_seqs_hiddens, attr_seqs_hiddens_start, attr_seqs_hiddens_end = super(BILSTM_CRF_Span_Attr_Three_Boundary_PLE, self).forward(*args)
+        _, span_seqs_hiddens, attr_seqs_hiddens_start, attr_seqs_hiddens_end = self.progressive_layered_extraction(self.encoder_output, span_seqs_hiddens, attr_seqs_hiddens_start, attr_seqs_hiddens_end)
+        # dropout layer
+        span_seqs_hiddens = self.dropout(span_seqs_hiddens)
+        attr_seqs_hiddens_start = self.dropout(attr_seqs_hiddens_start)
+        attr_seqs_hiddens_end = self.dropout(attr_seqs_hiddens_end)
+        # output layer
+        logits_span = self.mlp_span(span_seqs_hiddens) # B, S, V
+        logits_attr_start = self.mlp_attr_start(attr_seqs_hiddens_start) # B, S, V
+        logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens_end) # B, S, V
+        
+        return logits_span, logits_attr_start, logits_attr_end
+
+
+
+class BILSTM_CRF_Span_Attr_Three_Boundary_Sequence_PLE(BILSTM_CRF_Span_Attr_Three_Boundary_PLE):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Three_Boundary_Sequence_PLE, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate,
+            experts_layers=experts_layers,
+            experts_num=2
+        )
+        hidden_size = sequence_encoder.hidden_size
+        sequence_size = sequence_encoder.max_length
+        self.layers_experts_shared = nn.ModuleList([])
+        self.layers_experts_task1 = nn.ModuleList([])
+        self.layers_experts_task2 = nn.ModuleList([])
+        self.layers_experts_task3 = nn.ModuleList([])
+        self.layers_experts_shared_gate = nn.ModuleList([])
+        self.layers_experts_task1_gate = nn.ModuleList([])
+        self.layers_experts_task2_gate = nn.ModuleList([])
+        self.layers_experts_task3_gate = nn.ModuleList([])
+        for i in range(experts_layers):
+            # experts shared
+            self.layers_experts_shared.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))        
+
+            # experts task1
+            self.layers_experts_task1.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))            
+
+            # experts task2
+            self.layers_experts_task2.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))       
+
+            # experts task3
+            self.layers_experts_task3.append(LinearSequence(sequence_size, hidden_size, hidden_size, experts_num))       
+
+            # gates shared
+            self.layers_experts_shared_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * 4))            
+
+            # gate task1
+            self.layers_experts_task1_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * self.selector_num))            
+
+            # gate task2
+            self.layers_experts_task2_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * self.selector_num))            
+
+            # gate task3
+            self.layers_experts_task3_gate.append(LinearSequence(sequence_size, hidden_size, experts_num * self.selector_num))

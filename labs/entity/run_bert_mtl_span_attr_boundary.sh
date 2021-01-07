@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -23,10 +23,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.1 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -51,10 +50,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.2 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -79,10 +77,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.3 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -107,10 +104,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.4 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -135,10 +131,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.5 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -163,10 +158,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.6 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -191,10 +185,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.7 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -219,10 +212,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.8 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -247,10 +239,9 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 0.9 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -275,6 +266,4 @@ python train_bert_mtl_span_attr_boundary.py \
     --loss dice \
     --adv fgm \
     --dice_alpha 1.0 \
-    --use_mtl_autoweighted_loss \
     --metric micro_f1
-
