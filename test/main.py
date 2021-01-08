@@ -41,33 +41,9 @@ def pipeline(corpus_path,
                     queue.append(child_node)
             else:
                 sentence = node.sent
-                if not sentence_judge_model.infer(sentence):    # 0 means unimportant
+                if sentence_judge_model is not None and not sentence_judge_model.infer(sentence):  # 0 means unimportant
                     continue
-                tokens, entities = entity_model.infer(sentence)
-                # fix for modified format of entity
-                entities = [(entity[0][0], entity[1], entity[2]) for entity in entities]
-                # relation_pairs = [entity[2] for entity in entities]
-                relation_pairs = []
-                for i in range(len(entities)):
-                    for j in range(i + 1, len(entities)):
-                        item = {'token': tokens,
-                                'h': {'pos': [entities[i][0], entities[i][0] + len(entities[i][2])],
-                                      'entity': entities[i][1]},
-                                't': {'pos': [entities[j][0], entities[j][0] + len(entities[j][2])],
-                                      'entity': entities[j][1]}}
-                        reversed_item = {'token': tokens,
-                                         't': {'pos': [entities[i][0], entities[i][0] + len(entities[i][2])],
-                                               'entity': entities[i][1]},
-                                         'h': {'pos': [entities[j][0], entities[j][0] + len(entities[j][2])],
-                                               'entity': entities[j][1]}}
-                        relation_type, score = relation_model.infer(item)
-                        if relation_type not in ['Other', 'other']:
-                            relation_pairs.append((entities[i], entities[j], relation_type))
-                        else:
-                            relation_type, score = relation_model.infer(reversed_item)
-                            if relation_type not in ['Other', 'other']:
-                                relation_pairs.append((entities[j], entities[i], relation_type))
-
+                entities, relation_pairs, _ = standard_ner_re_extraction(sentence, entity_model, relation_model)
                 if entities:
                     node.convert_to_root_node(logic_type='AND', sentence=sentence)
                     node.add_node(
@@ -82,6 +58,35 @@ def pipeline(corpus_path,
                         )
 
         tree.save_as_json(output_path=os.path.join(output_path, 'sentence_level_logic_tree', file))
+
+
+def standard_ner_re_extraction(sentence, entity_model, relation_model):
+
+    tokens, entities = entity_model.infer(sentence)
+    # fix format like: (pos_start)
+    entities = [(entity[0][0], entity[1], entity[2]) for entity in entities]
+    # relation_pairs = [entity[2] for entity in entities]
+    relation_pairs = []
+    for i in range(len(entities)):
+        for j in range(i + 1, len(entities)):
+            item = {'token': tokens,
+                    'h': {'pos': [entities[i][0], entities[i][0] + len(entities[i][2])],
+                          'entity': entities[i][1]},
+                    't': {'pos': [entities[j][0], entities[j][0] + len(entities[j][2])],
+                          'entity': entities[j][1]}}
+            reversed_item = {'token': tokens,
+                             't': {'pos': [entities[i][0], entities[i][0] + len(entities[i][2])],
+                                   'entity': entities[i][1]},
+                             'h': {'pos': [entities[j][0], entities[j][0] + len(entities[j][2])],
+                                   'entity': entities[j][1]}}
+            relation_type, score = relation_model.infer(item)
+            if relation_type not in ['Other', 'other']:
+                relation_pairs.append((entities[i], entities[j], relation_type))
+            else:
+                relation_type, score = relation_model.infer(reversed_item)
+                if relation_type not in ['Other', 'other']:
+                    relation_pairs.append((entities[j], entities[i], relation_type))
+    return entities, relation_pairs, tokens
 
 
 def fine_gained_parse(tokens, entity_list, relation_list):

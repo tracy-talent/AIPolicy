@@ -63,7 +63,7 @@ def get_article_structure(file_path):
     root_node = None
     prev_node_idx, prev_node = -1, None
     for lidx in range(len(article)):
-        content = article[lidx].strip().replace(u'\xa0', '')
+        content = article[lidx].strip().replace(u'\xa0', ' ')
         if content == '':
             continue
         is_matched = False
@@ -158,22 +158,29 @@ def judge_sent_logic_type(sent):
         return 'AND'
 
 
-def get_target_tree(file_path):
+def get_target_tree(file_path, output_dir=None, require_json=True, require_png=True):
+    if output_dir is None:
+        output_dir = os.path.join(config['path']['output'], 'article_parsing/raw-policy/pruning_tree')
+
     article_structure_tree = get_article_structure(file_path)
     retain_list = []
     recursive_prune_tree(article_structure_tree.root, retain_list)
     recheck_tree(article_structure_tree.root)
 
-    output_dir = os.path.join(config['path']['output'], 'article_parsing/raw-policy/pruning_tree')
-    os.makedirs(output_dir, exist_ok=True)
     try:
-        article_structure_tree.save_as_json(os.path.join(output_dir, file_path.split('/')[-1].replace('.txt', '.json')))
+        if require_json:
+            os.makedirs(output_dir, exist_ok=True)
+            article_structure_tree.save_as_json(os.path.join(output_dir, file_path.split('/')[-1].replace('.txt', '.json')))
     except Exception as e:
         print(f"{file_path.replace('.txt', ''): {e}}")
     try:
-        article_structure_tree.save_as_png(output_dir, file_path.split('/')[-1].replace('.txt', '.png'))
-    except:
-        pass
+        if require_png:
+            os.makedirs(output_dir, exist_ok=True)
+            article_structure_tree.save_as_png(output_dir, file_path.split('/')[-1].replace('.txt', '.png'))
+    except Exception as e:
+        print(e)
+
+    return article_structure_tree
 
 
 def recursive_prune_tree(root_node, retain_list):
