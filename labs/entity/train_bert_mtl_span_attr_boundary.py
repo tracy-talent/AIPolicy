@@ -138,7 +138,7 @@ def make_model_name():
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
-    #model_name += '_dpr' + str(args.dropout_rate)
+    model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
