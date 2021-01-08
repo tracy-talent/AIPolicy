@@ -177,7 +177,7 @@ class AdditiveAttention(nn.Module):
             attention_output (torch.Tensor): attention output matrix.
             attention_weight (torch.Tensor): attention weight matrix.
         """
-        if len(attention_query.size()) == 3:
+        if len(attention_query.size()) == 3: # for accelerate
             attention_hidden_state = torch.tanh(self.weight_matrix_kv(attention_kv).unsqueeze(1) + 
                                         self.weight_matrix_query(attention_query).unsqueeze(2))
             attention_score = self.weight_vector(attention_hidden_state).squeeze(-1)

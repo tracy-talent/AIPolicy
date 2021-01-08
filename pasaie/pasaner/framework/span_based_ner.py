@@ -628,8 +628,13 @@ class Span_Multi_NER(nn.Module):
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
-            result = self.eval_model(self.val_loader) 
-            self.logger.info(f'Evaluation result: {result}.')
+            result = self.eval_model(self.val_loader)
+            acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
+            p = round(result['micro_p'], 4) * 100
+            r = round(result['micro_r'], 4) * 100
+            f1 = round(result['micro_f1'], 4) * 100
+            self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
+            self.logger.info('Evaluation result: {}.'.format(result))
             self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
             category_result = result.pop('category-p/r/f1')
             train_state['val_metrics'].append(result)
@@ -652,6 +657,11 @@ class Span_Multi_NER(nn.Module):
             if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
                 self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
+                acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
+                p = round(result['micro_p'], 4) * 100
+                r = round(result['micro_r'], 4) * 100
+                f1 = round(result['micro_f1'], 4) * 100
+                self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
                 self.logger.info('Test result: {}.'.format(result))
                 self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
                 if 'loss' in self.metric:
