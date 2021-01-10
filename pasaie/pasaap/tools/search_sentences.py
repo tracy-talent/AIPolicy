@@ -133,6 +133,8 @@ def get_article_structure(file_path):
         if title_start_flag:
             title_start_content.append(content)
 
+    if root_node is None:
+        return None
     tree = LogicTree(root=root_node, json_path=None)
     output_dir = os.path.join(config['path']['output'], 'article_parsing/raw-policy/article_structure')
     os.makedirs(output_dir, exist_ok=True)
@@ -163,6 +165,8 @@ def get_target_tree(file_path, output_dir=None, require_json=True, require_png=T
         output_dir = os.path.join(config['path']['output'], 'article_parsing/raw-policy/pruning_tree')
 
     article_structure_tree = get_article_structure(file_path)
+    if article_structure_tree is None:
+        return None
     retain_list = []
     recursive_prune_tree(article_structure_tree.root, retain_list)
     recheck_tree(article_structure_tree.root)

@@ -20,6 +20,8 @@ class FileMapper(object):
     def file2id(src_dir, dst_dir):
         name_mapper = {}
         os.makedirs(dst_dir, exist_ok=True)
+        # remove space between chinese tokens
+        chinese_space_patten = re.compile(r'(?:([\u4e00-\u9fa5])\s)|(?:\s([\u4e00-\u9fa5]))')
         for file in os.listdir(src_dir):
             if file.endswith(".txt") and file not in name_mapper:
                 name_mapper[file] = str(len(name_mapper)) + '.txt'
@@ -28,12 +30,15 @@ class FileMapper(object):
 
                 # copy files
                 try:
-                    text = ''.join(open(abs_file_path, 'r', encoding='utf8').readlines())
+                    text = open(abs_file_path, 'r', encoding='utf8').read().replace('\xa0', '')
                 except:
                     try:
-                        text = ''.join(open(abs_file_path, 'r', encoding='gbk').readlines())
+                        text = open(abs_file_path, 'r', encoding='gbk').read().replace('\xa0', '')
                     except:
                         raise Exception(f"Cannot decode {file} in utf8 or gbk!")
+
+                text = chinese_space_patten.sub(r'\1\2', text)
+                text = chinese_space_patten.sub(r'\1\2', text)
                 with open(abs_write_path, 'w', encoding='utf8') as fout:
                     fout.write(text)
 
@@ -46,7 +51,7 @@ class FileMapper(object):
         return name_mapper
 
     @staticmethod
-    def generate_anns(data_dir, entity_model, relation_model, default_output_dir=None):
+    def generate_anns(data_dir, entity_model, relation_model, default_output_dir=None, max_length=512):
         if default_output_dir is None:
             default_output_dir = data_dir.replace('\\', '/') + '_targetTree'
         miss_sent_num, miss_entity_num, miss_relation_num = 0, 0, 0
@@ -58,6 +63,8 @@ class FileMapper(object):
                 text = io.open(filepath, 'rt', encoding='utf8', newline='').read()
                 tree = pasaie.pasaap.tools.get_target_tree(filepath, output_dir=default_output_dir,
                                                            require_json=False, require_png=False)
+                if tree is None:
+                    continue
                 entity2tno = {}
                 ann_entities, ann_relations = [], []
 
@@ -69,7 +76,7 @@ class FileMapper(object):
                         for name, child_node in node.children.items():
                             queue.append(child_node)
                     else:
-                        sentence = node.sent
+                        sentence = node.sent[:max_length - 3]
                         if sentence in text:
                             sent_index = text.index(sentence)
                             entities, relation_pairs, tokens = standard_ner_re_extraction(sentence,
@@ -79,7 +86,7 @@ class FileMapper(object):
                             entity2entity = {}
                             for entity in entities:
                                 pos_start, cate, entity_name = entity
-                                if entity_name not in sentence:
+                                if entity_name not in sentence.lower():
                                     numbers = re.findall('\\d+', entity_name)
                                     if numbers:
                                         number_str = numbers[0]
@@ -87,20 +94,29 @@ class FileMapper(object):
                                             entity_name = entity_name.replace(number_str, f'{number_str} ')
                                         else:
                                             entity_name = entity_name.replace(number_str, f' {number_str} ')
-                                spans = list(re.finditer(entity_name, sentence))
+                                spans = list(re.finditer(entity_name.replace('+', '\\+').
+                                                         replace('*', '\\*').
+                                                         replace('(', '\\(').
+                                                         replace(')', '\\)'), sentence.lower()))
                                 if spans:
                                     span_idx = entity_dict.get(entity_name, -1)
-                                    bidx, eidx = spans[span_idx + 1].span()
-                                    entity_dict[entity_name] = span_idx + 1
-                                    format_entity = (cate, sent_index + bidx, sent_index + eidx,
-                                                     text[sent_index + bidx: sent_index + eidx])
-                                    ann_entities.append(format_entity)
-                                    entity2entity[tuple(entity)] = format_entity
+                                    if len(spans) > span_idx + 1:
+                                        bidx, eidx = spans[span_idx + 1].span()
+                                        entity_dict[entity_name] = span_idx + 1
+                                        format_entity = (cate, sent_index + bidx, sent_index + eidx,
+                                                         text[sent_index + bidx: sent_index + eidx])
+                                        ann_entities.append(format_entity)
+                                        entity2entity[tuple(entity)] = format_entity
+                                    else:
+                                        miss_entity_num += 1
                                 else:
                                     miss_entity_num += 1
-                                    print(f"Cannot find entity {entity} in {sentence}")
+                                    print(f"Cannot find entity {entity} in {sentence.lower()} at {file}")
                             for relation in relation_pairs:
                                 head, tail, rtype = relation
+                                if head not in entity2entity or tail not in entity2entity:
+                                    miss_relation_num += 1
+                                    continue
                                 ann_relations.append((entity2entity[head], entity2entity[tail], rtype))
                         else:
                             miss_sent_num += 1
@@ -145,10 +161,10 @@ def idx2rawidx(tokens, raw_sentence):
 
 
 if __name__ == '__main__':
-    # file_mapper = FileMapper(src_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\南京-大全txt',
-    #                          dst_dir=r'C:\Users\90584\Desktop\政策实体与关系抽取\语料\policies_ext')
-    # text = ''.join(fin.readlines())
-    # print(len(text))
-    my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf0')
+    # file_mapper = FileMapper(src_dir=r'./南京-大全txt',
+    #                          dst_dir=r'./policies_ext')
+
+    my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf_micro_f1_0')
     my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
-    FileMapper.generate_anns(data_dir=r'./selection', entity_model=my_entity_model, relation_model=my_relation_model)
+    FileMapper.generate_anns(data_dir=r'./policies_ext',
+                             entity_model=my_entity_model, relation_model=my_relation_model)
