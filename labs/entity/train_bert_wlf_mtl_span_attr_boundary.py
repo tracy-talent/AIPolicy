@@ -1,14 +1,15 @@
 """
- Author: liujian 
- Date: 2020-10-25 12:40:05 
- Last Modified by: liujian 
- Last Modified time: 2020-10-25 12:40:05 
+ Author: liujian
+ Date: 2021-01-10 17:36:15
+ Last Modified by: liujian
+ Last Modified time: 2021-01-10 17:36:15
 """
 
 # coding:utf-8
 import sys
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
+from pasaie.utils.embedding import load_wordvec
 from pasaie.tokenization.utils import load_vocab
 from pasaie import pasaner
 
@@ -67,6 +68,12 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
+parser.add_argument('--char2vec_file', default='', type=str,
+        help='character embedding file')
+parser.add_argument('--word2vec_file', default='', type=str,
+        help='word2vec embedding file')
+parser.add_argument('--custom_dict', default='', type=str,
+        help='user custom dict for tokenizer toolkit')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -101,8 +108,6 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
-
-
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
@@ -118,17 +123,17 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = 'mtl_span_attr_boundary_startprior_bert'
+        model_name = 'wlf_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = 'mtl_span_attr_boundary_attention_bert'
+        model_name = 'wlf_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = 'mtl_span_attr_boundary_mmoe_bert'
+        model_name = 'wlf_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = 'mtl_span_attr_boundary_ple_bert'
+        model_name = 'wlf_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = 'mtl_span_attr_three_boundary_ple_bert'
+        model_name = 'wlf_mtl_span_attr_three_boundary_ple_bert'
     else:
-        model_name = 'mtl_span_attr_boundary_bert'
+        model_name = 'wlf_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -212,14 +217,20 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
+# load embedding and vocab
+word2id, word2vec = load_wordvec(args.word2vec_file)
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BERTEncoder(
-    max_length=args.max_length,
+sequence_encoder = pasaner.encoder.BERTWLFEncoder(
     pretrain_path=args.pretrain_path,
-    bert_name=args.bert_name,
+    word2id=word2id,
+    word_size=word2vec.shape[-1],
+    word2vec=word2vec,
+    max_length=args.max_length,
+    custom_dict=args.custom_dict,
     blank_padding=True
 )
+
 
 # Define the model
 if args.model_type == 'attention':
@@ -327,7 +338,7 @@ framework = pasaner.framework.MTL_Span_Attr_Boundary(
 )
 
 # Load pretrained model
-# if ckpt_cnt > 0:
+#if ckpt_cnt > 0:
 #    logger.info('load checkpoint')
 #    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
@@ -353,3 +364,4 @@ logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
+

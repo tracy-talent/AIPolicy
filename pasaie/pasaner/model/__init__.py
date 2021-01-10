@@ -8,6 +8,7 @@ from .bilstm_crf_span_attr import BILSTM_CRF_Span_Attr_Boundary_StartPrior, BILS
 from .bilstm_crf_span_attr import BILSTM_CRF_Span_Attr_Boundary_MMoE
 from .bilstm_crf_span_attr import BILSTM_CRF_Span_Attr_Boundary_PLE, BILSTM_CRF_Span_Attr_Boundary_Sequence_PLE
 from .bilstm_crf_span_attr import BILSTM_CRF_Span_Attr_Three_Boundary_PLE, BILSTM_CRF_Span_Attr_Three_Boundary_Sequence_PLE
+from .bilstm_crf_span_attr import BILSTM_CRF_Span_Attr_Boundary_PLE_1, BILSTM_CRF_Span_Attr_Boundary_PLE_2, BILSTM_CRF_Span_Attr_Boundary_PLE_3
 from .span_cls import Span_Cat_CLS, Span_Pos_CLS, Span_Pos_CLS_StartPrior
 from .mrc_cls import MRC_Span_Pos_CLS
 

@@ -18,7 +18,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
-    --max_epoch 10 \
+    --max_epoch 5 \
     --optimizer adam \
     --loss dice \
     --adv fgm \
@@ -46,7 +46,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
-    --max_epoch 10 \
+    --max_epoch 5 \
     --optimizer adam \
     --loss dice \
     --adv fgm \
@@ -74,7 +74,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
-    --max_epoch 10 \
+    --max_epoch 5 \
     --optimizer adam \
     --loss dice \
     --adv fgm \
@@ -102,7 +102,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
-    --max_epoch 10 \
+    --max_epoch 5 \
     --optimizer adam \
     --loss dice \
     --adv fgm \
@@ -130,7 +130,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 256 \
-    --max_epoch 10 \
+    --max_epoch 5 \
     --optimizer adam \
     --loss dice \
     --adv fgm \

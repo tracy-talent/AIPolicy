@@ -32,20 +32,19 @@ class BaseWLFEncoder(nn.Module):
         Args:
             char2id (dict): dictionary of char->idx mapping
             word2id (dict): dictionary of word->idx mapping
-            max_length (int): max length of sentence, used for postion embedding
-            char_size (int): size of char embedding
-            word_size (int): size of word embedding
-            char2vec (numpy.array): pretrained char2vec numpy
-            word2vec (numpy.array): pretrained word2vec numpy
-            custom_dict (dict): customized dictionary for word tokenizer
-            blank_padding (bool): padding for indexed sequence
+            max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 256.
+            char_size (int, optional): size of char embedding. Defaults to 50.
+            word_size (int, optional): size of word embedding. Defaults to 50.
+            char2vec (numpy.ndarray, optional): pretrained char2vec numpy. Defaults to None.
+            word2vec (numpy.ndarray, optional): pretrained word2vec numpy. Defaults to None.
+            custom_dict (str, optional): customized dictionary for word tokenizer. Defaults to None.
+            blank_padding (bool, optional): padding for indexed sequence. Defaults to True.
         """
         # Hyperparameters
         super().__init__()
 
         self.char2id = char2id
         self.word2id = word2id
-        self.max_length = max_length
         self.num_char = len(char2id)
         self.num_word = len(word2id)
 
@@ -57,54 +56,67 @@ class BaseWLFEncoder(nn.Module):
             self.word_size = word_size
         else:
             self.word_size = word2vec.shape[-1]
-            
-        self.hidden_size = self.char_size + self.word_size
-        self.blank_padding = blank_padding
-
+        
         # char vocab
+        if char2vec is not None:
+            try:
+                char2vec = torch.from_numpy(char2vec)
+            except TypeError as e:
+                logging.info(e)
         if not '[UNK]' in self.char2id:
             self.char2id['[UNK]'] = len(self.char2id)
             self.num_char += 1
+            if char2vec is not None:
+                unk_vec = torch.randn(1, self.char_size) / math.sqrt(self.char_size)
+                char2vec = torch.cat([char2vec, unk_vec], dim=0)
         if not '[PAD]' in self.char2id:
             self.char2id['[PAD]'] = len(self.char2id)
             self.num_char += 1
+            if char2vec is not None:
+                blk_vec = torch.zeros(1, self.char_size)
+                char2vec = torch.cat([char2vec, blk_vec], dim=0)
         # Char embedding
         self.char_embedding = nn.Embedding(self.num_char, self.char_size)
         if char2vec is not None:
             logging.info("Initializing char embedding with char2vec.")
             char2vec = torch.from_numpy(char2vec)
-            if self.num_char == len(char2vec) + 2:            
-                unk = torch.randn(1, self.char_size) / math.sqrt(self.char_size)
-                blk = torch.zeros(1, self.char_size)
-                self.char_embedding.weight.data.copy_(torch.cat([char2vec, unk, blk], 0))
-            else:
-                self.char_embedding.weight.data.copy_(char2vec)
+            self.char_embedding.weight.data.copy_(char2vec)
 
         if self.char2id is not self.word2id:
             # word vocab
+            if word2vec is not None:
+                try:
+                    word2vec = torch.from_numpy(word2vec)
+                except TypeError as e:
+                    logging.info(e)
             if not '[UNK]' in self.word2id:
                 self.word2id['[UNK]'] = len(self.word2id)
                 self.num_word += 1
+                if word2vec is not None:
+                    unk_vec = torch.randn(1, self.word_size) / math.sqrt(self.word_size)
+                    word2vec = torch.cat([word2vec, unk_vec], dim=0)
             if not '[PAD]' in self.word2id:
                 self.word2id['[PAD]'] = len(self.word2id)
                 self.num_word += 1
-            # Word embedding
+                if word2vec is not None:
+                    blk_vec = torch.zeros(1, self.word_size)
+                    word2vec = torch.cat([word2vec, blk_vec], dim=0)
+            # word embedding
             self.word_embedding = nn.Embedding(self.num_word, self.word_size)
             if word2vec is not None:
                 logging.info("Initializing word embedding with word2vec.")
-                word2vec = torch.from_numpy(word2vec)
-                if self.num_word == len(word2vec) + 2:            
-                    unk = torch.randn(1, self.word_size) / math.sqrt(self.word_size)
-                    blk = torch.zeros(1, self.word_size)
-                    self.word_embedding.weight.data.copy_(torch.cat([word2vec, unk, blk], 0))
-                else:
-                    self.word_embedding.weight.data.copy_(word2vec)
+                self.word_embedding.weight.data.copy_(word2vec)
         else:
             self.word_embedding = self.char_embedding
 
         # tokenizer
         self.tokenizer = WordTokenizer(vocab=self.char2id, unk_token="[UNK]")
         self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
+
+        self.hidden_size = self.char_size + self.word_size
+        self.blank_padding = blank_padding
+        self.max_length = max_length
+
 
     def forward(self, seqs_char, seqs_word, att_mask):
         """
@@ -145,25 +157,26 @@ class BaseWLFEncoder(nn.Module):
         avail_len = torch.tensor([len(tokens)]) # 序列实际长度
         words = self.word_tokenizer.tokenize(''.join(tokens))
         token2word = [0] * avail_len
-        wpos, wlen = 0, 0
+        wpos, wlen, tlen = 0, 0, 0
         for i in range(avail_len):
-            if i >= wlen + len(words[wpos]):
+            if tlen >= wlen + len(words[wpos]):
                 wlen += len(words[wpos])
                 wpos += 1
+            tlen += len(tokens[i])
             token2word[i] = wpos
 
         # Token -> index
         if self.blank_padding:
-            indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens, self.max_length, self.char2id['[PAD]'], self.char2id['[UNK]'])
-            indexed_words = self.word_tokenizer.convert_tokens_to_ids(words, unk_id=self.word2id['[UNK]'])
-            indexed_token2word = [self.char2id['[PAD]']] * len(indexed_tokens)
-            for i in range(avail_len):
+            indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens, self.max_length, blank_id=self.char2id['[PAD]'], unk_id=self.char2id['[UNK]'])
+            indexed_words = self.word_tokenizer.convert_tokens_to_ids(words, blank_id=self.word2id['[PAD]'], unk_id=self.word2id['[UNK]'])
+            indexed_token2word = [self.word2id['[PAD]']] * self.max_length
+            for i in range(min(self.max_length, avail_len)):
                 indexed_token2word[i] = indexed_words[token2word[i]]
         else:
             indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens, unk_id = self.char2id['[UNK]'])
             indexed_words = self.word_tokenizer.convert_tokens_to_ids(words, unk_id=self.word2id['[UNK]'])
-            indexed_token2word = [self.char2id['[PAD]']] * len(indexed_tokens)
-            for i in range(avail_len):
+            indexed_token2word = [self.word2id['[PAD]']] * len(indexed_tokens)
+            for i in range(len(indexed_tokens)):
                 indexed_token2word[i] = indexed_words[token2word[i]]
         indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0) # (1, L)
         indexed_token2word = torch.tensor(indexed_token2word).long().unsqueeze(0) # (1, L)

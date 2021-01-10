@@ -489,7 +489,7 @@ class BILSTM_CRF_Span_Attr_Three_Boundary_MMoE(Base_BILSTM_CRF_Span_Attr_Three):
         gate1_expert_weight = F.softmax(gate1_expert_score, dim=-1)
         gate2_expert_score = self.moe_gate2(input_hiddens)
         gate2_expert_weight = F.softmax(gate2_expert_score, dim=-1)
-        gate3_expert_score = self.moe_gate2(input_hiddens)
+        gate3_expert_score = self.moe_gate3(input_hiddens)
         gate3_expert_weight = F.softmax(gate3_expert_score, dim=-1)
         expert_hiddens = torch.stack(expert_hiddens, dim=2)
         expert_fusion_output1 = torch.matmul(gate1_expert_weight.unsqueeze(2), expert_hiddens).squeeze(2)
@@ -514,7 +514,7 @@ class BILSTM_CRF_Span_Attr_Three_Boundary_MMoE(Base_BILSTM_CRF_Span_Attr_Three):
         return logits_span, logits_attr_start, logits_attr_end
 
 
-
+        
 class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
     def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
         """
@@ -548,12 +548,13 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
         self.experts_num = experts_num
         self.selector_num = 2
         hidden_size = sequence_encoder.hidden_size
-        self.layers_experts_shared = nn.ModuleList([])
-        self.layers_experts_task1 = nn.ModuleList([])
-        self.layers_experts_task2 = nn.ModuleList([])
-        self.layers_experts_shared_gate = nn.ModuleList([])
-        self.layers_experts_task1_gate = nn.ModuleList([])
-        self.layers_experts_task2_gate = nn.ModuleList([])
+        self.layers_experts_shared = nn.ModuleList()
+        self.layers_experts_task1 = nn.ModuleList()
+        self.layers_experts_task2 = nn.ModuleList()
+        self.layers_experts_shared_gate = nn.ModuleList()
+        self.layers_experts_task1_gate = nn.ModuleList()
+        self.layers_experts_task2_gate = nn.ModuleList()
+        # self.layers_layernorm = nn.ModuleList([nn.ModuleList() for _ in range(3)])
         for i in range(experts_layers):
             # experts shared
             self.layers_experts_shared.append(Linear3D(hidden_size, hidden_size, experts_num))        
@@ -573,41 +574,54 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
             # gate task2
             self.layers_experts_task2_gate.append(nn.Linear(hidden_size, experts_num * self.selector_num))            
 
+            # layer norm
+            # for j in range(3):
+            #     self.layers_layernorm[i].append(nn.LayerNorm(hidden_size, elementwise_affine=False))
+
 
     def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final):
         for i in range(self.experts_layers):
             # shared  output
-            # experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
-            experts_shared_output = torch.tanh(self.layers_experts_shared[i](gate_shared_output_final))
-            
+            experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            # experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
+            # experts_shared_output = F.dropout(experts_shared_output, p=0.1)
+
             # task1 output
-            # experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
-            experts_task1_output = torch.tanh(self.layers_experts_task1[i](gate_task1_output_final))
+            experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+            # experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
+            # experts_task1_output = F.dropout(experts_task1_output, p=0.1)
 
             # task2 output
-            # experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
-            experts_task2_output = torch.tanh(self.layers_experts_task2[i](gate_task2_output_final))
+            experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+            # experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
+            # experts_task2_output = F.dropout(experts_task2_output, p=0.1)
 
             # gate shared output
             gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)
             gate_shared_output = F.softmax(gate_shared_output, dim=-1)
             gate_shared_output = torch.matmul(gate_shared_output.unsqueeze(-2), 
                                     torch.cat([experts_task1_output, experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_shared_output = F.dropout(gate_shared_output, p=0.1)
             gate_shared_output_final = gate_shared_output
+            # gate_shared_output_final = self.layers_layernorm[i][0](gate_shared_output + gate_shared_output_final)
 
             # gate task1 output
             gate_task1_output = self.layers_experts_task1_gate[i](gate_task1_output_final) # (B, S, C)
             gate_task1_output = F.softmax(gate_task1_output, dim=-1)
             gate_task1_output = torch.matmul(gate_task1_output.unsqueeze(-2), 
                                     torch.cat([experts_task1_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task1_output = F.dropout(gate_task1_output, p=0.1)
             gate_task1_output_final = gate_task1_output
+            # gate_task1_output_final = self.layers_layernorm[i][1](gate_task1_output + gate_task1_output_final)
 
             # gate task2 output
             gate_task2_output = self.layers_experts_task2_gate[i](gate_task2_output_final) # (B, S, C)
             gate_task2_output = F.softmax(gate_task2_output, dim=-1)
             gate_task2_output = torch.matmul(gate_task2_output.unsqueeze(-2), 
                                     torch.cat([experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task2_output = F.dropout(gate_task2_output, p=0.1)
             gate_task2_output_final = gate_task2_output
+            # gate_task2_output_final = self.layers_layernorm[i][2](gate_task2_output + gate_task2_output_final)
         
         return gate_shared_output_final, gate_task1_output_final, gate_task2_output_final
 
@@ -624,6 +638,242 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
         logits_attr_end = self.mlp_attr_end(attr_seqs_hiddens) # B, S, V
         
         return logits_span, logits_attr_start, logits_attr_end
+
+
+class BILSTM_CRF_Span_Attr_Boundary_PLE_1(BILSTM_CRF_Span_Attr_Boundary_PLE):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Boundary_PLE_1, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate,
+            experts_layers=experts_layers,
+            experts_num=experts_num
+        )
+
+
+    def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final):
+        for i in range(self.experts_layers):
+            # shared  output
+            # experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
+            # experts_shared_output = F.dropout(experts_shared_output, p=0.1)
+
+            # task1 output
+            # experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+            experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
+            # experts_task1_output = F.dropout(experts_task1_output, p=0.1)
+
+            # task2 output
+            # experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+            experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
+            # experts_task2_output = F.dropout(experts_task2_output, p=0.1)
+
+            # gate shared output
+            gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)
+            gate_shared_output = F.softmax(gate_shared_output, dim=-1)
+            gate_shared_output = torch.matmul(gate_shared_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_shared_output = F.dropout(gate_shared_output, p=0.1)
+            gate_shared_output_final = gate_shared_output
+            # gate_shared_output_final = self.layers_layernorm[i][0](gate_shared_output + gate_shared_output_final)
+
+            # gate task1 output
+            gate_task1_output = self.layers_experts_task1_gate[i](gate_task1_output_final) # (B, S, C)
+            gate_task1_output = F.softmax(gate_task1_output, dim=-1)
+            gate_task1_output = torch.matmul(gate_task1_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task1_output = F.dropout(gate_task1_output, p=0.1)
+            gate_task1_output_final = gate_task1_output
+            # gate_task1_output_final = self.layers_layernorm[i][1](gate_task1_output + gate_task1_output_final)
+
+            # gate task2 output
+            gate_task2_output = self.layers_experts_task2_gate[i](gate_task2_output_final) # (B, S, C)
+            gate_task2_output = F.softmax(gate_task2_output, dim=-1)
+            gate_task2_output = torch.matmul(gate_task2_output.unsqueeze(-2), 
+                                    torch.cat([experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task2_output = F.dropout(gate_task2_output, p=0.1)
+            gate_task2_output_final = gate_task2_output
+            # gate_task2_output_final = self.layers_layernorm[i][2](gate_task2_output + gate_task2_output_final)
+        
+        return gate_shared_output_final, gate_task1_output_final, gate_task2_output_final
+
+
+
+class BILSTM_CRF_Span_Attr_Boundary_PLE_2(BILSTM_CRF_Span_Attr_Boundary_PLE):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Boundary_PLE_2, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate,
+            experts_layers=experts_layers,
+            experts_num=experts_num
+        )
+
+
+    def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final):
+        for i in range(self.experts_layers):
+            # shared  output
+            experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            # experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
+            # experts_shared_output = F.dropout(experts_shared_output, p=0.1)
+
+            # task1 output
+            experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+            # experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
+            # experts_task1_output = F.dropout(experts_task1_output, p=0.1)
+
+            # task2 output
+            experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+            # experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
+            # experts_task2_output = F.dropout(experts_task2_output, p=0.1)
+
+            # gate shared output
+            gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)
+            gate_shared_output = F.softmax(gate_shared_output, dim=-1)
+            gate_shared_output = torch.matmul(gate_shared_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_shared_output_final = gate_shared_output
+            gate_shared_output_final = self.layers_layernorm[i][0](gate_shared_output + gate_shared_output_final)
+
+            # gate task1 output
+            gate_task1_output = self.layers_experts_task1_gate[i](gate_task1_output_final) # (B, S, C)
+            gate_task1_output = F.softmax(gate_task1_output, dim=-1)
+            gate_task1_output = torch.matmul(gate_task1_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task1_output_final = gate_task1_output
+            gate_task1_output_final = self.layers_layernorm[i][1](gate_task1_output + gate_task1_output_final)
+
+            # gate task2 output
+            gate_task2_output = self.layers_experts_task2_gate[i](gate_task2_output_final) # (B, S, C)
+            gate_task2_output = F.softmax(gate_task2_output, dim=-1)
+            gate_task2_output = torch.matmul(gate_task2_output.unsqueeze(-2), 
+                                    torch.cat([experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task2_output_final = gate_task2_output
+            gate_task2_output_final = self.layers_layernorm[i][2](gate_task2_output + gate_task2_output_final)
+        
+        return gate_shared_output_final, gate_task1_output_final, gate_task2_output_final
+
+
+
+class BILSTM_CRF_Span_Attr_Boundary_PLE_3(BILSTM_CRF_Span_Attr_Boundary_PLE):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(BILSTM_CRF_Span_Attr_Boundary_PLE_3, self).__init__(
+            sequence_encoder=sequence_encoder,
+            span2id=span2id,
+            attr2id=attr2id,
+            compress_seq=compress_seq,
+            share_lstm=share_lstm,
+            span_use_lstm=span_use_lstm,
+            attr_use_lstm=attr_use_lstm,
+            span_use_crf=span_use_crf,
+            tagscheme=tagscheme,
+            batch_first=batch_first,
+            dropout_rate=dropout_rate,
+            experts_layers=experts_layers,
+            experts_num=experts_num
+        )
+
+
+    def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final):
+        for i in range(self.experts_layers):
+            # shared  output
+            experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            # experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
+            experts_shared_output = F.dropout(experts_shared_output, p=0.1)
+
+            # task1 output
+            experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+            # experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
+            experts_task1_output = F.dropout(experts_task1_output, p=0.1)
+
+            # task2 output
+            experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+            # experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
+            experts_task2_output = F.dropout(experts_task2_output, p=0.1)
+
+            # gate shared output
+            gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)
+            gate_shared_output = F.softmax(gate_shared_output, dim=-1)
+            gate_shared_output = torch.matmul(gate_shared_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_shared_output_final = gate_shared_output
+            gate_shared_output_final = self.layers_layernorm[i][0](gate_shared_output + gate_shared_output_final)
+
+            # gate task1 output
+            gate_task1_output = self.layers_experts_task1_gate[i](gate_task1_output_final) # (B, S, C)
+            gate_task1_output = F.softmax(gate_task1_output, dim=-1)
+            gate_task1_output = torch.matmul(gate_task1_output.unsqueeze(-2), 
+                                    torch.cat([experts_task1_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task1_output_final = gate_task1_output
+            gate_task1_output_final = self.layers_layernorm[i][1](gate_task1_output + gate_task1_output_final)
+
+            # gate task2 output
+            gate_task2_output = self.layers_experts_task2_gate[i](gate_task2_output_final) # (B, S, C)
+            gate_task2_output = F.softmax(gate_task2_output, dim=-1)
+            gate_task2_output = torch.matmul(gate_task2_output.unsqueeze(-2), 
+                                    torch.cat([experts_task2_output, experts_shared_output], dim=-1).permute(0, 1, 3, 2)).squeeze(-2)
+            # gate_task2_output_final = gate_task2_output
+            gate_task2_output_final = self.layers_layernorm[i][2](gate_task2_output + gate_task2_output_final)
+        
+        return gate_shared_output_final, gate_task1_output_final, gate_task2_output_final
 
 
 
@@ -697,20 +947,20 @@ class BILSTM_CRF_Span_Attr_Three_Boundary_PLE(Base_BILSTM_CRF_Span_Attr_Three):
     def progressive_layered_extraction(self, gate_shared_output_final, gate_task1_output_final, gate_task2_output_final, gate_task3_output_final):
         for i in range(self.experts_layers):
             # shared  output
-            # experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
-            experts_shared_output = torch.tanh(self.layers_experts_shared[i](gate_shared_output_final))
+            experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
+            # experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
             
             # task1 output
-            # experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
-            experts_task1_output = torch.tanh(self.layers_experts_task1[i](gate_task1_output_final))
+            experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
+            # experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
 
             # task2 output
-            # experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
-            experts_task2_output = torch.tanh(self.layers_experts_task2[i](gate_task2_output_final))
+            experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
+            # experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
 
             # task3 output
-            # experts_task3_output = torch.relu(self.layers_experts_task2[i](gate_task3_output_final))
-            experts_task3_output = torch.tanh(self.layers_experts_task2[i](gate_task3_output_final))
+            experts_task3_output = torch.relu(self.layers_experts_task3[i](gate_task3_output_final))
+            # experts_task3_output = self.layers_experts_task3[i](gate_task3_output_final)
 
             # gate shared output
             gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)

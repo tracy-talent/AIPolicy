@@ -9,7 +9,6 @@
 import sys
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
-from pasaie.utils.embedding import load_wordvec
 from pasaie.tokenization.utils import load_vocab
 from pasaie import pasaner
 
@@ -29,7 +28,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -68,12 +67,6 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--char2vec_file', default='', type=str,
-        help='character embedding file')
-parser.add_argument('--word2vec_file', default='', type=str,
-        help='word2vec embedding file')
-parser.add_argument('--custom_dict', default='', type=str,
-        help='user custom dict for tokenizer toolkit')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -104,6 +97,11 @@ parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
                     help='global random seed')
+parser.add_argument('--experts_layers', default=2, type=int,
+                    help='experts layers of PLE MTL')
+parser.add_argument('--experts_num', default=2, type=int,
+                    help='experts num of every experts in PLE')
+
 
 args = parser.parse_args()
 
@@ -120,11 +118,25 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = 'mtl_span_attr_boundary_startprior_wlf'
+        model_name = 'mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = 'mtl_span_attr_boundary_attention'
+        model_name = 'mtl_span_attr_boundary_attention_bert'
+    elif args.model_type == 'mmoe':
+        model_name = 'mtl_span_attr_boundary_mmoe_bert'
+    elif args.model_type == 'ple':
+        model_name = 'mtl_span_attr_boundary_ple_bert'
+    elif args.model_type == 'plethree':
+        model_name = 'mtl_span_attr_three_boundary_ple_bert'
     else:
-        model_name = 'mtl_span_attr_boundary_wlf'
+        model_name = 'mtl_span_attr_boundary_bert'
+    model_name += '_noact'
+    # model_name += '_drop_ln'
+    # model_name += '_drop'
+    # model_name += '_relu'
+    # model_name += '_relu_drop'
+    # model_name += '_relu_ln'
+    # model_name += '_relu_drop_ln'
+
     if args.share_lstm:
         model_name += '_sharelstm'
     if args.span_use_lstm:
@@ -133,11 +145,13 @@ def make_model_name():
         model_name += '_attrlstm'
     if args.span_use_crf:
         model_name += '_spancrf'
-    model_name += '_' + args.loss
+    #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
+    model_name += '_' + args.loss + '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
+    model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -196,30 +210,12 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load embedding and vocab
-char2id, char2vec = load_wordvec(args.char2vec_file)
-if args.char2vec_file == args.word2vec_file:
-    word2id, word2vec = char2id, char2vec
-else:
-    word2id, word2vec = load_wordvec(args.word2vec_file)
 
 # Define the sentence encoder
-#sequence_encoder = pasaner.encoder.BaseWLFEncoder(
-#    char2id=char2id,
-#    word2id=word2id,
-#    max_length=args.max_length,
-#    char_size=char2vec.shape[-1],
-#    word_size=word2vec.shape[-1],
-#    char2vec=char2vec,
-#    word2vec=word2vec,
-#    custom_dict=args.custom_dict,
-#    blank_padding=True
-#)
-sequence_encoder = pasaner.encoder.BaseEncoder(
-    token2id=char2id,
+sequence_encoder = pasaner.encoder.BERTEncoder(
     max_length=args.max_length,
-    word_size=char2vec.shape[-1],
-    word2vec=char2vec,
+    pretrain_path=args.pretrain_path,
+    bert_name=args.bert_name,
     blank_padding=True
 )
 
@@ -248,6 +244,46 @@ elif args.model_type == 'startprior':
         span_use_crf=args.span_use_crf,
         soft_label=args.soft_label,
         dropout_rate=args.dropout_rate
+    )
+elif args.model_type == 'mmoe':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_MMoE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate
+    )
+elif args.model_type == 'ple':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE_1(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num
+    )
+elif args.model_type == 'plethree':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Three_Boundary_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num
     )
 else:
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(
@@ -312,4 +348,3 @@ logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('Micro F1: {}'.format(result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
-
