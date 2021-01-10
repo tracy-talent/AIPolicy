@@ -132,10 +132,10 @@ def make_model_name():
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += '_relu'
+    # model_name += '_relu'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
-    # model_name += '_relu_drop_ln'
+    model_name += '_relu_drop_ln'
 
     if args.share_lstm:
         model_name += '_sharelstm'
@@ -146,9 +146,7 @@ def make_model_name():
     if args.span_use_crf:
         model_name += '_spancrf'
     #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
-    model_name += '_' + args.loss
-    if 'dice' in args.loss:
-        model_name += '_' + str(args.dice_alpha)
+    model_name += '_' + args.loss + '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
@@ -260,7 +258,7 @@ elif args.model_type == 'mmoe':
         dropout_rate=args.dropout_rate
     )
 elif args.model_type == 'ple':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE_3(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,
         attr2id=attr2id,
@@ -326,10 +324,11 @@ framework = pasaner.framework.MTL_Span_Attr_Boundary(
     metric=args.metric,
 )
 
+print(ckpt)
 # Load pretrained model
-# if ckpt_cnt > 0:
-#    logger.info('load checkpoint')
-#    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+if ckpt_cnt > 0:
+   logger.info('load checkpoint')
+   framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
@@ -337,10 +336,7 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader)
-else:
-    result = framework.eval_model(framework.test_loader)
+result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

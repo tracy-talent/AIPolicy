@@ -185,6 +185,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
         # Cuda
         if torch.cuda.is_available():
             self.cuda()
+        if hasattr(self.model.sequence_encoder, 'word_embedding'):
+            self.model.sequence_encoder.word_embedding.cpu()
         # Ckpt
         self.ckpt = ckpt
         # logger
@@ -407,6 +409,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
             if is_loss_nan:
+                self.logger.info(f'loss has nan: {loss}')
                 break
             micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
             train_state['train_metrics'].append({'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_start_acc': avg_attr_start_acc.avg, 'attr_end_acc': avg_attr_end_acc.avg, 'span_micro_p': span_prec.avg, 'span_micro_r': span_rec.avg, 'span_micro_f1': span_micro_f1, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
