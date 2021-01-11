@@ -9,7 +9,7 @@
 import sys
 sys.path.append('../..')
 from pasaie.utils import get_logger, fix_seed
-from pasaie.utils.embedding import load_wordvec
+from pasaie.utils.embedding import load_wordvec, construct_embedding_from_numpy
 from pasaie.tokenization.utils import load_vocab
 from pasaie import pasaner
 
@@ -219,6 +219,7 @@ span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file)
+# word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
 
 # Define the sentence encoder
 sequence_encoder = pasaner.encoder.BERTWLFEncoder(

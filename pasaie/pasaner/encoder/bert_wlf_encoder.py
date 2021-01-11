@@ -107,12 +107,12 @@ class BERTWLFEncoder(nn.Module):
         self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
 
         # self.hidden_size = self.bert.config.hidden_size + self.word_size
-        self.hidden_size = self.bert.config.hidden_size + 100
+        self.hidden_size = self.bert.config.hidden_size + self.word_size
         self.max_length = max_length
         self.blank_padding = blank_padding
 
         # align word embedding and bert embedding
-        self.word2bert_linear = nn.Linear(self.word_size, 100)
+        self.word2bert_linear = nn.Linear(self.word_size, self.word_size)
 
 
     def forward(self, seqs_char, seqs_word, att_mask):
@@ -131,7 +131,7 @@ class BERTWLFEncoder(nn.Module):
         # seq_embedding = self.embeddings(seqs)
         inputs_embed = torch.cat([
             bert_seq_embed,
-            self.word2bert_linear(self.word_embedding(seqs_word))
+            self.word2bert_linear(self.word_embedding(seqs_word.detach().cpu()).to(self.word2vert_linear.weight.device))
         ], dim=-1) # (B, L, EMBED)
 
         return inputs_embed

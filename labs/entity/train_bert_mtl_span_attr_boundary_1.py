@@ -110,7 +110,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-fix_seed(args.random_seed)
+# fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():

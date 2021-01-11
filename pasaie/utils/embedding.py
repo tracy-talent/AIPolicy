@@ -1,9 +1,19 @@
+"""
+ Author: liujian
+ Date: 2021-01-11 23:32:03
+ Last Modified by: liujian
+ Last Modified time: 2021-01-11 23:32:03
+"""
+
 from gensim.models import KeyedVectors
 import numpy as np
 
 from collections import OrderedDict
 import os
 import json
+import logging
+
+
 
 def wordvec2npy(wv_file, out_path):
     """convert word2vec format file to numpy matrix npy_file and word2id json file 
@@ -66,3 +76,60 @@ def load_vocab_npy(vocab_file, w2v_npy_file):
     word_emb_npy = np.load(w2v_npy_file)
 
     return word2id, word_emb_npy
+
+
+def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None):
+    """construct embedding from numpy word2vec
+
+    Args:
+        word2id (dict): dictionary of word->idx mapping.
+        word_size (int, optional): size of word embedding. Defaults to 50.
+        word2vec (numpy.ndarray, optional): pretrained word2vec numpy. Defaults to None.
+
+    Returns:
+        word2id (dict): updated dictionary of word->idx mapping.
+        word_embedding (torch.nn.Embedding): torch embedding.
+    """
+    # load word vectors
+    num_word = len(word2id)
+    if word2vec is None:
+        word_size = word_size
+    else:
+        word_size = word2vec.shape[-1]
+    if word2vec is not None:
+        try:
+            word2vec = torch.from_numpy(word2vec)
+        except TypeError as e:
+            logging.info(e)
+    # word vocab
+    if not '[CLS]' in word2id:
+        word2id['[CLS]'] = len(word2id)
+        num_word += 1
+        if word2vec is not None:
+            cls_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            word2vec = torch.cat([word2vec, cls_vec], dim=0)
+    if not '[SEP]' in word2id:
+        word2id['[SEP]'] = len(word2id)
+        num_word += 1
+        if word2vec is not None:
+            sep_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            word2vec = torch.cat([word2vec, sep_vec], dim=0)
+    if not '[UNK]' in word2id:
+        word2id['[UNK]'] = len(word2id)
+        num_word += 1
+        if word2vec is not None:
+            unk_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            word2vec = torch.cat([word2vec, unk_vec], dim=0)
+    if not '[PAD]' in word2id:
+        word2id['[PAD]'] = len(word2id)
+        num_word += 1
+        if word2vec is not None:
+            blk_vec = torch.zeros(1, word_size)
+            word2vec = torch.cat([word2vec, blk_vec], dim=0)
+    # word embedding
+    word_embedding = nn.Embedding(num_word, word_size)
+    if word2vec is not None:
+        logging.info("Initializing word embedding with word2vec.")
+        word_embedding.weight.data.copy_(word2vec)
+
+    return word2id, word_embedding

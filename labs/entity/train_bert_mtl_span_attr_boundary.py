@@ -110,7 +110,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-fix_seed(args.random_seed)
+# fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -132,8 +132,8 @@ def make_model_name():
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += '_relu'
-    # model_name += '_relu_drop'
+    # model_name += '_relu'
+    model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
 

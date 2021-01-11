@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
@@ -20,7 +20,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_length 200 \
     --max_epoch 10 \
     --optimizer adam \
-    --loss ce \
-    --adv none \
+    --loss dice \
+    --adv fgm \
     --dice_alpha 0.8 \
     --metric micro_f1

@@ -183,10 +183,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
         else:
             self.adv = None
         # Cuda
+        if hasattr(self.model.sequence_encoder, 'word_embedding'):
+            word_embedding = self.model.sequence_encoder.word_embedding
+            self.model.sequence_encoder.word_embedding = None
         if torch.cuda.is_available():
             self.cuda()
         if hasattr(self.model.sequence_encoder, 'word_embedding'):
-            self.model.sequence_encoder.word_embedding.cpu()
+            self.model.sequence_encoder.word_embedding = word_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger
