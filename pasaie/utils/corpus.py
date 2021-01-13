@@ -8,6 +8,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from transformers import BertTokenizer
 
 import re
 import os
@@ -710,6 +711,64 @@ def construct_relation_corpus_from_brat(data_path, out_path, reltag_directed=Fal
                 vf.write('\n') if i < len(v) / 5 else tf.write('\n')
 
 
+def construct_english_bert_ner_corpus_from_bmoes(input_file, output_file, pretrain_path):
+    tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+    with open(input_file, 'r', encoding='utf-8') as rf, open(output_file, 'w', encoding='utf-8') as wf:
+        seqs = []
+        for line in rf:
+            line = line.strip().split()
+            if len(line) > 0:
+                seqs.append(line)
+            elif len(seqs) > 0:
+                tokens, tags = list(zip(*seqs))
+                bert_tokens = tokenizer.tokenize(' '.join(tokens))
+                bert_tags = []
+                tpos, tlen = 0, 0
+                bpos, blen = 0, 0
+                while tpos < len(tokens):
+                    if tags[tpos][0] == 'B' or tags[tpos][0] == 'S':
+                        if tags[tpos][0] == 'B':
+                            tlen = 0
+                            while tags[tpos][0] != 'E':
+                                tlen += len(tokens[tpos])
+                                tpos += 1
+                        else:
+                            tlen = len(tokens[tpos])
+                        attr = tags[tpos][2:]
+                        blen = 0
+                        last_bpos = bpos
+                        while blen < tlen:
+                            if bert_tokens[bpos].startswith('##'):
+                                blen += len(bert_tokens[bpos][2:])
+                            else:
+                                blen += len(bert_tokens[bpos])
+                            bpos += 1
+                        if last_bpos + 1 == bpos:
+                            bert_tags.append(f'S-{attr}')
+                        else:
+                            bert_tags.append(f'B-{attr}')
+                            for _ in range(last_bpos + 1, bpos - 1):
+                                bert_tags.append(f'M-{attr}')
+                            bert_tags.append(f'E-{attr}')
+                    else:
+                        tlen = len(tokens[tpos])
+                        blen = 0
+                        last_bpos = bpos
+                        while blen < tlen:
+                            if bert_tokens[bpos].startswith('##'):
+                                blen += len(bert_tokens[bpos][2:])
+                            else:
+                                blen += len(bert_tokens[bpos])
+                            bpos += 1
+                        for j in range(last_bpos, bpos):
+                            bert_tags.append('O')
+                    tpos += 1
+                for token_tag_pair in zip(bert_tokens, bert_tags):
+                    wf.write(' '.join(token_tag_pair) + '\n')
+                wf.write('\n')
+                seqs = []
+
+                
 def paint_relation_hist(corpus_relation, data_path):
     """paint relation type histogram
 
@@ -750,3 +809,4 @@ def paint_entity_hist(corpus_entity, data_path):
     plt.bar(x=range(len(entity_type_stats)), height=entity_type_stats.values())
     plt.savefig(os.path.join(data_path, 'entity_hist.jpg'), bbox_inches='tight')
     # plt.show()
+                        

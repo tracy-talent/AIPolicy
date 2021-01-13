@@ -33,7 +33,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 test_path, 
                 ckpt, 
                 logger, 
-                tb_logdir, 
+                tb_logdir,
+                word_embedding=None, 
                 compress_seq=True,
                 tagscheme='bmoes',
                 batch_size=32, 
@@ -61,6 +62,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.tagscheme = tagscheme
         self.max_grad_norm = max_grad_norm
         self.early_stopping_step = early_stopping_step
+        self.word_embedding = word_embedding
 
         # Load Data
         if train_path != None:
@@ -119,16 +121,17 @@ class MTL_Span_Attr_Boundary(nn.Module):
         # Params and optimizer
         self.lr = lr
         self.bert_lr = bert_lr
+        pretrained_params_id = []
+        if self.word_embedding is not None:
+            embedding_params = self.word_embedding.parameters()
+            pretrained_params_id.extend(list(map(id, embedding_params)))
         if self.is_bert_encoder:
             encoder_params = self.parallel_model.module.sequence_encoder.parameters()
-            bert_params_id = list(map(id, encoder_params))
-        else:
-            encoder_params = []
-            bert_params_id = []
-        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
+            pretrained_params_id.extend(list(map(id, encoder_params)))
+        pretrained_params = list(filter(lambda p: id(p) in pretrained_params_id, self.parameters()))
+        other_params = list(filter(lambda p: id(p) not in pretrained_params_id, self.parameters()))
         grouped_params = [
-            {'params': bert_params, 'lr':bert_lr},
+            {'params': pretrained_params, 'lr':bert_lr},
             {'params': other_params, 'lr':lr}
         ]
         if opt == 'sgd':
@@ -140,22 +143,22 @@ class MTL_Span_Attr_Boundary(nn.Module):
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             adamw_grouped_params = [
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
                     'weight_decay': weight_decay,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in pretrained_params_id], 
                     'weight_decay': weight_decay,
                     'lr': lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
                     'weight_decay': 0.0,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in pretrained_params_id], 
                     'weight_decay': 0.0,
                     'lr': lr,
                 }
@@ -183,13 +186,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
         else:
             self.adv = None
         # Cuda
-        if hasattr(self.model.sequence_encoder, 'word_embedding'):
-            word_embedding = self.model.sequence_encoder.word_embedding
-            self.model.sequence_encoder.word_embedding = None
+        del self.word_embedding # avoid embedding to cuda
         if torch.cuda.is_available():
             self.cuda()
-        if hasattr(self.model.sequence_encoder, 'word_embedding'):
-            self.model.sequence_encoder.word_embedding = word_embedding
+        self.word_embedding = word_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger
@@ -269,7 +269,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
                         try:
-                            data[i] = data[i].cuda()
+                            if i == 4 and self.word_embedding is not None:
+                                data[i] = self.word_embedding(data[i]).cuda()
+                            else:
+                                data[i] = data[i].cuda()
                         except:
                             pass
                 args = data[3:]
@@ -447,7 +450,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
 
             # test
-            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
                 self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
                 acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100), str(round(result['attr_end_acc'], 4) * 100))
@@ -467,7 +470,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     test_best_metric = result[self.metric]
             
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
-        if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+        if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
             self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
 
 
@@ -500,7 +503,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
                         try:
-                            data[i] = data[i].cuda()
+                            if i == 4 and self.word_embedding is not None:
+                                data[i] = self.word_embedding(data[i]).cuda()
+                            else:
+                                data[i] = data[i].cuda()
                         except:
                             pass
                 args = data[3:]
@@ -642,8 +648,16 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.model.load_state_dict(state_dict['model'])
         if self.autoweighted_loss is not None:
             self.autoweighted_loss.load_state_dict(state_dict['autoweighted_loss'])
-    
-    
+        model_params = []
+        for n, _ in self.model.named_parameters():
+            model_params.append(n)
+        for n, _ in self.named_parameters():
+            if n.startswith('model.'):
+                n = n[6:]
+            if n not in model_params:
+                print(n)
+
+
     def save_model(self, ckpt):
         state_dict = {'model': self.model.state_dict()}
         if self.autoweighted_loss is not None:

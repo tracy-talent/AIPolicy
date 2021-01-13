@@ -584,17 +584,17 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
             # shared  output
             experts_shared_output = torch.relu(self.layers_experts_shared[i](gate_shared_output_final))
             # experts_shared_output = self.layers_experts_shared[i](gate_shared_output_final)
-            experts_shared_output = F.dropout(experts_shared_output, p=0.1)
+            # experts_shared_output = F.dropout(experts_shared_output, p=0.1)
 
             # task1 output
             experts_task1_output = torch.relu(self.layers_experts_task1[i](gate_task1_output_final))
             # experts_task1_output = self.layers_experts_task1[i](gate_task1_output_final)
-            experts_task1_output = F.dropout(experts_task1_output, p=0.1)
+            # experts_task1_output = F.dropout(experts_task1_output, p=0.1)
 
             # task2 output
             experts_task2_output = torch.relu(self.layers_experts_task2[i](gate_task2_output_final))
             # experts_task2_output = self.layers_experts_task2[i](gate_task2_output_final)
-            experts_task2_output = F.dropout(experts_task2_output, p=0.1)
+            # experts_task2_output = F.dropout(experts_task2_output, p=0.1)
 
             # gate shared output
             gate_shared_output = self.layers_experts_shared_gate[i](gate_shared_output_final) # (B, S, C)

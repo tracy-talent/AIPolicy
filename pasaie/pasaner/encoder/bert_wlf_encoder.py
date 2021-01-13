@@ -22,20 +22,18 @@ class BERTWLFEncoder(nn.Module):
                 pretrain_path,
                 word2id,
                 word_size=50,
-                word2vec=None,
                 custom_dict=None,
                 max_length=512, 
                 bert_name='bert', 
                 blank_padding=True):
         """
         Args:
-            word2id (dict): dictionary of word->idx mapping
+            pretrain_path (str): path of pretrain model.
+            word2id (dict): dictionary of word->idx mapping.
             word_size (int, optional): size of word embedding. Defaults to 50.
-            word2vec (numpy.ndarray, optional): pretrained word2vec numpy. Defaults to None.
             custom_dict (str, optional): customized dictionary for word tokenizer. Defaults to None.
             max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 512.
-            pretrain_path (str): path of pretrain model
-            bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert
+            bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert.
             blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
         super(BERTWLFEncoder, self).__init__()
@@ -61,61 +59,18 @@ class BERTWLFEncoder(nn.Module):
         self.bert.resize_token_embeddings(len(self.tokenizer))
         # self.embeddings = BertEmbeddings(self.bert.config)
 
-        # load word vectors
         self.word2id = word2id
-        self.num_word = len(word2id)
-        if word2vec is None:
-            self.word_size = word_size
-        else:
-            self.word_size = word2vec.shape[-1]
-        if word2vec is not None:
-            try:
-                word2vec = torch.from_numpy(word2vec)
-            except TypeError as e:
-                logging.info(e)
-        # word vocab
-        if not '[CLS]' in self.word2id:
-            self.word2id['[CLS]'] = len(self.word2id)
-            self.num_word += 1
-            if word2vec is not None:
-                cls_vec = torch.randn(1, self.word_size) / math.sqrt(self.word_size)
-                word2vec = torch.cat([word2vec, cls_vec], dim=0)
-        if not '[SEP]' in self.word2id:
-            self.word2id['[SEP]'] = len(self.word2id)
-            self.num_word += 1
-            if word2vec is not None:
-                sep_vec = torch.randn(1, self.word_size) / math.sqrt(self.word_size)
-                word2vec = torch.cat([word2vec, sep_vec], dim=0)
-        if not '[UNK]' in self.word2id:
-            self.word2id['[UNK]'] = len(self.word2id)
-            self.num_word += 1
-            if word2vec is not None:
-                unk_vec = torch.randn(1, self.word_size) / math.sqrt(self.word_size)
-                word2vec = torch.cat([word2vec, unk_vec], dim=0)
-        if not '[PAD]' in self.word2id:
-            self.word2id['[PAD]'] = len(self.word2id)
-            self.num_word += 1
-            if word2vec is not None:
-                blk_vec = torch.zeros(1, self.word_size)
-                word2vec = torch.cat([word2vec, blk_vec], dim=0)
-        # word embedding
-        self.word_embedding = nn.Embedding(self.num_word, self.word_size)
-        if word2vec is not None:
-            logging.info("Initializing word embedding with word2vec.")
-            self.word_embedding.weight.data.copy_(word2vec)
-        # word tokenizer
-        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
-
-        # self.hidden_size = self.bert.config.hidden_size + self.word_size
+        self.word_size = word_size
         self.hidden_size = self.bert.config.hidden_size + self.word_size
         self.max_length = max_length
         self.blank_padding = blank_padding
-
         # align word embedding and bert embedding
         self.word2bert_linear = nn.Linear(self.word_size, self.word_size)
+        # word tokenizer
+        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
 
 
-    def forward(self, seqs_char, seqs_word, att_mask):
+    def forward(self, seqs_char, seqs_word_embedding, att_mask):
         """
         Args:
             seqs: (B, L), index of tokens
@@ -131,7 +86,7 @@ class BERTWLFEncoder(nn.Module):
         # seq_embedding = self.embeddings(seqs)
         inputs_embed = torch.cat([
             bert_seq_embed,
-            self.word2bert_linear(self.word_embedding(seqs_word.detach().cpu()).to(self.word2vert_linear.weight.device))
+            self.word2bert_linear(seqs_word_embedding)
         ], dim=-1) # (B, L, EMBED)
 
         return inputs_embed
@@ -203,7 +158,8 @@ class BERTWLFEncoder(nn.Module):
         att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
         att_mask[0, :avail_len] = 1
 
-        return indexed_tokens, indexed_token2word, att_mask  # ensure the first and last is indexed_tokens and att_mask
+        # ensure the first two is indexed_tokens and indexed_token2word, the last is att_mask
+        return indexed_tokens, indexed_token2word, att_mask  
 
 
 
@@ -282,4 +238,5 @@ class MRC_BERTWLFEncoder(BERTWLFEncoder):
         loss_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
         loss_mask[0, len(query_tokens)+2:avail_len-1] = 1
 
-        return indexed_tokens, loss_mask, att_mask  # ensure the first and last is indexed_tokens and att_mask
+        # ensure the first two is indexed_tokens and indexed_token2word, and last two is loss_mask and att_mask
+        return indexed_tokens, indexed_toke2word, loss_mask, att_mask  

@@ -55,7 +55,7 @@ parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'span_acc', 'attr_start_acc', 'attr_end_acc', 'loss'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
+parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4', 'conll2003'], 
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -110,7 +110,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-# fix_seed(args.random_seed)
+fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -132,8 +132,9 @@ def make_model_name():
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    # model_name += '_relu'
-    model_name += '_relu_drop'
+    # model_name += '_testple'
+    model_name += '_relu'
+    # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
 
@@ -189,6 +190,10 @@ if args.dataset != 'none':
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
         args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
+    elif args.dataset == 'conll2003':
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train_bert_uncased.char.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev_bert_uncased.char.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test_bert_uncased.char.{args.tagscheme}')
     else:
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')

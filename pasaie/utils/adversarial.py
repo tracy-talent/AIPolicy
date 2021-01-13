@@ -211,18 +211,18 @@ def adversarial_step(adv, model, K, get_loss):
     """
     if adv.__class__.__name__ == 'FGM':
         loss = get_loss()
-        loss.backward()  # 反向传播，得到正常的grad
+        loss.backward(retain_graph=True)  # 反向传播，得到正常的grad
         # 对抗训练
-        adv.backup() # 备份param.data
+        adv.backup() # 备份embedding
         adv.attack()  # 在embedding上添加对抗扰动
         loss_adv = get_loss()
         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
         adv.restore()  # 恢复embedding参数
     elif adv.__class__.__name__ == 'PGD':
         loss = get_loss()
-        loss.backward()
+        loss.backward(retain_graph=True)
         # 对抗训练
-        adv.backup()  # first attack时备份param.data
+        adv.backup()  # first attack时备份embedding
         adv.backup_grad()  # 在第一次loss.backword()后以保证有梯度
         for t in range(K):
             adv.attack()  # 在embedding上添加对抗扰动

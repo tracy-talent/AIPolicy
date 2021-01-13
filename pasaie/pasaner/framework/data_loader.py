@@ -633,8 +633,8 @@ class MRCSpanMultiNERDataset(SpanMultiNERDataset):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
             attrs = set(x[2:] for x in items[1] if x != 'O')
             for ent_type in self.query_dict:
-                if ent_type not in attrs:
-                    continue
+                #if 'train' in self.path and ent_type not in attrs:
+                #    continue
                 items_copy = deepcopy(items)
                 seqs = list(self.tokenizer(*items_copy, self.query_dict[ent_type], **self.kwargs))
 

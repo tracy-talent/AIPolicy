@@ -113,6 +113,100 @@ class BERTEncoder(nn.Module):
 
 
 
+class EnglishBertEncoder(nn.Module):
+    def __init__(self, max_length, pretrain_path, bert_name='bert', blank_padding=True):
+        """
+        Args:
+            max_length (int): max length of sequence
+            pretrain_path (str): path of pretrain model
+            bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert
+            blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
+        """
+        super(EnglishBERTEncoder, self).__init__()
+
+        logging.info(f'Loading {bert_name} pre-trained checkpoint.')
+        self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) 
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in bert_name:
+            self.bert = BertModel.from_pretrained(pretrain_path) 
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) 
+        elif 'bert' in bert_name:
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        # self.embeddings = BertEmbeddings(self.bert.config)
+
+        self.hidden_size = self.bert.config.hidden_size
+        self.max_length = max_length
+        self.blank_padding = blank_padding
+
+
+    def forward(self, seqs, att_mask):
+        """
+        Args:
+            seqs: (B, L), index of tokens
+            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+        Return:
+            (B, H), representations for sentences
+        """
+        if 'roberta' in self.bert_name:
+            # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            seq_out, _ = self.bert(seqs, attention_mask=att_mask)
+        # seq_embedding = self.embeddings(seqs)
+
+        return seq_out
+
+
+    def tokenize(self, *items): # items = (tokens, spans, [attrs, optional])
+        """
+        Args:
+            items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
+        Returns:
+            indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
+            att_mask (torch.tensor): token mask ids, (1, L)
+        """
+        if isinstance(items[0], str):
+            sentence = items[0]
+            is_token = False
+        else:
+            sentence = items[0]
+            is_token = True
+        if is_token:
+            items[0].insert(0, '[CLS]')
+            items[0].append('[SEP]')
+            if len(items) > 1:
+                items[1].insert(0, 'O')
+                items[1].append('O')
+            if len(items) > 2:
+                items[2].insert(0, 'null')
+                items[2].append('null')
+            tokens = items[0]
+        else:
+            tokens = ['[CLS]'] + self.tokenizer.tokenize(sentence) + ['[SEP]']
+        
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
+        avail_len = torch.tensor([len(indexed_tokens)])
+
+        if self.blank_padding:
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
+        indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0) # (1, L)
+
+        # attention mask
+        att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
+        att_mask[0, :avail_len] = 1
+
+        return indexed_tokens, att_mask  # ensure the first and last is indexed_tokens and att_mask
+
+
+
 class MRC_BERTEncoder(BERTEncoder):
     def tokenize(self, *items): # items = (tokens, spans, query, [attrs, optional])
         """

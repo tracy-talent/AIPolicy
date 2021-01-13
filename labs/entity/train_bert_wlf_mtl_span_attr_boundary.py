@@ -219,14 +219,13 @@ span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file)
-# word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
 
 # Define the sentence encoder
 sequence_encoder = pasaner.encoder.BERTWLFEncoder(
     pretrain_path=args.pretrain_path,
     word2id=word2id,
     word_size=word2vec.shape[-1],
-    word2vec=word2vec,
     max_length=args.max_length,
     custom_dict=args.custom_dict,
     blank_padding=True
@@ -315,6 +314,7 @@ else:
 # Define the whole training framework
 framework = pasaner.framework.MTL_Span_Attr_Boundary(
     model=model,
+    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,
