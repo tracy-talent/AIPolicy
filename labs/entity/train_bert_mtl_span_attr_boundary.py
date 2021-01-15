@@ -110,7 +110,8 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-fix_seed(args.random_seed)
+if 'weibo' in args.dataset:
+    fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -190,10 +191,10 @@ if args.dataset != 'none':
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
         args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')
-    elif args.dataset == 'conll2003':
-        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train_bert_uncased.char.{args.tagscheme}')
-        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev_bert_uncased.char.{args.tagscheme}')
-        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test_bert_uncased.char.{args.tagscheme}')
+    # elif args.dataset == 'conll2003':
+    #     args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train_bert_uncased.char.{args.tagscheme}')
+    #     args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev_bert_uncased.char.{args.tagscheme}')
+    #     args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test_bert_uncased.char.{args.tagscheme}')
     else:
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')

@@ -50,7 +50,7 @@ class JiebaTokenizer(object):
                 output_tokens: A list of wordpiece tokens.
                 current_positions: A list of the current positions for the original words in text .
         """
-        token_list = jieba.lcut(text)            
+        token_list = jieba.lcut(text, use_paddle=True)            
         return token_list
 
     def convert_tokens_to_ids(self, tokens, max_seq_length = None, blank_id = 0, unk_id = 1, uncased = True):

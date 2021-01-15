@@ -81,13 +81,14 @@ def load_vocab_npy(vocab_file, w2v_npy_file):
     return word2id, word_emb_npy
 
 
-def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None):
+def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None, finetune=False):
     """construct embedding from numpy word2vec
 
     Args:
         word2id (dict): dictionary of word->idx mapping.
         word_size (int, optional): size of word embedding. Defaults to 50.
         word2vec (numpy.ndarray, optional): pretrained word2vec numpy. Defaults to None.
+        finetune (bool, optional): whether finetune on word embedding.
 
     Returns:
         word2id (dict): updated dictionary of word->idx mapping.
@@ -109,24 +110,31 @@ def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None):
         word2id['[CLS]'] = len(word2id)
         num_word += 1
         if word2vec is not None:
-            cls_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            bound = 1 / math.sqrt(word_size)
+            cls_vec = nn.init.uniform_(torch.empty(1, word_size), -bound, bound) 
+            #cls_vec = torch.randn(1, word_size) / math.sqrt(word_size)
             word2vec = torch.cat([word2vec, cls_vec], dim=0)
     if not '[SEP]' in word2id:
         word2id['[SEP]'] = len(word2id)
         num_word += 1
         if word2vec is not None:
-            sep_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            bound = 1 / math.sqrt(word_size)
+            sep_vec = nn.init.uniform_(torch.empty(1, word_size), -bound, bound) 
+            #sep_vec = torch.randn(1, word_size) / math.sqrt(word_size)
             word2vec = torch.cat([word2vec, sep_vec], dim=0)
     if not '[UNK]' in word2id:
         word2id['[UNK]'] = len(word2id)
         num_word += 1
         if word2vec is not None:
-            unk_vec = torch.randn(1, word_size) / math.sqrt(word_size)
+            bound = 1 / math.sqrt(word_size)
+            unk_vec = nn.init.uniform_(torch.empty(1, word_size), -bound, bound) 
+            #unk_vec = torch.randn(1, word_size) / math.sqrt(word_size)
             word2vec = torch.cat([word2vec, unk_vec], dim=0)
     if not '[PAD]' in word2id:
         word2id['[PAD]'] = len(word2id)
         num_word += 1
         if word2vec is not None:
+            #blk_vec = nn.init.xavier_uniform_(torch.empty(1, word_size)) 
             blk_vec = torch.zeros(1, word_size)
             word2vec = torch.cat([word2vec, blk_vec], dim=0)
     # word embedding
@@ -134,5 +142,6 @@ def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None):
     if word2vec is not None:
         logging.info("Initializing word embedding with word2vec.")
         word_embedding.weight.data.copy_(word2vec)
+    word_embedding.weight.requires_grad = finetune
 
     return word2id, word_embedding

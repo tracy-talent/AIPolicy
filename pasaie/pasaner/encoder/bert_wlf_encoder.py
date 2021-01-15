@@ -61,11 +61,13 @@ class BERTWLFEncoder(nn.Module):
 
         self.word2id = word2id
         self.word_size = word_size
-        self.hidden_size = self.bert.config.hidden_size + self.word_size
+        # self.hidden_size = self.bert.config.hidden_size + self.word_size
+        self.hidden_size = self.bert.config.hidden_size
         self.max_length = max_length
         self.blank_padding = blank_padding
         # align word embedding and bert embedding
-        self.word2bert_linear = nn.Linear(self.word_size, self.word_size)
+        # self.word2bert_linear = nn.Linear(self.word_size, self.word_size)
+        self.word2bert_linear = nn.Linear(self.word_size, self.bert.config.hidden_size)
         # word tokenizer
         self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
 
@@ -84,11 +86,11 @@ class BERTWLFEncoder(nn.Module):
         else:
             bert_seq_embed, _ = self.bert(seqs_char, attention_mask=att_mask)
         # seq_embedding = self.embeddings(seqs)
-        inputs_embed = torch.cat([
-            bert_seq_embed,
-            self.word2bert_linear(seqs_word_embedding)
-        ], dim=-1) # (B, L, EMBED)
-
+        # inputs_embed = torch.cat([
+        #     bert_seq_embed,
+        #     self.word2bert_linear(seqs_word_embedding)
+        # ], dim=-1) # (B, L, EMBED)
+        inputs_embed = torch.add(bert_seq_embed, self.word2bert_linear(seqs_word_embedding)) # (B, L, EMBED)
         return inputs_embed
     
 

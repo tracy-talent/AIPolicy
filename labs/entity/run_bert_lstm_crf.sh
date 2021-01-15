@@ -1,11 +1,12 @@
-CUDA_VISIBLE_DEVICES=1 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --pretrain_path /home/liujian/NLP/corpus/transformers/google-bert-base-uncased \
     --bert_name bert \
-    --dataset policy \
-    --tagscheme bmoes \
+    --dataset conll2003 \
+    --tagscheme bio \
     --compress_seq \
     --use_crf \
+    --use_lstm \
     --batch_size 32 \
     --lr 1e-3 \
     --bert_lr 3e-5 \

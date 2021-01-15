@@ -197,7 +197,7 @@ class FreeLB():
         return self.emb_backup[param_name] + r
 
 
-def adversarial_step(adv, model, K, get_loss):
+def adversarial_step(adv, model, K, get_loss, retain_graph=False):
     """[summary]
 
     Args:
@@ -209,9 +209,10 @@ def adversarial_step(adv, model, K, get_loss):
     Returns:
         loss_adv (torch.Tensor): loss, a scalar.
     """
+    ori_model = model.module if hasattr(model, 'module') else model
     if adv.__class__.__name__ == 'FGM':
         loss = get_loss()
-        loss.backward(retain_graph=True)  # 反向传播，得到正常的grad
+        loss.backward(retain_graph=retain_graph)  # 反向传播，得到正常的grad
         # 对抗训练
         adv.backup() # 备份embedding
         adv.attack()  # 在embedding上添加对抗扰动
@@ -220,7 +221,7 @@ def adversarial_step(adv, model, K, get_loss):
         adv.restore()  # 恢复embedding参数
     elif adv.__class__.__name__ == 'PGD':
         loss = get_loss()
-        loss.backward(retain_graph=True)
+        loss.backward(retain_graph=retain_graph)
         # 对抗训练
         adv.backup()  # first attack时备份embedding
         adv.backup_grad()  # 在第一次loss.backword()后以保证有梯度
@@ -231,7 +232,8 @@ def adversarial_step(adv, model, K, get_loss):
             else:
                 adv.restore_grad()
             loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+            if t != K - 1:
+                loss_adv.backward(retain_graph=retain_graph)  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
         adv.restore()  # 恢复embedding参数
     elif adv.__class__.__name__ == 'FreeLB':
         # embedding_size = self.model.sentence_encoder.bert_hidden_size
@@ -244,7 +246,8 @@ def adversarial_step(adv, model, K, get_loss):
         grad = defaultdict(lambda: 0)
         for t in range(1, K + 1):
             loss_adv = get_loss()
-            loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+            if t != K:
+                loss_adv.backward(retain_graph=retain_graph)  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
             for name, param in model.named_parameters():
                 if param.requires_grad and param.grad is not None:
                     grad[name] += param.grad / t
@@ -437,7 +440,7 @@ def adversarial_perturbation_span_attr_mtl(adv, model, criterion, autoweighted_l
 
 
 def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autoweighted_loss=None, K=3, rand_init_mag=0.,
-                                      span_labels=None, attr_start_labels=None, attr_end_labels=None, *args):
+                                      span_labels=None, attr_start_labels=None, attr_end_labels=None, retain_graph=False, *args):
     """adversarial perturbation process
 
     Args:
@@ -477,7 +480,7 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
             loss = (loss_span + loss_attr_start + loss_attr_end) / 3
         return loss
     
-    loss_adv = adversarial_step(adv, model, K, get_loss)
+    loss_adv = adversarial_step(adv, model, K, get_loss, retain_graph)
     return loss_adv
 
 
