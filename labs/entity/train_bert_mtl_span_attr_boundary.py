@@ -28,7 +28,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -128,13 +128,15 @@ def make_model_name():
         model_name = 'mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
         model_name = 'mtl_span_attr_three_boundary_ple_bert'
+    elif args.model_type == 'pletogether':
+        model_name = 'mtl_span_attr_boundary_together_ple_bert'
     else:
         model_name = 'mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
     # model_name += '_testple'
-    model_name += '_relu'
+    model_name += '_relu_crf1e-2'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -200,7 +202,10 @@ if args.dataset != 'none':
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.{args.tagscheme}')
         args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.{args.tagscheme}')
     args.span2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'span2id.{args.tagscheme}')
-    args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
+    if 'together' in args.model_type:
+        args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id_together.{args.tagscheme}')
+    else:
+        args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
         logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
@@ -293,6 +298,20 @@ elif args.model_type == 'plethree':
         experts_layers=args.experts_layers,
         experts_num=args.experts_num
     )
+elif args.model_type == 'pletogether':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_Together_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num
+    )
 else:
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(
         sequence_encoder=sequence_encoder, 
@@ -307,7 +326,11 @@ else:
     )
 
 # Define the whole training framework
-framework = pasaner.framework.MTL_Span_Attr_Boundary(
+if 'together' in args.model_type:
+    framework_class = pasaner.framework.MTL_Span_Attr_Boundary_Together
+else:
+    framework_class = pasaner.framework.MTL_Span_Attr_Boundary
+framework = framework_class(
     model=model,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
@@ -350,8 +373,11 @@ else:
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))
-logger.info('Attr Start Accuracy: {}'.format(result['attr_start_acc']))
-logger.info('Attr End Accuracy: {}'.format(result['attr_start_acc']))
+if args.model_type == 'pletogether':
+    logger.info('Attr Accuracy: {}'.format(result['attr_acc']))
+else:
+    logger.info('Attr Start Accuracy: {}'.format(result['attr_start_acc']))
+    logger.info('Attr End Accuracy: {}'.format(result['attr_start_acc']))
 logger.info('Span Micro precision: {}'.format(result['span_micro_p']))
 logger.info('Span Micro recall: {}'.format(result['span_micro_r']))
 logger.info('Span Micro F1: {}'.format(result['span_micro_f1']))

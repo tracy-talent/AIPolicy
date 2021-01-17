@@ -251,7 +251,7 @@ class SentenceRE(BaseFramework):
         cate_prec = batch_metric.precision('none')
         cate_rec = batch_metric.recall('none')
         cate_f1 = batch_metric.f1_score('none')
-        category_result = {k: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
+        category_result = {self.model.id2rel[k]: v for k, v in enumerate(zip(cate_prec, cate_rec, cate_f1))}
         result = {'loss': loss, 'acc': acc, 'micro_p': micro_prec, 'micro_r': micro_rec, 'micro_f1': micro_f1, 
                     'category-p/r/f1': category_result}
         return result

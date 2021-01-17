@@ -5,7 +5,7 @@
  Last Modified time: 2020-10-25 14:31:17 
 """
 
-from ...metrics import Mean, micro_p_r_f1_score
+from ...metrics import Mean, micro_p_r_f1_score, BatchMetric
 from ...utils import extract_kvpairs_in_bio, extract_kvpairs_in_bmoes, extract_kvpairs_in_bioe
 from ...utils.adversarial import adversarial_perturbation
 from .data_loader import SingleNERDataLoader
@@ -363,4 +363,213 @@ class Model_CRF(BaseFramework):
         category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
         result = {'loss': avg_loss.avg, 'acc': avg_acc.avg, 'micro_p': p, 'micro_r': r, 'micro_f1': f1, 'category-p/r/f1':category_result}
+        return result
+
+
+class English_Model_CRF(Model_CRF):
+    def train_model(self):
+        train_state = self.make_train_state()
+        test_best_metric = 1e8 if 'loss' in self.metric else 0
+        global_step = 0
+        negid = -1
+        if 'O' in self.model.tag2id:
+            negid = self.model.tag2id['O']
+        if negid == -1:
+            raise Exception("negative tag not is 'O'")
+
+        for epoch in range(self.max_epoch):
+            self.train()
+            self.logger.info("=== Epoch %d train ===" % epoch)
+            train_state['epoch_index'] = epoch
+            avg_loss = Mean()
+            batch_metric = BatchMetric(num_classes=max(len(self.model.tag2id), 2), ignore_classes=[negid])
+            for ith, data in enumerate(self.train_loader):
+                if torch.cuda.is_available():
+                    for i in range(len(data)):
+                        try:
+                            data[i] = data[i].cuda()
+                        except:
+                            pass
+                args = data[1:]
+                logits = self.parallel_model(*args)
+                outputs_seq = data[0]
+                inputs_seq, inputs_mask = data[1], data[-1]
+                inputs_seq_len = inputs_mask.sum(dim=-1)
+                bs = outputs_seq.size(0)
+
+                # Optimize
+                if self.adv is None:
+                    if self.model.crf is None:
+                        loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                        loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                    else:
+                        log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                        loss = -log_likelihood / inputs_seq_len
+                    loss = loss.mean()
+                    loss.backward()
+                else:
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
+                # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+                if self.warmup_step > 0:
+                    self.scheduler.step()
+                self.optimizer.zero_grad()
+
+                # prediction/decode
+                if self.model.crf is None:
+                    preds_seq = logits.argmax(dim=-1) # B * S
+                else:
+                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
+                    for pred_seq in preds_seq:
+                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
+                    preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
+                
+                # update metrics
+                preds_seq = preds_seq.detach().cpu().numpy()
+                outputs_seq = outputs_seq.detach().cpu().numpy()
+                inputs_seq = inputs_seq.detach().cpu().numpy()
+                inputs_mask = inputs_mask.detach().cpu().numpy()
+                inputs_seq_len = inputs_seq_len.detach().cpu().numpy()
+                spos, tpos = 1, -1
+                for i in range(bs):
+                    seqlen = inputs_seq_len[i]
+                    if not self.is_bert_encoder:
+                        spos, tpos = 0, seqlen
+                    batch_metric.update(preds_seq[i][:seqlen][spos:tpos], outputs_seq[i][:seqlen][spos:tpos])
+
+                # get metrics
+                avg_loss.update(loss.item() * bs, bs)
+                cur_loss = avg_loss.avg
+                cur_acc = batch_metric.accuracy()
+                cur_prec = batch_metric.precision(reduction='micro')
+                cur_rec = batch_metric.recall(reduction='micro')
+                cur_f1 = batch_metric.f1_score(reduction='micro')
+
+                # Log
+                global_step += 1
+                if global_step % 5 == 0:
+                    self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {cur_loss:.4f}, acc: {cur_acc:.4f}, micro_p: {cur_prec:.4f}, micro_r: {cur_rec:.4f}, micro_f1: {cur_f1:.4f}')
+
+                # tensorboard training writer
+                if global_step % 5 == 0:
+                    self.writer.add_scalar('train loss', cur_loss, global_step=global_step)
+                    self.writer.add_scalar('train acc', cur_acc, global_step=global_step)
+                    self.writer.add_scalar('train micro precision', cur_prec, global_step=global_step)
+                    self.writer.add_scalar('train micro recall', cur_rec, global_step=global_step)
+                    self.writer.add_scalar('train micro f1', cur_f1, global_step=global_step)
+            train_state['train_metrics'].append({'loss': cur_loss, 'acc': cur_acc, 'micro_p': cur_prec, 'micro_r': cur_rec, 'micro_f1': cur_f1})
+
+            # Val 
+            self.logger.info("=== Epoch %d val ===" % epoch)
+            result = self.eval_model(self.val_loader) 
+            self.logger.info(f'Evaluation result: {result}.')
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            category_result = result.pop('category-p/r/f1')
+            train_state['val_metrics'].append(result)
+            result['category-p/r/f1'] = category_result
+            self.update_train_state(train_state)
+            if self.early_stopping_step > 0:
+                if not self.warmup_step > 0:
+                    self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+                if train_state['stop_early']:
+                    break
+            
+            # tensorboard val writer
+            self.writer.add_scalar('val loss', result['loss'], epoch)
+            self.writer.add_scalar('val acc', result['acc'], epoch)
+            self.writer.add_scalar('val micro precision', result['micro_p'], epoch)
+            self.writer.add_scalar('val micro recall', result['micro_r'], epoch)
+            self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
+
+            # test
+            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
+                self.logger.info("=== Epoch %d test ===" % epoch)
+                result = self.eval_model(self.test_loader)
+                self.logger.info('Test result: {}.'.format(result))
+                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                if 'loss' in self.metric:
+                    cmp_op = operator.lt
+                else:
+                    cmp_op = operator.gt
+                if cmp_op(result[self.metric], test_best_metric):
+                    self.logger.info('Best test ckpt and saved')
+                    self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
+                    test_best_metric = result[self.metric]
+            
+        self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
+        if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
+            self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
+            
+
+    def eval_model(self, eval_loader):
+        self.eval()
+        if 'O' in self.model.tag2id:
+            negid = self.model.tag2id['O']
+        if negid == -1:
+            raise Exception("negative tag not in 'O'")
+        avg_loss = Mean()
+        batch_metric = BatchMetric(num_classes=max(len(self.model.tag2id), 2), ignore_classes=[negid])
+        with torch.no_grad():
+            for ith, data in enumerate(eval_loader):
+                if torch.cuda.is_available():
+                    for i in range(len(data)):
+                        try:
+                            data[i] = data[i].cuda()
+                        except:
+                            pass
+                args = data[1:]
+                logits = self.parallel_model(*args)
+                outputs_seq = data[0]
+                inputs_seq, inputs_mask = data[1], data[-1]
+                inputs_seq_len = inputs_mask.sum(dim=-1)
+                bs = outputs_seq.size(0)
+
+                # loss
+                if self.model.crf is None:
+                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
+                else:
+                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                    loss = -log_likelihood / inputs_seq_len
+                loss = loss.sum().item()
+
+                # prediction/decode
+                if self.model.crf is None:
+                    preds_seq = logits.argmax(-1) # B * S
+                else:
+                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
+                    for pred_seq in preds_seq:
+                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
+                    preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
+
+                # get token sequence
+                preds_seq = preds_seq.detach().cpu().numpy()
+                outputs_seq = outputs_seq.detach().cpu().numpy()
+                inputs_seq = inputs_seq.detach().cpu().numpy()
+                inputs_mask = inputs_mask.detach().cpu().numpy()
+                inputs_seq_len = inputs_seq_len.detach().cpu().numpy()
+                spos, tpos = 1, -1
+                for i in range(bs):
+                    seqlen = inputs_seq_len[i]
+                    if not self.is_bert_encoder:
+                        spos, tpos = 0, seqlen
+                    batch_metric.update(preds_seq[i][:seqlen][spos:tpos], outputs_seq[i][:seqlen][spos:tpos])
+
+                # metrics update
+                avg_loss.update(loss, bs)
+
+                # Log
+                if (ith + 1) % 20 == 0:
+                    self.logger.info(f'Evaluation...Batches: {ith + 1} finished')
+
+        val_loss = avg_loss.avg
+        val_acc = batch_metric.accuracy()
+        val_prec = batch_metric.precision(reduction='micro')
+        val_rec = batch_metric.recall(reduction='micro')
+        val_f1 = batch_metric.f1_score(reduction='micro')
+        val_cate_prec = batch_metric.precision(reduction='none')
+        val_cate_rec = batch_metric.recall(reduction='none')
+        val_cate_f1 = batch_metric.f1_score(reduction='none')
+        category_result = {self.model.id2tag[k]: v for k, v in enumerate(zip(val_cate_prec, val_cate_rec, val_cate_f1))}
+        result = {'loss': val_loss, 'acc': val_acc, 'micro_p': val_prec, 'micro_r': val_rec, 'micro_f1': val_f1, 'category-p/r/f1':category_result}
         return result

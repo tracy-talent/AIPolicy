@@ -322,3 +322,24 @@ def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
                 pairs.append(((i, j + i + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:j+i+1]])))
                 break
     return pairs
+
+
+# extract entities by start and end positions together
+def extract_kvpairs_by_start_end_together(tag_seq, word_seq, neg_tag):
+    pairs = []
+    i = 0
+    while i < len(tag_seq):
+        s_tag = tag_seq[i]
+        if s_tag == 'Single':
+            pairs.append(((i, i + 1), s_tag, word_seq[i][2:] if word_seq[i].startswith('##') else word_seq[i]))
+        elif s_tag != neg_tag:
+            for j, e_tag in enumerate(tag_seq[i+1:]):
+                if e_tag != neg_tag and e_tag != s_tag or j + 2 > 30:
+                    i = i + j
+                    break
+                if e_tag == s_tag:
+                    pairs.append(((i, i + j + 2), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:i+j+2]])))
+                    i = i + j + 1
+                    break
+        i += 1
+    return pairs

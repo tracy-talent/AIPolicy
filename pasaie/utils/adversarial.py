@@ -484,6 +484,46 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
     return loss_adv
 
 
+def adversarial_perturbation_span_attr_boundary_together_mtl(adv, model, criterion, autoweighted_loss=None, K=3, rand_init_mag=0.,
+                                      span_labels=None, attr_labels=None, retain_graph=False, *args):
+    """adversarial perturbation process
+
+    Args:
+        adv (object): instance object of adversarial class
+        criterion (object): instance object of loss class
+        model (object): instance object of model class
+        K (int, optional): number of perturbation . Defaults to 3.
+        rand_init_mag (float, optional): used for FreeLB's initial perturbation . Defaults to 0..
+        span_labels (torch.tensor, optional): labels of entity span. Defaults to None.
+        attr_labels (torch.tensor, optional): labels of entity attr. Defaults to None.
+    """
+    mask = args[-1]
+    seqs_len = mask.sum(dim=-1)
+    ori_model = model.module if hasattr(model, 'module') else model
+    if (seqs_len == 0.).any():
+        raise ZeroDivisionError('division by zero in seqs_len')
+
+    def get_loss():
+        span_logits, attr_logits = model(*args)
+        if hasattr(ori_model, 'crf_span') and ori_model.crf_span is not None:
+            log_likelihood = ori_model.crf_span(span_logits, span_labels, mask=mask, reduction='none') # B
+            loss_span = -log_likelihood / seqs_len # B
+        else:
+            loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
+            loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
+        loss_attr = criterion(attr_logits.permute(0, 2, 1), attr_labels) # B * S
+        loss_attr = torch.sum(loss_attr * mask, dim=-1) / seqs_len # B
+        loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
+        if autoweighted_loss is not None:
+            loss = autoweighted_loss(loss_span, loss_attr)
+        else:
+            loss = (loss_span + loss_attr) / 2
+        return loss
+    
+    loss_adv = adversarial_step(adv, model, K, get_loss, retain_graph)
+    return loss_adv
+
+
 def adversarial_perturbation_xlnet_ner(adv, model, criterion, K=3, rand_init_mag=0.,
                                       labels=None, *args):
     """adversarial perturbation process

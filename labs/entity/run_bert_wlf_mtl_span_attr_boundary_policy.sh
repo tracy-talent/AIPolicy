@@ -1,6 +1,8 @@
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_mtl_span_attr_boundary.py \
+python train_bert_wlf_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
+    --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/policy/custom_dict.txt \
     --model_type ple \
     --dataset policy \
     --compress_seq \
@@ -26,8 +28,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_mtl_span_attr_boundary.py \
+python train_bert_wlf_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
+    --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/policy/custom_dict.txt \
     --model_type ple \
     --dataset policy \
     --compress_seq \
@@ -53,8 +57,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_mtl_span_attr_boundary.py \
+python train_bert_wlf_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
+    --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/policy/custom_dict.txt \
     --model_type ple \
     --dataset policy \
     --compress_seq \
@@ -80,8 +86,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_mtl_span_attr_boundary.py \
+python train_bert_wlf_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
+    --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/policy/custom_dict.txt \
     --model_type ple \
     --dataset policy \
     --compress_seq \
@@ -107,8 +115,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_mtl_span_attr_boundary.py \
+python train_bert_wlf_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
+    --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/policy/custom_dict.txt \
     --model_type ple \
     --dataset policy \
     --compress_seq \

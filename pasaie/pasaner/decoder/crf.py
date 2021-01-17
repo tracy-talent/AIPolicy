@@ -1,4 +1,5 @@
 # https://pytorch-crf.readthedocs.io/en/stable/
+# https://zhuanlan.zhihu.com/p/44042528
 from typing import List, Optional
 
 import torch

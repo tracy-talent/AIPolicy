@@ -22,7 +22,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --max_length 256 \
     --max_epoch 5 \
     --optimizer adam \
-    --loss dice \
+    --loss ce \
     --adv fgm \
     --dice_alpha 0.1 \
     --metric micro_f1
@@ -51,7 +51,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --max_length 256 \
     --max_epoch 5 \
     --optimizer adam \
-    --loss dice \
+    --loss ce \
     --adv fgm \
     --dice_alpha 0.2 \
     --metric micro_f1
@@ -80,7 +80,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --max_length 256 \
     --max_epoch 5 \
     --optimizer adam \
-    --loss dice \
+    --loss ce \
     --adv fgm \
     --dice_alpha 0.3 \
     --metric micro_f1
@@ -109,7 +109,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --max_length 256 \
     --max_epoch 5 \
     --optimizer adam \
-    --loss dice \
+    --loss ce \
     --adv fgm \
     --dice_alpha 0.4 \
     --metric micro_f1
@@ -138,7 +138,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --max_length 256 \
     --max_epoch 5 \
     --optimizer adam \
-    --loss dice \
+    --loss ce \
     --adv fgm \
     --dice_alpha 0.5 \
     --metric micro_f1

@@ -102,6 +102,10 @@ def make_model_name():
         model_name += '_lstm'
     if args.use_crf:
         model_name += '_crf'
+    if 'uncased' in args.pretrain_path:
+        model_name += '_uncased'
+    elif 'cased' in args.pretrain_path:
+        model_name += '_cased'
     model_name += '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
@@ -136,7 +140,12 @@ while os.path.exists(ckpt):
 
 if args.dataset != 'none':
     # opennre.download(args.dataset, root_path=root_path)
-    if args.dataset == 'msra' or args.dataset == 'ontonotes4':
+    if args.dataset == 'conll2003':
+        case = 'uncased' if 'uncased' in args.pretrain_path else 'cased'
+        args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train_bert_{case}.char.{args.tagscheme}')
+        args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev_bert_{case}.char.{args.tagscheme}')
+        args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test_bert_{case}.char.{args.tagscheme}')
+    elif args.dataset == 'msra' or args.dataset == 'ontonotes4':
         args.train_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'train.char.clip256.{args.tagscheme}')
         args.val_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'dev.char.clip256.{args.tagscheme}')
         args.test_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'test.char.clip256.{args.tagscheme}')

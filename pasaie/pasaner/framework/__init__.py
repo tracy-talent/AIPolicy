@@ -2,10 +2,11 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from .model_crf import Model_CRF
+from .model_crf import Model_CRF, English_Model_CRF
 from .xlnet_crf import XLNet_CRF
 from .mtl_span_attr_tail import MTL_Span_Attr_Tail
-from .mtl_span_attr_boundary import MTL_Span_Attr_Boundary
+from .mtl_span_attr_boundary import MTL_Span_Attr_Boundary, English_MTL_Span_Attr_Boundary
+from .mtl_span_attr_boundary_together import MTL_Span_Attr_Boundary_Together
 from .span_based_ner import Span_Single_NER, Span_Multi_NER
 from .mrc_span_mtl import MRC_Span_MTL
 
