@@ -1,21 +1,22 @@
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=0 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/google-bert-base-cased \
     --bert_name bert \
-    --dataset conll2003 \
-    --tagscheme bio \
+    --dataset weibo \
+    --tagscheme bmoes \
     --compress_seq \
+    --use_lstm \
     --use_crf \
-    --batch_size 32 \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
-    --max_length 180 \
-    --max_epoch 15 \
+    --max_length 200 \
+    --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --adv none \
+    --adv fgm \
     --dice_alpha 0.6 \
     --metric micro_f1 \

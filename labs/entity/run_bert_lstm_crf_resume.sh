@@ -1,16 +1,13 @@
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
+    --dataset resume \
+    --tagscheme bmoes \
+    --compress_seq \
+    --use_lstm \
+    --use_crf \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.1 \
@@ -21,23 +18,20 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --dice_alpha 0.1 \
     --adv fgm \
-    --metric micro_f1
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
+    --dataset resume \
+    --tagscheme bmoes \
+    --compress_seq \
+    --use_lstm \
+    --use_crf \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.2 \
@@ -48,23 +42,20 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --dice_alpha 0.2 \
     --adv fgm \
-    --metric micro_f1
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
+    --dataset resume \
+    --tagscheme bmoes \
+    --compress_seq \
+    --use_lstm \
+    --use_crf \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.3 \
@@ -75,23 +66,20 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --dice_alpha 0.3 \
     --adv fgm \
-    --metric micro_f1
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
+    --dataset resume \
+    --tagscheme bmoes \
+    --compress_seq \
+    --use_lstm \
+    --use_crf \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.4 \
@@ -102,23 +90,20 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --dice_alpha 0.4 \
     --adv fgm \
-    --metric micro_f1
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
+    --dataset resume \
+    --tagscheme bmoes \
+    --compress_seq \
+    --use_lstm \
+    --use_crf \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.5 \
@@ -129,7 +114,7 @@ python train_bert_mtl_span_attr_boundary.py \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
-    --dice_alpha 0.5 \
     --adv fgm \
-    --metric micro_f1
+    --dice_alpha 0.6 \
+    --metric micro_f1 \
 

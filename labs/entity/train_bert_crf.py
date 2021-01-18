@@ -66,6 +66,8 @@ parser.add_argument('--lr', default=1e-3, type=float,
         help='Learning rate')
 parser.add_argument('--bert_lr', default=3e-5, type=float,
         help='Bert Learning rate')
+parser.add_argument('--dropout_rate', default=0.3, type=float,
+        help='dropout rate')
 parser.add_argument('--optimizer', default='adamw', type=str,
         help='optimizer:adam|sgd|adamw')
 parser.add_argument('--max_grad_norm', default=5.0, type=float,
@@ -90,7 +92,8 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-fix_seed(args.random_seed)
+# if args.dataset == 'weibo':
+#     fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -109,6 +112,7 @@ def make_model_name():
     model_name += '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
+    model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -186,7 +190,8 @@ model = pasaner.model.BILSTM_CRF(
     tag2id=tag2id, 
     compress_seq=args.compress_seq,
     use_lstm=args.use_lstm, 
-    use_crf=args.use_crf
+    use_crf=args.use_crf,
+    dropout_rate=args.dropout_rate
 )
 
 # Define the whole training framework
@@ -194,7 +199,7 @@ framework = pasaner.framework.Model_CRF(
     model=model,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
-    test_path=args.test_file,
+    test_path=args.test_file if not args.dataset == 'msra' else None,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
@@ -215,9 +220,9 @@ framework = pasaner.framework.Model_CRF(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0:
-    logger.info('load checkpoint')
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+# if ckpt_cnt > 0:
+#     logger.info('load checkpoint')
+#     framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
@@ -225,7 +230,10 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-result = framework.eval_model(framework.test_loader)
+if args.dataset == 'msra':
+    result = framework.eval_model(framework.val_loader)
+else:
+    result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
 logger.info('Accuracy: {}'.format(result['acc']))

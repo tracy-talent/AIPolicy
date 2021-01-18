@@ -15,7 +15,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --batch_size 8 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
-    --dropout_rate 0.3 \
+    --dropout_rate 0.1 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
@@ -44,7 +44,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --batch_size 8 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
-    --dropout_rate 0.3 \
+    --dropout_rate 0.2 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
@@ -102,7 +102,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --batch_size 8 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
-    --dropout_rate 0.3 \
+    --dropout_rate 0.4 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
@@ -131,7 +131,7 @@ python train_bert_wlf_mtl_span_attr_boundary.py \
     --batch_size 8 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
-    --dropout_rate 0.3 \
+    --dropout_rate 0.5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \

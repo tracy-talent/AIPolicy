@@ -311,16 +311,32 @@ def extract_kvpairs_in_bmoes_by_vote(bioes_seq, word_seq, attr_seq):
 
 # extract entities by start and end positions
 def extract_kvpairs_by_start_end(start_seq, end_seq, word_seq, neg_tag):
+    assert len(start_seq) == len(end_seq)
     pairs = []
-    for i, s_tag in enumerate(start_seq):
-        if s_tag == neg_tag:
-            continue
-        for j, e_tag in enumerate(end_seq[i:]):
-            if j > 0 and start_seq[j+i] != neg_tag or j + 1 > 30:
-                break
-            if s_tag == e_tag:
-                pairs.append(((i, j + i + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:j+i+1]])))
-                break
+    i = 0
+    while i < len(start_seq):
+        s_tag = start_seq[i]
+        if s_tag != neg_tag:
+            for j, e_tag in enumerate(end_seq[i:]):
+                # if j > 0 and start_seq[i+j] != neg_tag or j + 1 > 30:
+                if j > 0 and start_seq[i+j] != neg_tag:
+                    i = i + j - 1
+                    break
+                if s_tag == e_tag:
+                    pairs.append(((i, i + j + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:i+j+1]])))
+                    i = i + j
+                    break
+        i += 1
+    # for i, s_tag in enumerate(start_seq):
+    #     if s_tag == neg_tag:
+    #         continue
+    #     for j, e_tag in enumerate(end_seq[i:]):
+    #         # if j > 0 and start_seq[j+i] != neg_tag or j + 1 > 30:
+    #         if j > 0 and start_seq[i+j] != neg_tag:
+    #             break
+    #         if s_tag == e_tag:
+    #             pairs.append(((i, i + j + 1), s_tag, ''.join([word[2:] if word.startswith('##') else word for word in word_seq[i:i+j+1]])))
+    #             break
     return pairs
 
 
@@ -334,7 +350,8 @@ def extract_kvpairs_by_start_end_together(tag_seq, word_seq, neg_tag):
             pairs.append(((i, i + 1), s_tag, word_seq[i][2:] if word_seq[i].startswith('##') else word_seq[i]))
         elif s_tag != neg_tag:
             for j, e_tag in enumerate(tag_seq[i+1:]):
-                if e_tag != neg_tag and e_tag != s_tag or j + 2 > 30:
+                # if e_tag != neg_tag and e_tag != s_tag or j + 2 > 30:
+                if e_tag != neg_tag and e_tag != s_tag:
                     i = i + j
                     break
                 if e_tag == s_tag:

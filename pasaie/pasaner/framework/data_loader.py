@@ -609,13 +609,13 @@ class SpanMultiNERDataset(data.Dataset):
             
             length = seqs[0].size(1)
             if length >= len(items[1]):
-                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' else self.tag2id['null'] for tag in items[1]]
-                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' else self.tag2id['null'] for tag in items[1]]
+                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
+                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
                 start_labels.extend([self.tag2id['null']] * (length - len(items[1])))
                 end_labels.extend([self.tag2id['null']] * (length - len(items[1])))
             else:
-                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' else self.tag2id['null'] for tag in items[1][:length]]
-                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' else self.tag2id['null'] for tag in items[1][:length]]
+                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
+                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
                 start_labels[-1] = self.tag2id['null']
                 end_labels[-1] = self.tag2id['null']
             item = [torch.tensor([start_labels]), torch.tensor([end_labels])] + seqs # make labels size (1, L)
@@ -690,13 +690,13 @@ class MRCSpanMultiNERDataset(SpanMultiNERDataset):
 
                 length = seqs[0].size(1)
                 if length >= len(items_copy[1]):
-                    start_labels = [1 if tag[0] == 'B' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
-                    end_labels = [1 if tag[0] == 'E' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                    start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                    end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
                     start_labels.extend([0] * (length - len(items_copy[1])))
                     end_labels.extend([0] * (length - len(items_copy[1])))
                 else:
-                    start_labels = [1 if tag[0] == 'B' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
-                    end_labels = [1 if tag[0] == 'E' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                    start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                    end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
                     start_labels[-1] = 0
                     end_labels[-1] = 0
                 item = [torch.tensor([start_labels]), torch.tensor([end_labels]), torch.tensor([self.tag2id[ent_type]])] + seqs # make labels size (1, L)

@@ -1,135 +1,120 @@
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_span_ner.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
+    --model multi \
+    --dataset resume \
+    --compress_seq \
+    --use_lstm \
+    --tagscheme bmoes \
     --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
+    --weight_decay 0 \
+    --early_stopping_step 0 \
+    --warmup_step 0 \
+    --max_length 200 \
+    --max_epoch 10 \
     --dropout_rate 0.1 \
+    --loss ce \
+    --dice_alpha 0.6 \
+    --adv fgm \
+    --optimizer adam \
+    --metric micro_f1
+
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_span_ner.py \
+    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --bert_name bert \
+    --model multi \
+    --dataset resume \
+    --compress_seq \
+    --use_lstm \
+    --tagscheme bmoes \
+    --batch_size 12 \
+    --lr 1e-3 \
+    --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
     --max_epoch 10 \
-    --optimizer adam \
-    --loss ce \
-    --dice_alpha 0.1 \
-    --adv fgm \
-    --metric micro_f1
-
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
-    --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
-    --lr 1e-3 \
-    --bert_lr 3e-5 \
     --dropout_rate 0.2 \
+    --loss ce \
+    --dice_alpha 0.6 \
+    --adv fgm \
+    --optimizer adam \
+    --metric micro_f1
+
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_span_ner.py \
+    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --bert_name bert \
+    --model multi \
+    --dataset resume \
+    --compress_seq \
+    --use_lstm \
+    --tagscheme bmoes \
+    --batch_size 12 \
+    --lr 1e-3 \
+    --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
     --max_epoch 10 \
-    --optimizer adam \
-    --loss ce \
-    --dice_alpha 0.2 \
-    --adv fgm \
-    --metric micro_f1
-
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
-    --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
-    --lr 1e-3 \
-    --bert_lr 3e-5 \
     --dropout_rate 0.3 \
+    --loss ce \
+    --dice_alpha 0.6 \
+    --adv fgm \
+    --optimizer adam \
+    --metric micro_f1
+
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_span_ner.py \
+    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --bert_name bert \
+    --model multi \
+    --dataset resume \
+    --compress_seq \
+    --use_lstm \
+    --tagscheme bmoes \
+    --batch_size 12 \
+    --lr 1e-3 \
+    --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
     --max_epoch 10 \
-    --optimizer adam \
-    --loss ce \
-    --dice_alpha 0.3 \
-    --adv fgm \
-    --metric micro_f1
-
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
-    --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
-    --batch_size 12 \
-    --lr 1e-3 \
-    --bert_lr 3e-5 \
     --dropout_rate 0.4 \
-    --weight_decay 0 \
-    --early_stopping_step 0 \
-    --warmup_step 0 \
-    --max_length 200 \
-    --max_epoch 10 \
-    --optimizer adam \
     --loss ce \
-    --dice_alpha 0.4 \
+    --dice_alpha 0.6 \
     --adv fgm \
+    --optimizer adam \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=0 \
-python train_bert_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_span_ner.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
-    --dataset weibo \
-    --compress_seq \
-    --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
-    --span_use_crf \
-    --attr_use_lstm \
-    --soft_label True \
+    --model multi \
+    --dataset resume \
+    --compress_seq \
+    --use_lstm \
+    --tagscheme bmoes \
     --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
-    --dropout_rate 0.5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
     --max_epoch 10 \
-    --optimizer adam \
+    --dropout_rate 0.5 \
     --loss ce \
-    --dice_alpha 0.5 \
+    --dice_alpha 0.6 \
     --adv fgm \
+    --optimizer adam \
     --metric micro_f1
 

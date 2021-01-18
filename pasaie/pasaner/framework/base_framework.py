@@ -70,17 +70,19 @@ class BaseFramework(nn.Module):
         # Params and optimizer
         self.lr = lr
         self.bert_lr = bert_lr
+        crf_params = [p for n, p in self.named_parameters() if 'crf' in n]
+        crf_params_id = [id(p) for p in crf_params] # make crf_params lr=1e-2
+        pretrained_params_id = []
         if self.is_bert_encoder:
             encoder_params = self.parallel_model.module.sequence_encoder.parameters()
-            bert_params_id = list(map(id, encoder_params))
-        else:
-            encoder_params = []
-            bert_params_id = []
-        bert_params = list(filter(lambda p: id(p) in bert_params_id, self.parameters()))
-        other_params = list(filter(lambda p: id(p) not in bert_params_id, self.parameters()))
+            pretrained_params_id.extend(list(map(id, encoder_params)))
+        pretrained_params = list(filter(lambda p: id(p) in pretrained_params_id, self.parameters()))
+        other_params = list(filter(lambda p: id(p) not in pretrained_params_id and id(p) not in crf_params_id, self.parameters()))
+        other_params_id = [id(p) for p in other_params]
         grouped_params = [
-            {'params': bert_params, 'lr':bert_lr},
-            {'params': other_params, 'lr':lr}
+            {'params': pretrained_params, 'lr': bert_lr},
+            {'params': crf_params, 'lr': 1e-2},
+            {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':
             self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
@@ -91,26 +93,58 @@ class BaseFramework(nn.Module):
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             adamw_grouped_params = [
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
                     'weight_decay': weight_decay,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
+                    'weight_decay': weight_decay,
+                    'lr': 1e-2,
+                },
+                {
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in other_params_id], 
                     'weight_decay': weight_decay,
                     'lr': lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
                     'weight_decay': 0.0,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
+                    'weight_decay': 0.0,
+                    'lr': 1e-2,
+                },
+                {
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in other_params_id], 
                     'weight_decay': 0.0,
                     'lr': lr,
                 }
             ]
+            # adamw_grouped_params = [
+            #     {
+            #         'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+            #         'weight_decay': weight_decay,
+            #         'lr': bert_lr,
+            #     },
+            #     {
+            #         'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+            #         'weight_decay': weight_decay,
+            #         'lr': lr,
+            #     },
+            #     {
+            #         'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in bert_params_id], 
+            #         'weight_decay': 0.0,
+            #         'lr': bert_lr,
+            #     },
+            #     {
+            #         'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) not in bert_params_id], 
+            #         'weight_decay': 0.0,
+            #         'lr': lr,
+            #     }
+            # ]
             self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")

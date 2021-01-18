@@ -15,7 +15,7 @@ from ...utils.entity_extract import *
 
 
 class BILSTM_CRF(nn.Module):
-    def __init__(self, sequence_encoder, tag2id, compress_seq=False, use_lstm=False, use_crf=True, tagscheme='bmoes', batch_first=True):
+    def __init__(self, sequence_encoder, tag2id, compress_seq=False, use_lstm=False, use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.1):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence 
@@ -31,7 +31,6 @@ class BILSTM_CRF(nn.Module):
         self.compress_seq = compress_seq
         self.tagscheme = tagscheme
         self.sequence_encoder = sequence_encoder
-        self.mlp = nn.Linear(sequence_encoder.hidden_size, len(tag2id))
         self.softmax = nn.Softmax(dim=-1)
         self.tag2id = tag2id
         self.id2tag = {}
@@ -50,6 +49,9 @@ class BILSTM_CRF(nn.Module):
             self.crf = CRF(len(tag2id), batch_first=batch_first)
         else:
             self.crf = None
+
+        self.dropout = nn.Dropout(dropout_rate)
+        self.mlp = nn.Linear(sequence_encoder.hidden_size, len(tag2id))
 
 
     def infer(self, text):
@@ -100,6 +102,7 @@ class BILSTM_CRF(nn.Module):
             # seqs_hiddens = torch.cat([rep, rep], dim=-1) # keep the same dimension with bilstm hiddens
             seqs_hiddens = rep
 
+        seqs_hiddens = self.dropout(seqs_hiddens)
         logits_seq = self.mlp(seqs_hiddens) # B, L, V
 
         return logits_seq

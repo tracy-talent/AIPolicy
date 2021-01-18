@@ -134,8 +134,8 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
         other_params = list(filter(lambda p: id(p) not in pretrained_params_id and id(p) not in crf_params_id, self.parameters()))
         other_params_id = [id(p) for p in other_params]
         grouped_params = [
-            {'params': crf_params, 'lr': 1e-2},
             {'params': pretrained_params, 'lr': bert_lr},
+            {'params': crf_params, 'lr': 1e-2},
             {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':
@@ -154,12 +154,12 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                 {
                     'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
                     'weight_decay': weight_decay,
-                    'lr': lr,
+                    'lr': 1e-2,
                 },
                 {
                     'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in other_params_id], 
                     'weight_decay': weight_decay,
-                    'lr': 1e-2,
+                    'lr': lr,
                 },
                 {
                     'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
@@ -167,7 +167,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in other_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
                     'weight_decay': 0.0,
                     'lr': 1e-2,
                 },
@@ -348,7 +348,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
                     loss = adversarial_perturbation_span_attr_boundary_together_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr, retain_graph, *args)
-                if loss.isnan():
+                if loss.isnan() or loss > 10:
                     #continue
                     is_loss_nan = True
                     break
@@ -448,7 +448,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                     self.writer.add_scalar('train micro recall', rec.avg, global_step=global_step)
                     self.writer.add_scalar('train micro f1', micro_f1, global_step=global_step)
             if is_loss_nan:
-                self.logger.info(f'loss has nan: {loss}')
+                self.logger.info(f'loss has nan or loss > 10: {loss}')
                 break
             micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
             train_state['train_metrics'].append({'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_acc': avg_attr_acc.avg, 'span_micro_p': span_prec.avg, 'span_micro_r': span_rec.avg, 'span_micro_f1': span_micro_f1, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})

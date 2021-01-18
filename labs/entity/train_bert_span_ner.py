@@ -105,18 +105,21 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-fix_seed(args.random_seed)
+# fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = args.model + '_' + args.bert_name + '_' + args.loss + '_' + str(args.dice_alpha)
+    model_name = args.model + '_' + args.bert_name + '_' + args.loss
+    if 'dice' in args.loss:
+        model_name += '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
+    model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -249,7 +252,7 @@ elif args.model == 'multi':
         model=model,
         train_path=args.train_file if not args.only_test else None,
         val_path=args.val_file if not args.only_test else None,
-        test_path=args.test_file,
+        test_path=args.test_file if not args.dataset == 'msra' else None,
         ckpt=ckpt,
         logger=logger,
         tb_logdir=tb_logdir,
@@ -274,9 +277,9 @@ elif args.model == 'multi':
     )
 
 # Load pretrained model
-if ckpt_cnt > 0:
-    logger.info('load checkpoint')
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+# if ckpt_cnt > 0:
+#     logger.info('load checkpoint')
+#     framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
@@ -284,7 +287,10 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-result = framework.eval_model(framework.test_loader)
+if 'msra' in args.dataset:
+    result = framework.eval_model(framework.val_loader)
+else:
+    result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
 if args.model == 'single':
