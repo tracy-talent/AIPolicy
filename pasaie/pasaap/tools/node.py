@@ -197,3 +197,9 @@ def convert_json_to_png(json_dir):
         filepath = os.path.join(json_dir, file)
         tree = LogicTree(root=None, json_path=filepath)
         tree.save_as_png(json_dir, file)
+
+
+if __name__ == '__main__':
+    tree = LogicTree(root=None, json_path=r'C:\NLP-Github\AIPolicy\output\article_parsing\raw-policy\example\22m.json')
+    tree.save_as_png(output_dir=r'C:\NLP-Github\AIPolicy\output\article_parsing\raw-policy\example',
+                     filename='22m.txt')
