@@ -1,7 +1,7 @@
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
     --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
@@ -25,10 +25,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --dice_alpha 0.1 \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
     --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
@@ -52,10 +52,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --dice_alpha 0.2 \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
     --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
@@ -79,10 +79,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --dice_alpha 0.3 \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
     --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
@@ -106,10 +106,10 @@ python train_bert_mtl_span_attr_boundary.py \
     --dice_alpha 0.4 \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
     --dataset resume \
     --compress_seq \
     --tagscheme bmoes \

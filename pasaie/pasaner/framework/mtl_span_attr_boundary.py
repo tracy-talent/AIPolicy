@@ -35,6 +35,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 logger, 
                 tb_logdir,
                 word_embedding=None, 
+                pinyin_embedding=None,
                 compress_seq=True,
                 tagscheme='bmoes',
                 batch_size=32, 
@@ -62,7 +63,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.tagscheme = tagscheme
         self.max_grad_norm = max_grad_norm
         self.early_stopping_step = early_stopping_step
-        self.word_embedding = word_embedding
+        word_embedding_finetune = word_embedding.weight
+        self.word_embedding = nn.Embedding(*word_embedding.weight.size())
+        self.word_embedding.weight.data.copy_(word_embedding.weight.data)
+        self.word_embedding.weight.requires_grad = word_embedding.weight.requires_grad
+        self.pinyin_embedding = nn.Embedding(*pinyin_embedding.weight.size())
+        self.pinyin_embedding.weight.data.copy_(pinyin_embedding.weight.data)
+        self.pinyin_embedding.weight.requires_grad = pinyin_embedding.weight.requires_grad
 
         # Load Data
         if train_path != None:
@@ -135,7 +142,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         other_params_id = [id(p) for p in other_params]
         grouped_params = [
             {'params': pretrained_params, 'lr': bert_lr},
-            {'params': crf_params, 'lr': 1e-2},
+            {'params': crf_params, 'lr': 1e-3},
             {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':
@@ -154,7 +161,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 {
                     'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
                     'weight_decay': weight_decay,
-                    'lr': 1e-2,
+                    'lr': 1e-3,
                 },
                 {
                     'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in other_params_id], 
@@ -169,7 +176,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 {
                     'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
                     'weight_decay': 0.0,
-                    'lr': 1e-2,
+                    'lr': 1e-3,
                 },
                 {
                     'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in other_params_id], 
@@ -223,10 +230,14 @@ class MTL_Span_Attr_Boundary(nn.Module):
         else:
             self.adv = None
         # Cuda
+        word_embedding = self.word_embedding
+        pinyin_embedding = self.pinyin_embedding
         del self.word_embedding # avoid embedding to cuda
+        del self.pinyin_embedding
         if torch.cuda.is_available():
             self.cuda()
         self.word_embedding = word_embedding
+        self.pinyin_embedding = pinyin_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger
@@ -308,18 +319,22 @@ class MTL_Span_Attr_Boundary(nn.Module):
                         try:
                             if i == 4 and self.word_embedding is not None:
                                 data[i] = self.word_embedding(data[i]).cuda()
+                            elif i == 5 and self.pinyin_embedding is not None:
+                                data[i] = self.pinyin_embedding(data[i]).cuda()
                             else:
                                 data[i] = data[i].cuda()
                         except:
                             pass
                 else:
                     if self.word_embedding is not None:
-                        we = self.word_embedding(data[4])
-                       # for i in range(we.size(0)):
-                       #     for j in range(we.size(1)):
-                       #         if we[i][j].isnan().any():
-                       #             print(f'word embedding {j} has nan:', self.model.sequence_encoder.word_tokenizer.convert_ids_to_tokens(j))
+                        # we = self.word_embedding(data[4])
+                        # for i in range(we.size(0)):
+                        #     for j in range(we.size(1)):
+                        #         if we[i][j].isnan().any():
+                        #             print(f'word embedding {j} has nan:', self.model.sequence_encoder.word_tokenizer.convert_ids_to_tokens(j))
                         data[4] = self.word_embedding(data[4])
+                    if self.pinyin_embedding is not None:
+                        data[5] = self.pinyin_embedding(data[5])
                 args = data[3:]
                 if 'StartPrior' in self.model.__class__.__name__:
                     logits_span, logits_attr_start, logits_attr_end = self.parallel_model(data[1], *args)
@@ -354,8 +369,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     retain_graph = False
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
-                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, *data[3:])
-                if loss.isnan() or loss > 10:
+                    if self.pinyin_embedding is not None and self.pinyin_embedding.weight.requires_grad:
+                        retain_graph = True
+                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, *args)
+                if loss.isnan() or torch.abs(loss) > 10:
                     #continue
                     is_loss_nan = True
                     break

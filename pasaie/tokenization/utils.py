@@ -191,7 +191,7 @@ def convert_by_vocab(vocab, items, max_seq_length = None, blank_id = 0, unk_id =
             return unk_id if isinstance(items, str) else '[UNK]'
     output = []
     for item in items:
-        if uncased:
+        if isinstance(items, str) and uncased:
             item = item.lower()
         if item in vocab:
             output.append(vocab[item])

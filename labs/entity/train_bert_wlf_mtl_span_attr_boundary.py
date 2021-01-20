@@ -29,7 +29,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -115,7 +115,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset == 'weibo':
+if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
 # construct save path name
@@ -135,6 +135,8 @@ def make_model_name():
         model_name = 'wlf_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
         model_name = 'wlf_mtl_span_attr_boundary_together_ple_bert'
+    elif args.model_type == 'plerand':
+        model_name = 'wlf_mtl_span_attr_boundary_plerand_bert'
     else:
         model_name = 'wlf_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
@@ -276,7 +278,7 @@ elif args.model_type == 'mmoe':
         span_use_crf=args.span_use_crf,
         dropout_rate=args.dropout_rate
     )
-elif args.model_type == 'ple':
+elif args.model_type == 'ple' or args.model_type == 'plerand':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,

@@ -641,3 +641,184 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             ret_items += (ent_h_path, ent_t_path, ent_h_length, ent_t_length)
         return ret_items
 
+
+
+class RBERTEncoder(nn.Module):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False):
+        """
+        Args:
+            pretrain_path (str): path of pretrain model
+            bert_name (str, optional): name of pretrained 'bert series' model. Defaults to 'bert'.
+            max_length (int, optional): max_length of sequence. Defaults to 256.
+            tag2id (dict, optional): entity type to id dictionary. Defaults to None.
+            blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
+            mask_entity (bool, optional): whether do mask for entity. Defaults to False.
+        
+        Raises:
+            NotImplementedError: bert pretrained model is not implemented.
+        """
+        super().__init__()
+        self.max_length = max_length
+        self.blank_padding = blank_padding
+        self.mask_entity = mask_entity
+        logging.info('Loading BERT pre-trained checkpoint.')
+        self.bert_name = bert_name
+        if 'albert' in bert_name:
+            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
+            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+        elif 'bert' in bert_name:
+            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
+            self.bert = BertModel.from_pretrained(pretrain_path)
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        else:
+            raise NotImplementedError(f'{bert_name} pretrained model is not implemented!')
+        # add possible missed tokens in vocab.txt
+        num_added_tokens = self.tokenizer.add_tokens(['“', '”', '—'])
+        logging.info(f"we have added {num_added_tokens} tokens ['“', '”', '—']")
+        self.bert.resize_token_embeddings(len(self.tokenizer))
+
+        bert_hidden_size = self.bert.config.hidden_size
+        self.hidden_size = bert_hidden_size * 3
+        # self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+        self.w_ent = nn.Linear(bert_hidden_size, bert_hidden_size)
+        self.w_cls = nn.Linear(bert_hidden_size, bert_hidden_size)
+        # for type boarder
+        self.tag2id = tag2id
+
+    def forward(self, seqs, ent1_span, ent2_span, att_mask):
+        """
+        Args:
+            seqs: (B, L), index of tokens
+            pos1: (B, 1), position of the head entity starter
+            pos2: (B, 1), position of the tail entity starter
+            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+        Returns:
+            (B, 2H), representations for sentences
+        """
+        if 'roberta' in self.bert_name:
+            # hidden = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
+            hidden, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
+        else:
+            hidden, _ = self.bert(seqs, attention_mask=att_mask)
+        # Get entity start hidden state
+        ent1_avg_hidden = torch.matmul(ent1_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent1_span, dim=-1) # (B, H)
+        ent2_avg_hidden = torch.matmul(ent2_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent2_span, dim=-1) # (B, H)
+        ent1_hidden = self.w_ent(torch.tanh(ent1_avg_hidden))
+        ent2_hidden = self.w_ent(torch.tanh(ent2_avg_hidden))
+        cls_hidden = self.w_cls(torch.tanh(hidden[:,0]))
+        rep_out = torch.cat([ent1_hidden, ent2_hidden, cls_hidden], dim=-1)
+        return rep_out
+
+    def tokenize(self, item):
+        """
+        Args:
+            item: data instance containing 'text' / 'token', 'h' and 't'
+        Return:
+            Name of the relation of the sentence
+        """
+        # Sentence -> token
+        if 'text' in item:
+            sentence = item['text']
+            is_token = False
+        else:
+            sentence = item['token']
+            is_token = True
+        self.sentence = sentence
+        pos_head = item['h']['pos']
+        pos_tail = item['t']['pos']
+        tag_head = item['h']['entity']
+        tag_tail = item['t']['entity']
+
+        pos_min = pos_head
+        pos_max = pos_tail
+        if pos_head[0] > pos_tail[0]:
+            pos_min = pos_tail
+            pos_max = pos_head
+            rev = True
+        else:
+            rev = False
+
+        if not is_token:
+            sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
+            ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
+            sent1 = self.tokenizer.tokenize(sentence[pos_min[1]:pos_max[0]])
+            ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
+            sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
+        else:
+            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            # sent0 = sentence[:pos_min[0]]
+            # ent0 = sentence[pos_min[0]:pos_min[1]]
+            # sent1 = sentence[pos_min[1]:pos_max[0]]
+            # ent1 = sentence[pos_max[0]:pos_max[1]]
+            # sent2 = sentence[pos_max[1]:]
+
+        if self.mask_entity:
+            ent0 = ['[unused1]'] if not rev else ['[unused2]']
+            ent1 = ['[unused2]'] if not rev else ['[unused1]']
+        else:
+            if self.tag2id:
+                if not rev:
+                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
+                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
+                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + len(self.tag2id))]
+                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1 + len(self.tag2id))]
+                else:
+                    ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + len(self.tag2id))]
+                    ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_tail] * 2 + 1 + len(self.tag2id))]
+                    ent1_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
+                    ent1_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
+
+                ent0 = ent0_left_boundary + ent0 + ent0_right_boundary
+                ent1 = ent1_left_boundary + ent1 + ent1_right_boundary
+            else:
+                ent0 = ['[unused3]'] + ent0 + ['[unused4]'] if not rev else ['[unused5]'] + ent0 + ['[unused6]']
+                ent1 = ['[unused5]'] + ent1 + ['[unused6]'] if not rev else ['[unused3]'] + ent1 + ['[unused4]']
+
+        re_tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        ent1_pos1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
+        ent1_pos2 = 1 + len(sent0) + len(ent0) if not rev else 1 + len(sent0 + ent0 + sent1 + ent1)
+        ent2_pos1 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
+        ent2_pos2 = 1 + len(sent0 + ent0 + sent1 + ent1) if not rev else 1 + len(sent0 + ent0)
+        pos1 = min(self.max_length - 1, pos1)
+        pos2 = min(self.max_length - 1, pos2)
+
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
+        avai_len = len(indexed_tokens) # 序列实际长度
+
+        # Position
+        ent1_pos1 = torch.tensor([[ent1_pos1]]).long()
+        ent1_pos2 = torch.tensor([[ent1_pos2]]).long()
+        ent2_pos1 = torch.tensor([[ent2_pos1]]).long()
+        ent2_pos2 = torch.tensor([[ent2_pos2]]).long()
+
+        # Padding
+        if self.blank_padding:
+            if len(indexed_tokens) <= self.max_length:
+                while len(indexed_tokens) < self.max_length:
+                    indexed_tokens.append(0)  # 0 is id for [PAD]
+            else:
+                indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
+                indexed_tokens = indexed_tokens[:self.max_length]
+        indexed_tokens = torch.tensor(indexed_tokens).long().unsqueeze(0)  # (1, L)
+
+        # Attention mask
+        att_mask = torch.zeros(indexed_tokens.size()).long()  # (1, L)
+        att_mask[0, :avai_len] = 1
+        ent1_span = torch.zeros(indexed_tokens.size())
+        if ent1_pos1 + 1 < indexed_tokens.size(1):
+            ent1_span[0, ent1_pos1:ent1_pos2+1] = 1
+        ent2_span = torch.zeros(indexed_tokens.size())
+        if ent2_pos1 + 1 < indexed_tokens.size(1):
+            ent2_span[0, ent2_pos1:ent2_pos2+1] = 1
+        
+
+        return indexed_tokens, ent1_span, ent2_span, att_mask

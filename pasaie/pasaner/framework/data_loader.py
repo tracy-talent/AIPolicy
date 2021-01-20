@@ -242,7 +242,6 @@ class SpanAttrBoundaryNERDataset(MultiNERDataset):
         for index in range(len(self.corpus)):
             items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
             seqs = list(self.tokenizer(*items, **self.kwargs))
-            
             length = seqs[0].size(1)
             if length >= len(items[1]):
                 span_labels = [self.span2id[tag] for tag in items[1]]
