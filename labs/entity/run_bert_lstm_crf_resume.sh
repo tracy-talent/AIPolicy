@@ -1,4 +1,4 @@
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
@@ -22,7 +22,7 @@ python train_bert_crf.py \
     --dice_alpha 0.6 \
     --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
@@ -46,7 +46,7 @@ python train_bert_crf.py \
     --dice_alpha 0.6 \
     --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
@@ -70,7 +70,7 @@ python train_bert_crf.py \
     --dice_alpha 0.6 \
     --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \
@@ -94,7 +94,7 @@ python train_bert_crf.py \
     --dice_alpha 0.6 \
     --metric micro_f1 \
 
-CUDA_VISIBLE_DEVICES=3 \
+CUDA_VISIBLE_DEVICES=2 \
 python train_bert_crf.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --bert_name bert \

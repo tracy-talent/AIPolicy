@@ -1,7 +1,8 @@
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
+    --random_seed 12345 \
     --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \
@@ -28,7 +29,8 @@ python train_bert_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
+    --random_seed 12345 \
     --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \
@@ -55,7 +57,8 @@ python train_bert_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
+    --random_seed 12345 \
     --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \
@@ -82,7 +85,8 @@ python train_bert_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
+    --random_seed 12345 \
     --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \
@@ -109,7 +113,8 @@ python train_bert_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --model_type pletogether \
+    --model_type ple \
+    --random_seed 12345 \
     --dataset weibo \
     --compress_seq \
     --tagscheme bmoes \

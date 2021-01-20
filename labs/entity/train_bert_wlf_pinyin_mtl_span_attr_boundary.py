@@ -29,8 +29,10 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand'], 
         help='model type')
+parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char'], 
+        help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -72,8 +74,10 @@ parser.add_argument('--char2vec_file', default='', type=str,
         help='character embedding file')
 parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
+parser.add_argument('--word2pinyin_file', default='', type=str,
+        help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
-        help='user custom dict for tokenizer toolkit')
+        help='user custom dict for tokenizer toolkit')  
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -100,6 +104,10 @@ parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
         help='Maximum sentence length')
+parser.add_argument('--max_pinyin_num_of_token', default=10, type=int,
+        help='max pinyin num of every token')
+parser.add_argument('--max_pinyin_char_length', default=7, type=int,
+        help='max length of a pinyin')
 parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
@@ -108,6 +116,10 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
+parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
+        help='embedding size of pinyin')
+parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
+        help='embedding size of pinyin character')
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
@@ -115,8 +127,8 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-# if args.dataset == 'weibo':
-#    fix_seed(args.random_seed)
+if args.dataset == 'weibo' and args.model_type != 'plerand':
+    fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -124,23 +136,25 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = 'wlf_mtl_span_attr_boundary_startprior_bert'
+        model_name = 'wlf_pinyin_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
         model_name = 'wlf_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
         model_name = 'wlf_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = 'wlf_mtl_span_attr_boundary_ple_bert'
+        model_name = 'wlf_pinyin_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
         model_name = 'wlf_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
         model_name = 'wlf_mtl_span_attr_boundary_together_ple_bert'
+    elif args.model_type == 'plerand':
+        model_name = 'wlf_mtl_span_attr_boundary_plerand_bert'
     else:
         model_name = 'wlf_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += '_relu_samedpr5'
+    model_name += '_relu_crf1e-2'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -226,17 +240,58 @@ attr2id = load_vocab(args.attr2id_file)
 # load embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
+# load map from word to pinyin
+pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
+pinyin2id = {'[PAD]': 0, '[UNK]': 1}
+pinyin_num = 2
+pinyin_char_num = 2
+word2pinyin = {}
+with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
+    for line in f:
+        line = line.strip().split('\t')
+        line[1] = eval(line[1])
+        word2pinyin[line[0]] = line[1]
+        for p in line[1]:
+            if p not in pinyin2id:
+                pinyin2id[p] = pinyin_num
+                pinyin_num += 1
+            for c in p:
+                if c not in pinyin_char2id:
+                    pinyin_char2id[c] = pinyin_char_num
+                    pinyin_char_num += 1
+pinyin_embedding = torch.nn.Embedding(len(pinyin2id), args.pinyin_word_embedding_size)
+pinyin_embedding.weight[pinyin2id['[PAD]']] = 0.
 
 # Define the sentence encoder
-sequence_encoder = pasaner.encoder.BERTWLFEncoder(
-    pretrain_path=args.pretrain_path,
-    word2id=word2id,
-    word_size=word2vec.shape[-1],
-    max_length=args.max_length,
-    custom_dict=args.custom_dict,
-    blank_padding=True
-)
-
+if args.pinyin_embedding_type == 'word':
+    sequence_encoder = pasaner.encoder.BERT_WLF_PinYin_Word_Encoder(
+        pretrain_path=args.pretrain_path,
+        word2id=word2id,
+        word2pinyin=word2pinyin,
+        pinyin2id=pinyin2id,
+        word_size=word2vec.shape[-1],
+        pinyin_size=args.pinyin_word_embedding_size,
+        max_length=args.max_length,
+        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
+        custom_dict=args.custom_dict,
+        blank_padding=True
+    )
+elif args.pinyin_embedding_type == 'char':
+    sequence_encoder = pasaner.encoder.BERT_WLF_PinYin_Char_Encoder(
+        pretrain_path=args.pretrain_path,
+        word2id=word2id,
+        word2pinyin=word2pinyin,
+        pinyin2id=pinyin_char2id,
+        word_size=word2vec.shape[-1],
+        pinyin_char_size=args.pinyin_char_embedding_size,
+        max_length=args.max_length,
+        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
+        max_pinyin_char_length=args.max_pinyin_char_length,
+        custom_dict=args.custom_dict,
+        blank_padding=True
+    )
+else:
+    raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')
 
 # Define the model
 if args.model_type == 'attention':
@@ -276,7 +331,7 @@ elif args.model_type == 'mmoe':
         span_use_crf=args.span_use_crf,
         dropout_rate=args.dropout_rate
     )
-elif args.model_type == 'ple':
+elif args.model_type == 'ple' or args.model_type == 'plerand':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,
@@ -339,6 +394,7 @@ else:
 framework = framework_class(
     model=model,
     word_embedding=word_embedding,
+    pinyin_embedding=pinyin_embedding if args.pinyin_embedding_type == 'word' else None,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,

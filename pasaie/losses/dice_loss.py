@@ -35,8 +35,9 @@ class DiceLoss(nn.Module):
             loss [torch.tensor]: loss, size decideed by reduction manner
         """
         prob = torch.softmax(output, dim=1)
-        prob = torch.gather(prob, dim=1, index=target.unsqueeze(1)).squeeze()
-        loss = 1 - (2 * ((1 - prob) ** self.alpha) * prob + self.gamma) / (((1 - prob) ** self.alpha) * prob + 1 + self.gamma)
+        prob = torch.gather(prob, dim=1, index=target.unsqueeze(1)).squeeze(1)
+        prob_with_factor = ((1 - prob) ** self.alpha) * prob
+        loss = 1 - (2 * prob_with_factor + self.gamma) / (prob_with_factor + 1 + self.gamma)
 
         if self.reduction == 'sum':
             if mask is not None:

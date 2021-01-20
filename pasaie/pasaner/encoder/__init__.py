@@ -4,6 +4,7 @@ from __future__ import print_function
 
 from .bert_encoder import BERTEncoder, MRC_BERTEncoder
 from .bert_wlf_encoder import BERTWLFEncoder, MRC_BERTWLFEncoder
+from .bert_wlf_pinyin_encoder import BERT_WLF_PinYin_Word_Encoder, BERT_WLF_PinYin_Char_Encoder
 from .bert_bilstm_encoder import BERT_BILSTM_Encoder
 from .xlnet_encoder import XLNetEncoder
 from .base_encoder import BaseEncoder
@@ -16,9 +17,11 @@ __all__ = [
     'BERTWLFEncoder',
     'MRC_BERTEncoder',
     'MRC_BERTWLFEncoder',
+    'BERT_WLF_PinYin_Word_Encoder',
+    'BERT_WLF_PinYin_Char_Encoder',
     'BERT_BILSTM_Encoder',
     'BaseEncoder',
     'BaseWLFEncoder',
     'BILSTMEncoder',
-    'BILSTM_WLF_Encoder'
+    'BILSTM_WLF_Encoder',
 ]
