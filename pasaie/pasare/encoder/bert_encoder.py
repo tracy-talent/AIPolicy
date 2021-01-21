@@ -706,8 +706,8 @@ class RBERTEncoder(nn.Module):
         else:
             hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
-        ent1_avg_hidden = torch.matmul(ent1_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent1_span, dim=-1) # (B, H)
-        ent2_avg_hidden = torch.matmul(ent2_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent2_span, dim=-1) # (B, H)
+        ent1_avg_hidden = torch.matmul(ent1_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent1_span, dim=-1, keepdim=True) # (B, H)
+        ent2_avg_hidden = torch.matmul(ent2_span.unsqueeze(1), hidden).squeeze(1) / torch.sum(ent2_span, dim=-1, keepdim=True) # (B, H)
         ent1_hidden = self.w_ent(torch.tanh(ent1_avg_hidden))
         ent2_hidden = self.w_ent(torch.tanh(ent2_avg_hidden))
         cls_hidden = self.w_cls(torch.tanh(hidden[:,0]))

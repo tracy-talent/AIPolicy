@@ -26,7 +26,6 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
                 word2id,
                 word2pinyin,
                 pinyin2id,
-                # pychar2id,
                 word_size=50,
                 pinyin_size=50,
                 custom_dict=None,
@@ -38,9 +37,12 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         Args:
             pretrain_path (str): path of pretrain model.
             word2id (dict): dictionary of word->idx mapping.
+            word2pinyin (dict): dictionary of word -> [pinyins] mapping.
+            pinyin2id (dict): dictionary of pinyin->idx mapping.
             word_size (int, optional): size of word embedding. Defaults to 50.
             custom_dict (str, optional): customized dictionary for word tokenizer. Defaults to None.
             max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 512.
+            max_pinyin_num_of_token (int, optional): max pinyin num of a token. Defaults to 10.
             bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert.
             blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
@@ -78,8 +80,9 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         self.max_length = max_length
         self.max_pinyin_num_of_token = max_pinyin_num_of_token
         self.blank_padding = blank_padding
+        # pinyin embedding matrix
+        self.pinyin_embedding = nn.Embedding(len(self.pinyin2id), self.pinyin_size, padding_idx=self.pinyin2id['[PAD]'])
         # align word embedding and bert embedding
-        # self.word2bert_linear = nn.Linear(self.word_size, self.word_size)
         self.word2bert_linear = nn.Linear(self.word_size, self.hidden_size)
         self.pinyin2bert_linear = nn.Linear(self.pinyin_size, self.hidden_size)
         # word tokenizer
@@ -94,7 +97,7 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         return att_output, att_weight.data
 
 
-    def forward(self, seqs_char, seqs_word_embedding, seqs_pinyin_embedding, att_pinyin_mask, att_mask):
+    def forward(self, seqs_char, seqs_word_embedding, seqs_pinyin_ids, att_pinyin_mask, att_mask):
         """
         Args:
             seqs: (B, L), index of tokens
@@ -113,7 +116,8 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         #     self.word2bert_linear(seqs_word_embedding)
         # ], dim=-1) # (B, L, EMBED)
         word2bert_embed = self.word2bert_linear(seqs_word_embedding)
-        pinyin2bert_embed = self.pinyin2bert_linear(seqs_pinyin_embedding)
+        seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
+        pinyin2bert_embed = self.pinyin2bert_linear(seqs_pinyin_embed)
         pinyin_att_output, _ = self.dot_product_attention(bert_seq_embed, pinyin2bert_embed, att_pinyin_mask)
         inputs_embed = bert_seq_embed + word2bert_embed + pinyin_att_output # (B, L, EMBED)
         return inputs_embed
@@ -174,9 +178,9 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
                 indexed_token2word[i] = indexed_words[token2word[i]]
             if is_truncated:
                 indexed_token2word[self.max_length - 1] = self.word2id['[SEP]']
-            tokens_pinyinlist = convert_by_vocab(self.word2pinyin, tokens, max_seq_length=self.max_length, blank_id=[], unk_id=[])
+            tokens_pinyinlist = convert_by_vocab(self.word2pinyin, tokens, max_seq_length=self.max_length, blank_id=[], unk_id=['[UNK]'])
             if is_truncated:
-                tokens_pinyinlist[-1] = []
+                tokens_pinyinlist[-1] = ['[UNK]']
         else:
             indexed_token2word = [self.word2id['[PAD]']] * avail_len
             for i in range(avail_len):
@@ -203,7 +207,6 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
                 pretrain_path,
                 word2id,
                 word2pinyin,
-                pinyin2id,
                 pinyin_char2id,
                 word_size=50,
                 pinyin_char_size=50,
@@ -216,10 +219,14 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         """
         Args:
             pretrain_path (str): path of pretrain model.
-            word2id (dict): dictionary of word->idx mapping.
+            word2id (dict): dictionary of word -> idx mapping.
+            word2pinyin (dict): dictionary of word -> [pinyins] mapping.
+            pinyin_char2id (dict): dictionary of pinyin character -> idx mapping.
             word_size (int, optional): size of word embedding. Defaults to 50.
             custom_dict (str, optional): customized dictionary for word tokenizer. Defaults to None.
             max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 512.
+            max_pinyin_num_of_token (int, optional): max pinyin num of a token. Defaults to 10.
+            max_pinyin_char_length (int, optional): max character length of a pinyin. Defaults to 7.
             bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert.
             blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
@@ -246,10 +253,8 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         self.bert.resize_token_embeddings(len(self.tokenizer))
         # self.embeddings = BertEmbeddings(self.bert.config)
 
-        
         self.word2id = word2id
         self.word2pinyin = word2pinyin
-        self.pinyin2id = pinyin2id
         self.pinyin_char2id = pinyin_char2id
         self.word_size = word_size
         self.pinyin_char_size = pinyin_char_size
@@ -258,12 +263,11 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         self.max_pinyin_num_of_token = max_pinyin_num_of_token
         self.max_pinyin_char_length = max_pinyin_char_length
         self.blank_padding = blank_padding
-        # pinyin cahracter embedding matrix
-        self.pinyin_char_embedding = nn.Embedding(len(self.pinyin_char2id), self.pinyin_char_size)
-        self.pinyin_char_embedding.weight[self.pinyin_char2id['[PAD]']] = 0.
+        # pinyin character embedding matrix
+        self.pinyin_char_embedding = nn.Embedding(len(self.pinyin_char2id), self.pinyin_char_size, padding_idx=self.pinyin_char2id['[PAD]'])
         # align word embedding and bert embedding
         self.word2bert_linear = nn.Linear(self.word_size, self.hidden_size)
-        self.pinyin2bert_linear = nn.Linear(self.pinyin_size, self.hidden_size)
+        # self.pinyin2bert_linear = nn.Linear(self.pinyin_char_size, self.hidden_size)
         self.char_conv = nn.Conv1d(self.pinyin_char_size, self.hidden_size, kernel_size=3, padding=1)
         # word tokenizer
         self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
@@ -280,7 +284,8 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         conv_hiddens = self.char_conv(hiddens)
         conv_hiddens *= weights
         conv_hiddens = F.max_pool1d(conv_hiddens, conv_hiddens.size(-1)).squeeze(-1)
-        conv_hiddens = conv_hiddens.contiguous().resize(shape[:-2] + conv_hiddens.size()[-1:])
+        conv_hiddens = conv_hiddens.contiguous().resize(*(shape[:-2] + conv_hiddens.size()[-1:]))
+        conv_hiddens = F.relu(conv_hiddens)
         return conv_hiddens
 
 
@@ -311,7 +316,8 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask)
         # pinyin2bert_embed = self.pinyin2bert_linear(seqs_pinyin_embedding)
         pinyin_att_output, _ = self.dot_product_attention(bert_seq_embed, pinyin_conv, 
-                                    att_pinyin_char_mask.index_select(dim=-1, index=torch.tensor(0)) != self.pinyin_char2id['[PAD]'])
+                                                    att_pinyin_char_mask.index_select(dim=-1, 
+                                                    index=torch.tensor(0).to(att_pinyin_char_mask.device)).squeeze(-1) != self.pinyin_char2id['[PAD]'])
         inputs_embed = bert_seq_embed + word2bert_embed + pinyin_att_output # (B, L, EMBED)
         return inputs_embed
     
@@ -384,11 +390,11 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         indexed_token2word = torch.tensor(indexed_token2word).long().unsqueeze(0) # (1, L)
         indexed_token2pinyins_chars = []
         for pinyinlist in tokens_pinyinlist:
-            indexed_pinyin_chars.append([])
+            indexed_token2pinyins_chars.append([])
             for pinyin in pinyinlist:
                 indexed_token2pinyins_chars[-1].append(convert_by_vocab(self.pinyin_char2id, list(pinyin), max_seq_length=self.max_pinyin_char_length, blank_id=self.pinyin_char2id['[PAD]'], unk_id=self.pinyin_char2id['[UNK]']))
             for _ in range(self.max_pinyin_num_of_token - len(pinyinlist)):
-                indexed_toekn2pinyins_chars[-1].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
+                indexed_token2pinyins_chars[-1].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
         indexed_token2pinyins_chars = torch.tensor(indexed_token2pinyins_chars).unsqueeze(0)
         # attention mask
         att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)

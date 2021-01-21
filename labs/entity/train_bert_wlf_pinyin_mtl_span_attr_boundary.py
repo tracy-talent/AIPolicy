@@ -136,25 +136,25 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = 'wlf_pinyin_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = 'wlf_mtl_span_attr_boundary_attention_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = 'wlf_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = 'wlf_pinyin_mtl_span_attr_boundary_ple_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = 'wlf_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = 'wlf_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = 'wlf_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
     else:
-        model_name = 'wlf_mtl_span_attr_boundary_bert'
+        model_name = f'wlf_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += '_relu_crf1e-2'
+    model_name += '_relu_crf1e-3'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -239,7 +239,7 @@ span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file)
-word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load map from word to pinyin
 pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
 pinyin2id = {'[PAD]': 0, '[UNK]': 1}
@@ -259,8 +259,6 @@ with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
                 if c not in pinyin_char2id:
                     pinyin_char2id[c] = pinyin_char_num
                     pinyin_char_num += 1
-pinyin_embedding = torch.nn.Embedding(len(pinyin2id), args.pinyin_word_embedding_size)
-pinyin_embedding.weight[pinyin2id['[PAD]']] = 0.
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word':
@@ -281,7 +279,7 @@ elif args.pinyin_embedding_type == 'char':
         pretrain_path=args.pretrain_path,
         word2id=word2id,
         word2pinyin=word2pinyin,
-        pinyin2id=pinyin_char2id,
+        pinyin_char2id=pinyin_char2id,
         word_size=word2vec.shape[-1],
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
@@ -394,7 +392,6 @@ else:
 framework = framework_class(
     model=model,
     word_embedding=word_embedding,
-    pinyin_embedding=pinyin_embedding if args.pinyin_embedding_type == 'word' else None,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,
