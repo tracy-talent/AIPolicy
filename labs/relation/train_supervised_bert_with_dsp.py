@@ -29,8 +29,8 @@ parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', '
         help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--pooler', default='entity', choices=['cls', 'entity'],
-                    help='Sentence representation pooler')
+parser.add_argument('--model_type', default='entity', choices=['cls', 'entity'],
+                    help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
 parser.add_argument('--mask_entity', action='store_true',
@@ -110,7 +110,7 @@ fix_seed(args.random_seed)
 
 # construct save path name
 def make_model_name():
-    model_name = args.bert_name + '_' + args.pooler + '_' + args.loss
+    model_name = args.bert_name + '_' + args.model_type + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     if args.embed_entity_type:
@@ -177,7 +177,7 @@ rel2id = json.load(open(args.rel2id_file))
 tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file))
 
 # Define the sentence encoder
-if args.pooler == 'entity':
+if args.model_type == 'entity':
     sentence_encoder = pasare.encoder.BERTEntityWithDSPEncoder(
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
@@ -190,7 +190,7 @@ if args.pooler == 'entity':
         blank_padding=True,
         compress_seq=args.compress_seq,
     )
-elif args.pooler == 'cls':
+elif args.model_type == 'cls':
     sentence_encoder = pasare.encoder.BERTWithDSPEncoder(
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,

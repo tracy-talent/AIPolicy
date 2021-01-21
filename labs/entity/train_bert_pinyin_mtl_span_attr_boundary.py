@@ -1,8 +1,8 @@
 """
  Author: liujian
- Date: 2021-01-21 23:00:26
+ Date: 2021-01-21 23:00:37
  Last Modified by: liujian
- Last Modified time: 2021-01-21 23:00:26
+ Last Modified time: 2021-01-21 23:00:37
 """
 
 # coding:utf-8
@@ -70,10 +70,6 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--char2vec_file', default='', type=str,
-        help='character embedding file')
-parser.add_argument('--word2vec_file', default='', type=str,
-        help='word2vec embedding file')
 parser.add_argument('--word2pinyin_file', default='', type=str,
         help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
@@ -237,9 +233,6 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load embedding and vocab
-word2id, word2vec = load_wordvec(args.word2vec_file)
-word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load map from word to pinyin
 pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
 pinyin2id = {'[PAD]': 0, '[UNK]': 1}
@@ -262,12 +255,10 @@ with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_WLF_PinYin_Word_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_PinYin_Word_Encoder(
         pretrain_path=args.pretrain_path,
-        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin2id=pinyin2id,
-        word_size=word2vec.shape[-1],
         pinyin_size=args.pinyin_word_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
@@ -275,12 +266,10 @@ if args.pinyin_embedding_type == 'word':
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_WLF_PinYin_Char_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_Encoder(
         pretrain_path=args.pretrain_path,
-        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
-        word_size=word2vec.shape[-1],
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
@@ -289,12 +278,10 @@ elif args.pinyin_embedding_type == 'char':
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_multiconv':
-    sequence_encoder = pasaner.encoder.BERT_WLF_PinYin_Char_MultiConv_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_MultiConv_Encoder(
         pretrain_path=args.pretrain_path,
-        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
-        word_size=word2vec.shape[-1],
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
@@ -406,7 +393,6 @@ else:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary
 framework = framework_class(
     model=model,
-    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,

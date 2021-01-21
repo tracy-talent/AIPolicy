@@ -62,7 +62,13 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
         self.tagscheme = tagscheme
         self.max_grad_norm = max_grad_norm
         self.early_stopping_step = early_stopping_step
-        self.word_embedding = word_embedding
+        if word_embedding is not None and word_embedding.weight.requires_grad:
+            self.word_embedding = nn.Embedding(*word_embedding.weight.size())
+            self.word_embedding.weight.data.copy_(word_embedding.weight.data)
+            self.word_embedding.weight.requires_grad = word_embedding.weight.requires_grad
+            del word_embedding
+        else:
+            self.word_embedding = word_embedding
 
         # Load Data
         if train_path != None:

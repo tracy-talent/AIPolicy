@@ -1,7 +1,6 @@
-CUDA_VISIBLE_DEVICES=2 \
-python train_bert_wlf_pinyin_mtl_span_attr_boundary.py \
+CUDA_VISIBLE_DEVICES=3 \
+python train_bert_pinyin_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.vec \
     --custom_dict /home/liujian/github/AIPolicy/input/benchmark/entity/weibo/custom_dict.txt \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
     --pinyin_embedding_type char_multiconv \

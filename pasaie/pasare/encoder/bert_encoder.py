@@ -788,8 +788,8 @@ class RBERTEncoder(nn.Module):
         ent1_pos2 = 1 + len(sent0) + len(ent0) if not rev else 1 + len(sent0 + ent0 + sent1 + ent1)
         ent2_pos1 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
         ent2_pos2 = 1 + len(sent0 + ent0 + sent1 + ent1) if not rev else 1 + len(sent0 + ent0)
-        pos1 = min(self.max_length - 1, pos1)
-        pos2 = min(self.max_length - 1, pos2)
+        ent1_pos1 = min(self.max_length - 1, ent1_pos1)
+        ent2_pos1 = min(self.max_length - 1, ent2_pos1)
 
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(re_tokens)
         avai_len = len(indexed_tokens) # 序列实际长度
@@ -814,11 +814,9 @@ class RBERTEncoder(nn.Module):
         att_mask = torch.zeros(indexed_tokens.size()).long()  # (1, L)
         att_mask[0, :avai_len] = 1
         ent1_span = torch.zeros(indexed_tokens.size())
-        if ent1_pos1 + 1 < indexed_tokens.size(1):
-            ent1_span[0, ent1_pos1:ent1_pos2+1] = 1
+        ent1_span[0, ent1_pos1:ent1_pos2+1] = 1
         ent2_span = torch.zeros(indexed_tokens.size())
-        if ent2_pos1 + 1 < indexed_tokens.size(1):
-            ent2_span[0, ent2_pos1:ent2_pos2+1] = 1
+        ent2_span[0, ent2_pos1:ent2_pos2+1] = 1
         
 
         return indexed_tokens, ent1_span, ent2_span, att_mask

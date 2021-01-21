@@ -1,7 +1,7 @@
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_supervised_bert.py \
     --pretrain_path ~/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --pooler entity \
+    --model_type rbert \
     --metric micro_f1 \
     --dataset test-policy \
     --dropout_rate 0.5 \
