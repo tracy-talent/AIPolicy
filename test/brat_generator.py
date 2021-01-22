@@ -7,14 +7,15 @@ from collections import deque
 sys.path.append('..')
 import pasaie
 import re
-from pasaie import pasaap, pasaner, pasare
+from pasaie import pasaap
 from main import standard_ner_re_extraction
 
 
 class FileMapper(object):
 
     def __init__(self, src_dir, dst_dir):
-        self.name_mapper = self.file2id(src_dir, dst_dir)
+        self.src_dir = src_dir
+        self.dst_dir = dst_dir
 
     @staticmethod
     def file2id(src_dir, dst_dir):
@@ -51,7 +52,8 @@ class FileMapper(object):
         return name_mapper
 
     @staticmethod
-    def generate_anns(data_dir, entity_model, relation_model, default_output_dir=None, max_length=512):
+    def generate_anns(data_dir, entity_model, relation_model, default_output_dir=None, max_length=512,
+                      is_remove_null_ann=True):
         if default_output_dir is None:
             default_output_dir = data_dir.replace('\\', '/') + '_targetTree'
         miss_sent_num, miss_entity_num, miss_relation_num = 0, 0, 0
@@ -137,6 +139,70 @@ class FileMapper(object):
         print("miss sentence: {}; miss entity: {}; miss relation: {}".format(miss_sent_num,
                                                                              miss_entity_num, miss_relation_num))
 
+    @staticmethod
+    def remove_null_ann(data_dir):
+        for file in os.listdir(data_dir):
+            if file.endswith('.ann'):
+                ann_path = os.path.join(data_dir, file)
+                txt_path = os.path.join(data_dir, file.replace('.ann', '.txt'))
+                text = open(ann_path, 'r', encoding='utf8').read()
+                if len(text) == 0:
+                    os.remove(ann_path)
+                    os.remove(txt_path)
+
+    @staticmethod
+    def remove_duplicate_docs(data_dir, delete_threshold=0.9):
+        dataset = []
+        for file in os.listdir(data_dir):
+            if file.endswith('.txt'):
+                txt_path = os.path.join(data_dir, file)
+                text = open(txt_path, 'r', encoding='utf8').readlines()
+                dataset.append((file, text))
+
+        duplicate_files = set()
+        for i in range(len(dataset)):
+            file1, text1 = dataset[i]
+            for j in range(i + 1, len(dataset)):
+                file2, text2 = dataset[j]
+                if FileMapper.calculate_doc_similarity(text1, text2) >= delete_threshold:
+                    duplicate_files.add(file2)
+
+        for file in duplicate_files:
+            txt_path = os.path.join(data_dir, file)
+            ann_path = os.path.join(data_dir, file.replace('.txt', '.ann'))
+            if os.path.exists(txt_path):
+                os.remove(txt_path)
+            if os.path.exists(ann_path):
+                os.remove(ann_path)
+        duplicate_files = list(duplicate_files)
+        duplicate_files.sort(key=lambda x: x)
+        print("duplicate_files: {}".format((duplicate_files)))
+
+    @staticmethod
+    def calculate_doc_similarity(text1, text2):
+        """
+
+        :param text1: list of lines
+        :param text2:
+        :return:
+        """
+        text1 = [line.strip() for line in text1]
+        text2 = [line.strip() for line in text2]
+        count = 0
+        for line in text1:
+            if text2.count(line) > 0:
+                count += 1
+
+        ret = count / max(len(text1), len(text2))
+        return ret
+
+    def auto_generate_pipeline(self, entity_model, relation_model):
+        FileMapper.file2id(self.src_dir, self.dst_dir)
+        FileMapper.generate_anns(data_dir=self.dst_dir,
+                                 entity_model=entity_model, relation_model=relation_model)
+        FileMapper.remove_null_ann(data_dir=self.dst_dir)
+        FileMapper.remove_duplicate_docs(data_dir=self.dst_dir, delete_threshold=0.9)
+
 
 def idx2rawidx(tokens, raw_sentence):
     idx2idx = {}
@@ -161,10 +227,12 @@ def idx2rawidx(tokens, raw_sentence):
 
 
 if __name__ == '__main__':
-    # file_mapper = FileMapper(src_dir=r'./南京-大全txt',
-    #                          dst_dir=r'./policies_ext')
+    # FileMapper.file2id(src_dir=r'./南京-大全txt',
+    #                    dst_dir=r'./policies_ext')
 
-    my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf_micro_f1_0')
-    my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
-    FileMapper.generate_anns(data_dir=r'./policies_ext',
-                             entity_model=my_entity_model, relation_model=my_relation_model)
+    # my_entity_model = pasaie.pasaner.get_model('policy_bmoes/bert_lstm_crf_micro_f1_0')
+    # my_relation_model = pasaie.pasare.get_model('test-policy/bert_entity_dice_alpha0.6_fgm0')
+    # FileMapper.generate_anns(data_dir=r'./policies_ext',
+    #                          entity_model=my_entity_model, relation_model=my_relation_model)
+    # FileMapper.remove_null_ann(data_dir='./policies_ext')
+    FileMapper.remove_duplicate_docs(data_dir='./policies_ext', delete_threshold=0.9)
