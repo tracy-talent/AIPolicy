@@ -1,8 +1,8 @@
 """
  Author: liujian
- Date: 2021-01-21 23:00:37
+ Date: 2021-01-25 10:57:30
  Last Modified by: liujian
- Last Modified time: 2021-01-21 23:00:37
+ Last Modified time: 2021-01-25 10:57:30
 """
 
 # coding:utf-8
@@ -70,6 +70,10 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
+parser.add_argument('--char2vec_file', default='', type=str,
+        help='character embedding file')
+parser.add_argument('--word2vec_file', default='', type=str,
+        help='word2vec embedding file')
 parser.add_argument('--word2pinyin_file', default='', type=str,
         help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
@@ -104,6 +108,8 @@ parser.add_argument('--max_pinyin_num_of_token', default=10, type=int,
         help='max pinyin num of every token')
 parser.add_argument('--max_pinyin_char_length', default=7, type=int,
         help='max length of a pinyin')
+parser.add_argument('--lexicon_window_size', default=4, type=int,
+        help='upper bound(include) of lexicon window size')
 parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
@@ -132,21 +138,21 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
     else:
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -233,6 +239,9 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
+# load embedding and vocab
+word2id, word2vec = load_wordvec(args.word2vec_file, binary='tencent' in args.word2vec_file)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load map from word to pinyin
 pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
 pinyin2id = {'[PAD]': 0, '[UNK]': 1}
@@ -255,38 +264,44 @@ with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Word_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Word_Encoder(
         pretrain_path=args.pretrain_path,
+        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin2id=pinyin2id,
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
         pinyin_size=args.pinyin_word_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        custom_dict=args.custom_dict,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Char_Encoder(
         pretrain_path=args.pretrain_path,
+        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_multiconv':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_MultiConv_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Char_MultiConv_Encoder(
         pretrain_path=args.pretrain_path,
+        word2id=word2id,
         word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
         blank_padding=True,
         convs_config=[(256, 2), (256, 3), (256, 4)]
     )
@@ -393,6 +408,7 @@ else:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary
 framework = framework_class(
     model=model,
+    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,

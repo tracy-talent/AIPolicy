@@ -1,8 +1,8 @@
 """
  Author: liujian
- Date: 2021-01-21 23:00:37
+ Date: 2021-01-25 11:03:04
  Last Modified by: liujian
- Last Modified time: 2021-01-21 23:00:37
+ Last Modified time: 2021-01-25 11:03:04
 """
 
 # coding:utf-8
@@ -31,8 +31,6 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand'], 
         help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char', 'char_multiconv'], 
-        help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
@@ -70,10 +68,12 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--word2pinyin_file', default='', type=str,
-        help='map from word to pinyin')
+parser.add_argument('--char2vec_file', default='', type=str,
+        help='character embedding file')
+parser.add_argument('--word2vec_file', default='', type=str,
+        help='word2vec embedding file')
 parser.add_argument('--custom_dict', default='', type=str,
-        help='user custom dict for tokenizer toolkit')  
+        help='user custom dict for tokenizer toolkit')
 parser.add_argument('--compress_seq', action='store_true', 
         help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 
@@ -100,10 +100,6 @@ parser.add_argument('--warmup_step', default=0, type=int,
         help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=128, type=int,
         help='Maximum sentence length')
-parser.add_argument('--max_pinyin_num_of_token', default=10, type=int,
-        help='max pinyin num of every token')
-parser.add_argument('--max_pinyin_char_length', default=7, type=int,
-        help='max length of a pinyin')
 parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
@@ -112,10 +108,8 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
-parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
-        help='embedding size of pinyin')
-parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
-        help='embedding size of pinyin character')
+parser.add_argument('--lexicon_window_size', default=4, type=int,
+        help='upper bound(include) of lexicon window size')
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
@@ -132,21 +126,21 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = 'lexicon_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_plerand_bert'
     else:
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = 'lexicon_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -233,65 +227,20 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load map from word to pinyin
-pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin_num = 2
-pinyin_char_num = 2
-word2pinyin = {}
-with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip().split('\t')
-        line[1] = eval(line[1])
-        word2pinyin[line[0]] = line[1]
-        for p in line[1]:
-            if p not in pinyin2id:
-                pinyin2id[p] = pinyin_num
-                pinyin_num += 1
-            for c in p:
-                if c not in pinyin_char2id:
-                    pinyin_char2id[c] = pinyin_char_num
-                    pinyin_char_num += 1
+# load embedding and vocab
+word2id, word2vec = load_wordvec(args.word2vec_file, binary='tencent' in args.word2vec_file)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec)
 
 # Define the sentence encoder
-if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Word_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
-        pinyin2id=pinyin2id,
-        pinyin_size=args.pinyin_word_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        custom_dict=args.custom_dict,
-        blank_padding=True
-    )
-elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
-        pinyin_char2id=pinyin_char2id,
-        pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
-        blank_padding=True
-    )
-elif args.pinyin_embedding_type == 'char_multiconv':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_MultiConv_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
-        pinyin_char2id=pinyin_char2id,
-        pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
-        blank_padding=True,
-        convs_config=[(256, 2), (256, 3), (256, 4)]
-    )
-else:
-    raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')
+sequence_encoder = pasaner.encoder.BERTLexiconEncoder(
+    pretrain_path=args.pretrain_path,
+    word2id=word2id,
+    word_size=word2vec.shape[-1],
+    lexicon_window_size=args.lexicon_window_size,
+    max_length=args.max_length,
+    blank_padding=True
+)
+
 
 # Define the model
 if args.model_type == 'attention':
@@ -393,6 +342,7 @@ else:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary
 framework = framework_class(
     model=model,
+    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,

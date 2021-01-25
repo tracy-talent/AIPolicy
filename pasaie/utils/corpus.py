@@ -171,7 +171,7 @@ def merge_digit(seqs, bios):
     mbios = []
     f = True
     for i in range(len(seqs)):
-        if seqs[i] >= '0' and seqs[i] <= '9':
+        if (seqs[i] >= '0' and seqs[i] <= '9') or (seqs[i] >= 'A' and seqs[i] <= 'Z') or (seqs[i] >= 'a' and seqs[i] <= 'z'):
             if f:
                 mseqs.append(seqs[i])
                 mbios.append(bios[i])

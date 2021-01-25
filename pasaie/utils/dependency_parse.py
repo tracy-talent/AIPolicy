@@ -9,6 +9,7 @@ from .timedec import timeit
 
 import os
 import json
+from typing import Optional, List, Dict
 
 from ltp import LTP
 from ddparser import DDParser
@@ -20,12 +21,12 @@ class Base_Parse(object):
     def __init__(self):
         pass
 
-    def get_dependency_path(self, tokens: str, ent_h: dict, ent_t: dict, word: list, head: list, deprel: list):
+    def get_dependency_path(self, token: List[str], ent_h: Dict, ent_t: Dict, word: List[str], head: List[int], deprel: List[str]):
         """get head entity to root dependency path, and get tail entity 
         to root dependency path
 
         Args:
-            tokens (str): token list or sentence
+            token (list): token list
             ent_h (dict): entity dict like {'pos': [hpos, tpos], 'entity': Time}
             ent_t (dict): entity dict like {'pos': [hpos, tpos], 'entity': Time}
             word (list): words
@@ -41,14 +42,20 @@ class Base_Parse(object):
         word2token = {}
         tpos, tlen = 0, 0
         wpos, wlen = 0, len(word[0])
-        for i in range(len(tokens)):
-            if tlen >= wlen:
-                wpos += 1
-                wlen += len(word[wpos])
-                tpos = i
-            tlen += len(tokens[i])
-            token2word[i] = wpos
-            word2token[wpos] = tpos
+        try:
+            for i in range(len(token)):
+                if tlen >= wlen:
+                    wpos += 1
+                    wlen += len(word[wpos])
+                    tpos = i
+                tlen += len(token[i])
+                token2word[i] = wpos
+                word2token[wpos] = tpos
+        except:
+            print()
+            print(token)
+            print(word)
+            raise IndexError('word index out of range')
 
         # get entity word pos
         ent_h_word_pos_1 = token2word[ent_h['pos'][0]]
@@ -94,7 +101,7 @@ class DDP_Parse(Base_Parse):
         super(DDP_Parse, self).__init__()
         self.ddp = DDParser()
     
-    def parse(self, tokens, ent_h, ent_t):
+    def parse(self, tokens: [List, str], ent_h: Dict, ent_t: Dict, bert_tokens: Optional[List[str]]=None):
         """get head entity to root dependency path, and get tail entity 
         to root dependency path
 
@@ -102,6 +109,7 @@ class DDP_Parse(Base_Parse):
             tokens (list or str): token list or sentence
             ent_h (dict): entity dict like {'pos': [hpos, tpos]}
             ent_t (dict): entity dict like {'pos': [hpos, tpos]}
+            bert_tokens (list, optional): token list which tokenized by BertTokenizer. Defaults to None.
 
         Returns:
             ent_h_path (list): DSP path of head entity to root
@@ -111,12 +119,13 @@ class DDP_Parse(Base_Parse):
             sent = ''.join(tokens)
         else:
             sent = tokens
+            tokens = list(tokens)
         parse_dict = self.ddp.parse(sent)[0] # word, head, deprel
         # print(tokens[ent_h['pos'][0]:ent_h['pos'][1]], tokens[ent_t['pos'][0]:ent_t['pos'][1]])
         word = parse_dict['word']
         head = parse_dict['head']
         deprel = parse_dict['deprel']
-        ent_h_path, ent_t_path = self.get_dependency_path(tokens, ent_h, ent_t, word, head, deprel)
+        ent_h_path, ent_t_path = self.get_dependency_path(tokens if bert_tokens is None else bert_tokens, ent_h, ent_t, word, head, deprel)
         
         return ent_h_path, ent_t_path
 
@@ -126,7 +135,7 @@ class LTP_Parse(Base_Parse):
         super(LTP_Parse, self).__init__()
         self.ltp = LTP()
     
-    def parse(self, tokens, ent_h: dict, ent_t: dict):
+    def parse(self, tokens: [List, str], ent_h: Dict, ent_t: Dict, bert_tokens: Optional[List[str]]=None):
         """get head entity to root dependency path, and get tail entity 
         to root dependency path
 
@@ -134,6 +143,7 @@ class LTP_Parse(Base_Parse):
             tokens (list or str): sentence
             ent_h (dict): entity dict like {'pos': [hpos, tpos]}
             ent_t (dict): entity dict like {'pos': [hpos, tpos]}
+            bert_tokens (list, optional): token list which tokenized by BertTokenizer. Defaults to None.
 
         Returns:
             ent_h_path (list): DSP path of head entity to root
@@ -143,61 +153,78 @@ class LTP_Parse(Base_Parse):
             sent = ''.join(tokens)
         else:
             sent = tokens
+            tokens = list(tokens)
         seg, hidden = self.ltp.seg([sent])
         parse_tuple = self.ltp.dep(hidden)[0] # word, head, deprel
         parse_tuple = list(zip(*parse_tuple)) # [(tail token id), (head token id), (DSP relation)], id start from 1
         word = seg[0]
         head = parse_tuple[1]
         deprel = parse_tuple[2]
-        ent_h_path, ent_t_path = self.get_dependency_path(tokens, ent_h, ent_t, word, head, deprel)
+        ent_h_path, ent_t_path = self.get_dependency_path(tokens if bert_tokens is None else bert_tokens, ent_h, ent_t, word, head, deprel)
         
         return ent_h_path, ent_t_path
 
 
 class Stanza_Parse(Base_Parse):
-    def __init__(self):
+    def __init__(self, language='en'):
+        """
+        Args:
+            language (str, optional): language to be parsed, choices=['en', 'zh]. Defaults to 'en'.
+        """
+        assert language in ['en', 'zh']
         super(Stanza_Parse, self).__init__()
-        self.nlp = stanza.Pipeline(lang='zh', processors='tokenize,pos,lemma,depparse')
+        self.language = language
+        self.nlp = stanza.Pipeline(lang=language, processors='tokenize,pos,lemma,depparse')
     
-    def parse(self, tokens, ent_h: dict, ent_t: dict):
+    def parse(self, tokens: [List, str], ent_h: Dict, ent_t: Dict, bert_tokens: Optional[List[str]]=None):
         """get head entity to root dependency path, and get tail entity 
         to root dependency path
 
         Args:
-            tokens (list or str): sentence
+            tokens (list or str): token list
             ent_h (dict): entity dict like {'pos': [hpos, tpos]}
             ent_t (dict): entity dict like {'pos': [hpos, tpos]}
+            bert_tokens (list, optional): token list which tokenized by BertTokenizer. Defaults to None.
 
         Returns:
             ent_h_path (list): DSP path of head entity to root
             ent_t_path (list): DSP path of tail entity to root
         """
         if isinstance(tokens, list):
-            sent = ''.join(tokens)
+            if self.language == 'en':
+                sent = ' '.join(tokens)
+            elif self.language == 'zh':
+                sent = ''.join(tokens)
         else:
             sent = tokens
+            if self.language == 'en':
+                tokens = tokens.split()
+            elif self.language == 'zh':
+                tokens = list(tokens)
         doc = self.nlp(sent)
         triples = [(w.text, w.head, w.deprel) for sent in doc.sentences for w in sent.words]
         word, head, deprel = [list(seq) for seq in list(zip(*triples))]
-        ent_h_path, ent_t_path = self.get_dependency_path(tokens, ent_h, ent_t, word, head, deprel)
-        
+        ent_h_path, ent_t_path = self.get_dependency_path(tokens if bert_tokens is None else bert_tokens, ent_h, ent_t, word, head, deprel)
+
         return ent_h_path, ent_t_path
         
 
 
 @timeit
-def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp'):
+def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp', language='en'):
     """construct dependency syntax path of corpus, and save to file
 
     Args:
         corpus_path (str): corpus to be processed.
         pretrain_path (str, optional): bert pretrain path, can be bert, robert, albert and so on. Defaults to None.
         dsp_tool (str, optional): dsp tool be used to contruct dependency syntax path, choices:['ddp', 'ltp', 'stanza']. Defaults to 'ddp'.
+        language (str, optional): language to be parsed, choices=['en', 'zh]. Defaults to 'en'.
 
     Raises:
         FileNotFoundError: raise when pretrain path is not found.
         NotImplementedError: raise when dsp_tool is not implemented.
     """
+    assert language in ['en', 'zh']
     if pretrain_path is not None and not os.path.exists(pretrain_path):
         raise FileNotFoundError(f'{pretrain_path} is not found, please give bert pretrain model path.')
     if pretrain_path is not None:
@@ -205,7 +232,7 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp'):
         num_added_tokens = tokenizer.add_tokens(['“', '”', '—'])
     files = ['train', 'val', 'test']
     if dsp_tool == 'stanza':
-        dsp = Stanza_Parse()
+        dsp = Stanza_Parse(language)
     elif dsp_tool == 'ltp':
         dsp = LTP_Parse()
     elif dsp_tool == 'ddp':
@@ -214,18 +241,27 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp'):
         raise NotImplementedError(f'{dsp_tool} DSP tool is not implemented, please use ltp, ddp or stanza!')
     corpus_name = corpus_path.split('/')[-1]
     max_len, min_len = 0, 1000000
+    join_token = ' ' if language == 'en' else ''
     for fname in files:
         if not os.path.exists(os.path.join(corpus_path, f'{corpus_name}_{fname}.txt')):
             continue
         if pretrain_path is not None:
-            dsp_file_name = f'{corpus_name}_{fname}_tail_bert_{dsp_tool}_dsp_path.txt'
+            if 'multilingual' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_multilingual_{dsp_tool}_dsp_path.txt'
+            elif 'uncased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_uncased_{dsp_tool}_dsp_path.txt'
+            elif 'cased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_cased_{dsp_tool}_dsp_path.txt'
+            else:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_{dsp_tool}_dsp_path.txt'
         else:
             dsp_file_name = f'{corpus_name}_{fname}_tail_{dsp_tool}_dsp_path.txt'
-        with open(os.path.join(corpus_path, f'{corpus_name}_{fname}.txt'), 'r', encoding='utf-8') as f1, open(os.path.join(corpus_path, dsp_file_name), 'w', encoding='utf-8') as f2:
-            for i, line in enumerate(f1.readlines()):
+        with open(os.path.join(corpus_path, f'{corpus_name}_{fname}.txt'), 'r', encoding='utf-8') as rf, open(os.path.join(corpus_path, dsp_file_name), 'w', encoding='utf-8') as wf:
+            for i, line in enumerate(rf.readlines()):
                 line = line.rstrip()
                 if len(line) > 0:
                     line = eval(line)
+                    ori_token = line['token']
                     if pretrain_path is not None:
                         sentence = line['token']
                         pos_head = line['h']['pos']
@@ -238,11 +274,11 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp'):
                             rev = True
                         else:
                             rev = False
-                        sent0 = tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-                        ent0 = tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-                        sent1 = tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-                        ent1 = tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-                        sent2 = tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+                        sent0 = tokenizer.tokenize(join_token.join(sentence[:pos_min[0]]))
+                        ent0 = tokenizer.tokenize(join_token.join(sentence[pos_min[0]:pos_min[1]]))
+                        sent1 = tokenizer.tokenize(join_token.join(sentence[pos_min[1]:pos_max[0]]))
+                        ent1 = tokenizer.tokenize(join_token.join(sentence[pos_max[0]:pos_max[1]]))
+                        sent2 = tokenizer.tokenize(join_token.join(sentence[pos_max[1]:]))
                         pos1_1 = len(sent0) if not rev else len(sent0 + ent0 + sent1)
                         pos1_2 = pos1_1 + len(ent0) if not rev else pos1_1 + len(ent1)
                         pos2_1 = len(sent0 + ent0 + sent1) if not rev else len(sent0)
@@ -253,16 +289,16 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp'):
                         for j, t in enumerate(line['token']):
                             if t.startswith('##'):
                                 line['token'][j] = t[2:]
-                    ent_h_path, ent_t_path = dsp.parse(line['token'], line['h'], line['t'])
-                    max_len = max(max_len, max(len(ent_h_path), len(ent_t_path)))
-                    min_len = min(min_len, min(len(ent_h_path), len(ent_t_path)))
-                    json.dump({'ent_h_path': ent_h_path, 'ent_t_path': ent_t_path}, f2, ensure_ascii=False)
-                    f2.write('\n')
+                    try:
+                        ent_h_path, ent_t_path = dsp.parse(ori_token, line['h'], line['t'], bert_tokens=None if pretrain_path is None else line['token'])
+                        max_len = max(max_len, max(len(ent_h_path), len(ent_t_path)))
+                        min_len = min(min_len, min(len(ent_h_path), len(ent_t_path)))
+                    except:
+                        print(f'{corpus_name}_{fname}.txt line {i + 1} raise exception!!!\n')
+                        ent_h_path = [line['h']['pos'][1]]
+                        ent_t_path = [line['t']['pos'][1]]
+                    json.dump({'ent_h_path': ent_h_path, 'ent_t_path': ent_t_path}, wf, ensure_ascii=False)
+                    wf.write('\n')
                     if (i + 1) % 100 == 0:
-                        print(f'processed {i + 1} lines')
-    print(max_len, min_len)       
-
-        
-        
-        
-        
+                        print(f'processed {i + 1} lines', flush=True)
+    print(max_len, min_len)     

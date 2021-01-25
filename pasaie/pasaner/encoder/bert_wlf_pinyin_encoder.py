@@ -7,6 +7,8 @@
 
 from ...tokenization import JiebaTokenizer
 from ...tokenization.utils import convert_by_vocab
+from ...module.nn.attention import dot_product_attention
+from ...module.nn.cnn import masked_singlekernel_conv1d, masked_multikernel_conv1d
 
 import logging
 import math
@@ -86,30 +88,22 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         self.word2bert_linear = nn.Linear(self.word_size, self.hidden_size)
         self.pinyin2bert_linear = nn.Linear(self.pinyin_size, self.hidden_size)
         # word tokenizer
-        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
+        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token='[UNK]', custom_dict=custom_dict)
 
 
-    def dot_product_attention(self, att_query, att_kv, att_mask):
-        att_score = torch.matmul(att_kv, att_query.unsqueeze(-1)).squeeze(-1)
-        att_score[att_mask == 0] = 1e-9
-        att_weight = F.softmax(att_score, dim=-1)
-        att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
-        return att_output, att_weight.data
-
-
-    def forward(self, seqs_char, seqs_word_embedding, seqs_pinyin_ids, att_pinyin_mask, att_mask):
+    def forward(self, seqs_token_ids, seqs_word_embedding, seqs_pinyin_ids, att_pinyin_mask, att_token_mask):
         """
         Args:
             seqs: (B, L), index of tokens
-            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+            att_token_mask: (B, L), attention mask (1 for contents and 0 for padding)
         Return:
             (B, H), representations for sentences
         """
         if 'roberta' in self.bert_name:
-            # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
-            bert_seq_embed, _ = self.bert(seqs_char, attention_mask=att_mask) # clue-roberta
+            # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
+            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
         else:
-            bert_seq_embed, _ = self.bert(seqs_char, attention_mask=att_mask)
+            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
         # seq_embedding = self.embeddings(seqs)
         # inputs_embed = torch.cat([
         #     bert_seq_embed,
@@ -118,7 +112,7 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         word2bert_embed = self.word2bert_linear(seqs_word_embedding)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         pinyin2bert_embed = self.pinyin2bert_linear(seqs_pinyin_embed)
-        pinyin_att_output, _ = self.dot_product_attention(bert_seq_embed, pinyin2bert_embed, att_pinyin_mask)
+        pinyin_att_output, _ = dot_product_attention(bert_seq_embed, pinyin2bert_embed, att_pinyin_mask)
         inputs_embed = bert_seq_embed + word2bert_embed + pinyin_att_output # (B, L, EMBED)
         return inputs_embed
     
@@ -129,7 +123,7 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
             items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
         Returns:
             indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
-            att_mask (torch.tensor): token mask ids, (1, L)
+            att_token_mask (torch.tensor): token mask ids, (1, L)
         """
         if isinstance(items[0], str):
             sentence = items[0]
@@ -167,8 +161,9 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
         if self.blank_padding:
             is_truncated = False
             if len(indexed_tokens) <= self.max_length:
+                bert_padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
                 while len(indexed_tokens) < self.max_length:
-                    indexed_tokens.append(0)
+                    indexed_tokens.append(bert_padding_idx)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]
@@ -194,12 +189,11 @@ class BERT_WLF_PinYin_Word_Encoder(nn.Module):
             indexed_token2pinyins.append(convert_by_vocab(self.pinyin2id, pinyinlist, max_seq_length=self.max_pinyin_num_of_token, blank_id=self.pinyin2id['[PAD]'], unk_id=self.pinyin2id['[UNK]']))
         indexed_token2pinyins = torch.tensor(indexed_token2pinyins).long().unsqueeze(0)
         # attention mask
-        att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
-        att_mask[0, :avail_len] = 1
+        att_token_mask = (indexed_tokens != self.tokenizer.convert_tokens_to_ids('[PAD]')).type(torch.uint8)
         att_pinyin_mask = (indexed_token2pinyins != self.pinyin2id['[PAD]']).type(torch.uint8)
 
-        # ensure the first two is indexed_tokens and indexed_token2word, the last is att_mask
-        return indexed_tokens, indexed_token2word, indexed_token2pinyins, att_pinyin_mask, att_mask  
+        # ensure the first two is indexed_tokens and indexed_token2word, the last is att_token_mask
+        return indexed_tokens, indexed_token2word, indexed_token2pinyins, att_pinyin_mask, att_token_mask  
 
 
 class BERT_WLF_PinYin_Char_Encoder(nn.Module):
@@ -269,52 +263,30 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         self.word2bert_linear = nn.Linear(self.word_size, self.hidden_size)
         # self.pinyin2bert_linear = nn.Linear(self.pinyin_char_size, self.hidden_size)
         self.char_conv = nn.Conv1d(self.pinyin_char_size, self.hidden_size, kernel_size=3, padding=1)
+        self.masked_conv1d = masked_singlekernel_conv1d
         # word tokenizer
-        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token="[UNK]", custom_dict=custom_dict)
+        self.word_tokenizer = JiebaTokenizer(vocab=self.word2id, unk_token='[UNK]', custom_dict=custom_dict)
 
 
-    def masked_conv1d(self, hiddens, weights):
-        shape = hiddens.size()
-        dim1 = functools.reduce(lambda x, y: x * y, shape[:-2])
-        dim2 = shape[-2]
-        dim3 = shape[-1]
-        hiddens = hiddens.contiguous().resize(dim1, dim2, dim3).transpose(-2, -1)
-        weights = weights.contiguous().resize(dim1, dim2, 1).float().transpose(-2, -1)
-        hiddens *= weights
-        conv_hiddens = self.char_conv(hiddens)
-        conv_hiddens *= weights
-        conv_hiddens = F.relu(F.max_pool1d(conv_hiddens, conv_hiddens.size(-1)).squeeze(-1))
-        conv_hiddens = conv_hiddens.contiguous().resize(*(shape[:-2] + conv_hiddens.size()[-1:]))
-        return conv_hiddens
-
-
-    def dot_product_attention(self, att_query, att_kv, att_mask):
-        att_score = torch.matmul(att_kv, att_query.unsqueeze(-1)).squeeze(-1)
-        att_score[att_mask == 0] = 1e-9
-        att_weight = F.softmax(att_score, dim=-1)
-        att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
-        return att_output, att_weight.data
-
-
-    def forward(self, seqs_char, seqs_word_embedding, seqs_pinyin_char_ids, att_pinyin_char_mask, att_mask):
+    def forward(self, seqs_token_ids, seqs_word_embedding, seqs_pinyin_char_ids, att_pinyin_char_mask, att_token_mask):
         """
         Args:
             seqs: (B, L), index of tokens
-            att_mask: (B, L), attention mask (1 for contents and 0 for padding)
+            att_token_mask: (B, L), attention mask (1 for contents and 0 for padding)
         Return:
             (B, H), representations for sentences
         """
         if 'roberta' in self.bert_name:
-            # seq_out = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
-            bert_seq_embed, _ = self.bert(seqs_char, attention_mask=att_mask) # clue-roberta
+            # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
+            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
         else:
-            bert_seq_embed, _ = self.bert(seqs_char, attention_mask=att_mask)
+            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
         
         seqs_pinyin_char_embed = self.pinyin_char_embedding(seqs_pinyin_char_ids)
         word2bert_embed = self.word2bert_linear(seqs_word_embedding)
-        pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask)
+        pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask, self.char_conv)
         # pinyin2bert_embed = self.pinyin2bert_linear(seqs_pinyin_embedding)
-        pinyin_att_output, _ = self.dot_product_attention(bert_seq_embed, pinyin_conv, 
+        pinyin_att_output, _ = dot_product_attention(bert_seq_embed, pinyin_conv, 
                                                     att_pinyin_char_mask.index_select(dim=-1, 
                                                     index=torch.tensor(0).to(att_pinyin_char_mask.device)).squeeze(-1) != self.pinyin_char2id['[PAD]'])
         inputs_embed = bert_seq_embed + word2bert_embed + pinyin_att_output # (B, L, EMBED)
@@ -327,7 +299,7 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
             items: (tokens, tags) or (tokens, spans, atrrs) or (sentence)
         Returns:
             indexed_tokens (torch.tensor): tokenizer encode ids of tokens, (1, L)
-            att_mask (torch.tensor): token mask ids, (1, L)
+            att_token_mask (torch.tensor): token mask ids, (1, L)
         """
         if isinstance(items[0], str):
             sentence = items[0]
@@ -365,8 +337,9 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
         if self.blank_padding:
             is_truncated = False
             if len(indexed_tokens) <= self.max_length:
+                bert_padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
                 while len(indexed_tokens) < self.max_length:
-                    indexed_tokens.append(0)
+                    indexed_tokens.append(bert_padding_idx)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]
@@ -396,12 +369,11 @@ class BERT_WLF_PinYin_Char_Encoder(nn.Module):
                 indexed_token2pinyins_chars[-1].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
         indexed_token2pinyins_chars = torch.tensor(indexed_token2pinyins_chars).unsqueeze(0)
         # attention mask
-        att_mask = torch.zeros(indexed_tokens.size(), dtype=torch.uint8) # (1, L)
-        att_mask[0, :avail_len] = 1
+        att_token_mask = (indexed_tokens != self.tokenizer.convert_tokens_to_ids('[PAD]')).type(torch.uint8)
         att_pinyin_char_mask = (indexed_token2pinyins_chars != self.pinyin_char2id['[PAD]']).type(torch.uint8)
 
-        # ensure the first two is indexed_tokens and indexed_token2word, the last is att_mask
-        return indexed_tokens, indexed_token2word, indexed_token2pinyins_chars, att_pinyin_char_mask, att_mask  
+        # ensure the first two is indexed_tokens and indexed_token2word, the last is att_token_mask
+        return indexed_tokens, indexed_token2word, indexed_token2pinyins_chars, att_pinyin_char_mask, att_token_mask  
 
 
 
@@ -434,9 +406,8 @@ class BERT_WLF_PinYin_Char_MultiConv_Encoder(BERT_WLF_PinYin_Char_Encoder):
             bert_name=bert_name, 
             blank_padding=blank_padding
         )
-        del self.char_conv
         assert self.hidden_size == sum(cc[0] for cc in convs_config)
-        self.char_convs = nn.ModuleList([
+        self.char_conv = nn.ModuleList([
             nn.Sequential(
                 nn.Conv1d(in_channels=self.pinyin_char_size, out_channels=oc, kernel_size=ks),
                 nn.MaxPool1d(kernel_size=self.max_pinyin_char_length - ks + 1),
@@ -444,17 +415,4 @@ class BERT_WLF_PinYin_Char_MultiConv_Encoder(BERT_WLF_PinYin_Char_Encoder):
             )
             for oc, ks in convs_config
         ])
-    
-
-    def masked_conv1d(self, hiddens, weights):
-        shape = hiddens.size()
-        dim1 = functools.reduce(lambda x, y: x * y, shape[:-2])
-        dim2 = shape[-2]
-        dim3 = shape[-1]
-        hiddens = hiddens.contiguous().resize(dim1, dim2, dim3).transpose(-2, -1)
-        weights = weights.contiguous().resize(dim1, dim2, 1).float().transpose(-2, -1)
-        hiddens *= weights
-        convs_out = [conv(hiddens).squeeze(-1) for conv in self.char_convs]
-        conv_hiddens = torch.cat(convs_out, dim=-1)
-        conv_hiddens = conv_hiddens.contiguous().resize(*(shape[:-2] + conv_hiddens.size()[-1:]))
-        return conv_hiddens
+        self.masked_conv1d = masked_multikernel_conv1d
