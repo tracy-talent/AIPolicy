@@ -5,6 +5,8 @@
  Last Modified time: 2021-01-24 21:33:13
 """
 
+from ...module.nn.attention import dot_product_attention
+
 import logging
 import math
 
@@ -68,14 +70,6 @@ class BERTLexiconEncoder(nn.Module):
         self.lexicon2bert_linear = nn.Linear(self.word_size, self.bert.config.hidden_size)
 
 
-    def dot_product_attention(self, att_query, att_kv, att_mask):
-        att_score = torch.matmul(att_kv, att_query.unsqueeze(-1)).squeeze(-1)
-        att_score[att_mask == 0] = 1e-9
-        att_weight = F.softmax(att_score, dim=-1)
-        att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
-        return att_output, att_weight.data
-
-
     def forward(self, seqs_token_ids, seqs_lexcion_embed, att_lexicon_mask, att_token_mask):
         """
         Args:
@@ -95,7 +89,7 @@ class BERTLexiconEncoder(nn.Module):
         #     self.word2bert_linear(seqs_word_embed)
         # ], dim=-1) # (B, L, EMBED)
         lexicon2bert_embed = self.lexicon2bert_linear(seqs_lexcion_embed)
-        lexicon_att_output, _ = self.dot_product_attention(bert_seq_embed, lexicon2bert_embed, att_lexicon_mask)
+        lexicon_att_output, _ = dot_product_attention(bert_seq_embed, lexicon2bert_embed, att_lexicon_mask)
         inputs_embed = torch.add(bert_seq_embed, lexicon_att_output) # (B, L, EMBED)
         return inputs_embed
     
@@ -114,9 +108,8 @@ class BERTLexiconEncoder(nn.Module):
                     if word in self.word2id:
                         indexed_lexicons[-1].append(self.word2id[word])
             if len(indexed_lexicons[-1]) == 0:
-                indexed_lexicons[-1].extend([self.word2id['[UNK]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1))
-            else:
-                indexed_lexicons[-1].extend([self.word2id['[PAD]']] * (self.max_matched_lexcions - len(indexed_lexicons[-1])))
+                indexed_lexicons[-1].append(self.word2id['[UNK]'])
+            indexed_lexicons[-1].extend([self.word2id['[PAD]']] * (self.max_matched_lexcions - len(indexed_lexicons[-1])))
         indexed_lexicons.append([self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1))
         return indexed_lexicons
 

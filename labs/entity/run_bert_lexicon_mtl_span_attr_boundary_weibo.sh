@@ -1,7 +1,7 @@
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -19,7 +19,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 3 \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
@@ -29,7 +29,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -47,7 +47,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 3 \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
@@ -57,7 +57,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -75,7 +75,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 3 \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
@@ -85,7 +85,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -103,7 +103,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 3 \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \
@@ -113,7 +113,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -131,7 +131,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --early_stopping_step 0 \
     --warmup_step 0 \
     --max_length 200 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 3 \
     --max_epoch 10 \
     --optimizer adam \
     --loss ce \

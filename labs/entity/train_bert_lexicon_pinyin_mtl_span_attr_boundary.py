@@ -132,27 +132,38 @@ config.read(os.path.join(project_path, 'config.ini'))
 if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
+# get lexicon name which used in model_name
+if 'ctb' in args.word2vec_file:
+    lexicon_name = 'ctb'
+elif 'sgns' in args.word2vec_file:
+    lexicon_name = 'sgns'
+elif 'giga' in args.word2vec_file:
+    lexicon_name = 'giga'
+elif 'tencent' in args.word2vec_file:
+    lexicon_name = 'tencent'
+else:
+    raise FileNotFoundError(f'{args.word2vec_file} is not found!')
 # construct save path name
 def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
     else:
-        model_name = f'lexicon_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -240,7 +251,7 @@ for arg in vars(args):
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load embedding and vocab
-word2id, word2vec = load_wordvec(args.word2vec_file, binary='tencent' in args.word2vec_file)
+word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load map from word to pinyin
 pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
