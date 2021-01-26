@@ -532,7 +532,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
 
 
-    def eval_model(self, eval_loader):
+    def eval_model(self, eval_loader, result_file=None):
         self.eval()
         span_negid = -1
         if 'O' in self.model.span2id:
@@ -547,6 +547,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         span_golds_kvpairs = []
         preds_kvpairs = []
         golds_kvpairs = []
+        sentences = []
         category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
         avg_loss = Mean()
         avg_span_acc = Mean()
@@ -635,6 +636,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     pred_seq_attr_tag_end = [self.model.id2attr[aid] for aid in preds_seq_attr_end[i][:seqlen][spos:tpos]]
                     gold_seq_attr_tag_end = [self.model.id2attr[aid] for aid in outputs_seq_attr_end[i][:seqlen][spos:tpos]]
                     char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
+                    sentences.append(''.join(char_seq))
 
                     # pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
                     # gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
@@ -687,6 +689,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 # log
                 if (ith + 1) % 10 == 0:
                     self.logger.info(f'Evaluation...Batches: {ith + 1} finished')
+
+        # write result file
+        if result_file is not None:
+            with open(result_file, 'w', encoding='utf-8') as f:
+                for sent, pred, gold in zip(sentences, preds_kvpairs, golds_kvpairs):
+                    words = self.sequence_encoder.word_tokenizer.tokenize(sent)
+                    result_file.write(f'{words}\n{pred}\n{gold}\n')
 
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v

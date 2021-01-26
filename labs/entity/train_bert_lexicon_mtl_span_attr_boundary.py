@@ -29,7 +29,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], 
         help='model type')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -143,6 +143,8 @@ def make_model_name():
         model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
         model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_mtl_span_attr_boundary_ple_bert'
+    elif args.model_type == 'plecat':
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_mtl_span_attr_boundary_plecat_bert'
     elif args.model_type == 'plethree':
         model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
@@ -292,6 +294,20 @@ elif args.model_type == 'mmoe':
     )
 elif args.model_type == 'ple' or args.model_type == 'plerand':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num
+    )
+elif args.model_type == 'plecat':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Cat_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,
         attr2id=attr2id,

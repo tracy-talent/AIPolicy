@@ -115,15 +115,17 @@ class BERT_Lexicon_PinYin_Word_Encoder(nn.Module):
     def lexicon_match(self, tokens):
         indexed_lexicons = [[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)]
         for i in range(len(tokens)):
+            words = []
             indexed_lexicons.append([])
-            for w in range(2, self.lexicon_window_size + 1):
+            for w in range(self.lexicon_window_size, 1, -1):
                 for p in range(w):
                     if i - p < 0:
                         break
                     if i - p + w > len(tokens):
                         continue
                     word = ''.join(tokens[i-p:i-p+w])
-                    if word in self.word2id:
+                    if word in self.word2id and word not in '～'.join(words):
+                        words.append(word)
                         indexed_lexicons[-1].append(self.word2id[word])
             if len(indexed_lexicons[-1]) == 0:
                 indexed_lexicons[-1].append(self.word2id['[UNK]'])
@@ -297,15 +299,17 @@ class BERT_Lexicon_PinYin_Char_Encoder(nn.Module):
     def lexicon_match(self, tokens):
         indexed_lexicons = [[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)]
         for i in range(len(tokens)):
+            words = []
             indexed_lexicons.append([])
-            for w in range(2, self.lexicon_window_size + 1):
+            for w in range(self.lexicon_window_size, 1, -1):
                 for p in range(w):
                     if i - p < 0:
                         break
                     if i - p + w > len(tokens):
                         continue
                     word = ''.join(tokens[i-p:i-p+w])
-                    if word in self.word2id:
+                    if word in self.word2id and word not in '～'.join(words):
+                        words.append(word)
                         indexed_lexicons[-1].append(self.word2id[word])
             if len(indexed_lexicons[-1]) == 0:
                 indexed_lexicons[-1].append(self.word2id['[UNK]'])
