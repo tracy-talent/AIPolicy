@@ -132,7 +132,7 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True, nuetral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
                         except:
@@ -144,7 +144,7 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
                         else:
                             g = 1
                         indexed_lexicons[-1][g].append(self.word2id[word])
-                        indexed_pinyins[-1][g].append(self.pinyin2id[pinyin])
+                        indexed_pinyins[-1][g].append(self.pinyin2id[pinyin] if pinyin in self.pinyin2id else self.pinyin2id['[UNK]'])
             for p in range(3):
                 if len(indexed_lexicons[-1][p]) == 0:
                     indexed_lexicons[-1][p].append(self.word2id['[UNK]'])
@@ -193,7 +193,7 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
                 indexed_lexicons, indexed_pinyins = self.lexicon_match(tokens[1:-1])
                 for _ in range(self.max_length - len(tokens)):
                     indexed_lexicons.append([[self.word2id['[PAD]']] * self.max_matched_lexcions] * 3)
-                    indexed_pinyins.append([[self.pinyin2id['UNK']] * self.max_matched_lexcions] * 3)
+                    indexed_pinyins.append([[self.pinyin2id['[UNK]']] * self.max_matched_lexcions] * 3)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]
