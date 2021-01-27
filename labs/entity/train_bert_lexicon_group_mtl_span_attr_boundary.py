@@ -151,23 +151,23 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_attention_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_plerand_bert'
     elif args.model_type == 'plecat':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_plecat_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_plecat_bert'
     else:
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_bert'
+        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_group_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
