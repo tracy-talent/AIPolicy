@@ -38,7 +38,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 compress_seq=True,
                 tagscheme='bmoes',
                 batch_size=32, 
-                max_epoch=100, 
+                max_epoch=100,
+                crf_lr=1e-3,
                 lr=1e-3,
                 bert_lr=3e-5,
                 weight_decay=1e-2,
@@ -141,7 +142,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         other_params_id = list(map(id, other_params))
         grouped_params = [
             {'params': pretrained_params, 'lr': bert_lr},
-            {'params': crf_params, 'lr': 1e-3},
+            {'params': crf_params, 'lr': crf_lr},
             {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':

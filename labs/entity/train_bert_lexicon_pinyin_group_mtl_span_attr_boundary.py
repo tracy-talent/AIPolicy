@@ -306,6 +306,8 @@ elif args.pinyin_embedding_type == 'char':
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_multiconv':
+    conv_channels = args.pinyin_char_embedding_size // 3
+    assert conv_channels * 3 == args.pinyin_char_embedding_size
     sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(
         pretrain_path=args.pretrain_path,
         word2id=word2id,
@@ -318,7 +320,7 @@ elif args.pinyin_embedding_type == 'char_multiconv':
         max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
         blank_padding=True,
-        convs_config=[(256, 2), (256, 3), (256, 4)]
+        convs_config=[(conv_channels, 2), (conv_channels, 3), (conv_channels, 4)]
     )
 else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')

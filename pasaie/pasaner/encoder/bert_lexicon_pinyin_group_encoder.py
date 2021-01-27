@@ -131,7 +131,12 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
                     word = ''.join(tokens[i-p:i-p+w])
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
-                        pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                        try:
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                            if len(pinyin) > 7:
+                                raise ValueError('pinyin length not exceed 7')
+                        except:
+                            pinyin = '[UNK]'
                         if p == 0:
                             g = 0
                         elif p == w - 1:
@@ -311,7 +316,7 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
 
     def lexicon_match(self, tokens):
         indexed_lexicons = [[[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)] * 3]
-        indexed_pinyins_chars = [[[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] + [[self.pinyin2id['[PAD]']] * self.max_pinyin_char_length] * (self.max_matched_lexcions - 1)] * 3]
+        indexed_pinyins_chars = [[[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * 3]
         for i in range(len(tokens)):
             words = []
             indexed_lexicons.append([[] for _ in range(3)])
@@ -325,7 +330,12 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
                     word = ''.join(tokens[i-p:i-p+w])
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
-                        pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                        try:
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                            if len(pinyin) > 7:
+                                raise ValueError('pinyin length not exceed 7')
+                        except:
+                            pinyin = '[UNK]'
                         if p == 0:
                             g = 0
                         elif p == w - 1:
@@ -333,7 +343,10 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
                         else:
                             g = 1
                         indexed_lexicons[-1][g].append(self.word2id[word])
-                        indexed_pinyins_chars[-1][g].append([self.pinyin_char2id[pc] for pc in pinyin] + [self.pinyin_char2id['[PAD]']] * (self.max_pinyin_char_length - len(pinyin)))
+                        if pinyin != '[UNK]':
+                            indexed_pinyins_chars[-1][g].append([self.pinyin_char2id[pc] if pc in self.pinyin_char2id else self.pinyin_char2id['[UNK]'] for pc in pinyin] + [self.pinyin_char2id['[PAD]']] * (self.max_pinyin_char_length - len(pinyin)))
+                        else:
+                            indexed_pinyins_chars[-1][g].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
             for p in range(3):
                 if len(indexed_lexicons[-1][p]) == 0:
                     indexed_lexicons[-1][p].append(self.word2id['[UNK]'])
@@ -404,7 +417,7 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
 
 
 
-class BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(BERT_Lexicon_PinYin_Char_Encoder):
+class BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(BERT_Lexicon_PinYin_Char_Group_Encoder):
     def __init__(self, 
                 pretrain_path,
                 word2id,
@@ -418,7 +431,7 @@ class BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(BERT_Lexicon_PinYin_Char_
                 max_pinyin_char_length=7,
                 bert_name='bert', 
                 blank_padding=True,
-                convs_config=[(256, 2), (256, 3), (256, 4)]):
+                convs_config=[(50, 2), (50, 3), (50, 4)]):
         super(BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder, self).__init__(
             pretrain_path=pretrain_path,
             word2id=word2id,
@@ -433,7 +446,7 @@ class BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(BERT_Lexicon_PinYin_Char_
             bert_name=bert_name, 
             blank_padding=blank_padding
         )
-        assert self.hidden_size == sum(cc[0] for cc in convs_config)
+        assert self.pinyin_char_size == sum(cc[0] for cc in convs_config)
         self.char_conv = nn.ModuleList([
             nn.Sequential(
                 nn.Conv1d(in_channels=self.pinyin_char_size, out_channels=oc, kernel_size=ks),
