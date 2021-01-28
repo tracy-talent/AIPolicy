@@ -1,7 +1,7 @@
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset msra \
     --compress_seq \
@@ -11,7 +11,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.1 \
@@ -29,7 +29,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset msra \
     --compress_seq \
@@ -39,7 +39,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.2 \
@@ -57,7 +57,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset msra \
     --compress_seq \
@@ -67,7 +67,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.3 \
@@ -85,7 +85,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset msra \
     --compress_seq \
@@ -95,7 +95,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.4 \
@@ -113,7 +113,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
 CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/tencent/tencent.8824k.200d.bin \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --model_type ple \
     --dataset msra \
     --compress_seq \
@@ -123,7 +123,7 @@ python train_bert_lexicon_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 8 \
+    --batch_size 12 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.5 \

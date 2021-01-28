@@ -158,7 +158,7 @@ def make_model_name():
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += f'_relu_crf{args.crf_lr}'
+    model_name += f'_relu_crf{args.crf_lr:.0e}'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'

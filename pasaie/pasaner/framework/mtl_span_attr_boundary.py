@@ -54,7 +54,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 dice_alpha=0.6):
 
         super(MTL_Span_Attr_Boundary, self).__init__()
-        if 'bert' in model.sequence_encoder.__class__.__name__.lower():
+        encoder_name = model.sequence_encoder.__class__.__name__.lower()
+        if 'bert' in encoder_name:
             self.is_bert_encoder = True
         else:
             self.is_bert_encoder = False
@@ -70,7 +71,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
             del word_embedding
         else:
             self.word_embedding = word_embedding
-
+        
+        preload = True
+        if 'char' in encoder_name and 'group' in encoder_name and ('ontonotes4' in train_path or 'msra' in train_path):
+            preload = False
         # Load Data
         if train_path != None:
             self.train_loader = SpanAttrBoundaryNERDataLoader(
@@ -80,7 +84,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 tokenizer=model.sequence_encoder.tokenize,
                 batch_size=batch_size,
                 shuffle=True,
-                compress_seq=compress_seq
+                compress_seq=compress_seq,
+                preload=preload
             )
 
         if val_path != None:
@@ -91,7 +96,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 tokenizer=model.sequence_encoder.tokenize,
                 batch_size=batch_size,
                 shuffle=False,
-                compress_seq=compress_seq
+                compress_seq=compress_seq,
+                preload=preload
             )
         
         if test_path != None:
@@ -102,7 +108,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 tokenizer=model.sequence_encoder.tokenize,
                 batch_size=batch_size,
                 shuffle=False,
-                compress_seq=compress_seq
+                compress_seq=compress_seq,
+                preload=preload
             )
 
         # Model

@@ -35,7 +35,7 @@ class SingleNERDataset(data.Dataset):
     """
     named entity recognition dataset
     """
-    def __init__(self, path, tag2id, tokenizer, **kwargs):
+    def __init__(self, path, tag2id, tokenizer, preload=True, **kwargs):
         """
         Args:
             path: path of the input file
@@ -44,6 +44,7 @@ class SingleNERDataset(data.Dataset):
         """
         super().__init__()
         self.path = path
+        self.preload = preload
         self.tokenizer = tokenizer
         self.tag2id = tag2id
         self.kwargs = kwargs
@@ -59,7 +60,8 @@ class SingleNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self._construct_data()
+        if self.preload:
+            self._construct_data()
 
         self.weight = np.ones((len(self.tag2id)), dtype=np.float32)
         for item in self.corpus:
@@ -68,30 +70,34 @@ class SingleNERDataset(data.Dataset):
         self.weight = 1.0 / (self.weight ** 0.05)
         self.weight = torch.from_numpy(self.weight)
 
-        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self.data), len(self.tag2id)))
+        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self), len(self.tag2id)))
+
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            labels = [self.tag2id[tag] for tag in items[1]]
+            labels.extend([self.tag2id['O']] * (length - len(items[1])))
+        else:
+            labels = [self.tag2id[tag] for tag in items[1][:length]]
+            labels[-1] = self.tag2id['O']
+        item = [torch.tensor([labels])] + seqs # make labels size (1, L)
+        return item
 
     def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-            
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                labels = [self.tag2id[tag] for tag in items[1]]
-                labels.extend([self.tag2id['O']] * (length - len(items[1])))
-            else:
-                labels = [self.tag2id[tag] for tag in items[1][:length]]
-                labels[-1] = self.tag2id['O']
-
-            item = [torch.tensor([labels])] + seqs # make labels size (1, L)
+            item = self._getitem(self.corpus[index])
             self.data.append(item)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.corpus)
     
     def __getitem__(self, index):
-        return self.data[index]
+        if self.preload:
+            return self.data[index]
+        else:
+            return self._getitem(self.corpus[index])
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -113,8 +119,8 @@ class SingleNERDataset(data.Dataset):
     
     
 def SingleNERDataLoader(path, tag2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=SingleNERDataset.collate_fn, **kwargs):
-    dataset = SingleNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=SingleNERDataset.collate_fn, **kwargs):
+    dataset = SingleNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -128,7 +134,7 @@ class MultiNERDataset(data.Dataset):
     """
     named entity recognition dataset for XLNet MultiTask
     """
-    def __init__(self, path, span2id, attr2id, tokenizer, **kwargs):
+    def __init__(self, path, span2id, attr2id, tokenizer, preload=True, **kwargs):
         """
         Args:
             path: path of the input file
@@ -138,6 +144,7 @@ class MultiNERDataset(data.Dataset):
         """
         super().__init__()
         self.path = path
+        self.preload = preload
         self.tokenizer = tokenizer
         self.span2id = span2id
         self.attr2id = attr2id
@@ -161,7 +168,8 @@ class MultiNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self._construct_data()
+        if self.preload:
+            self._construct_data()
 
         self.weight_span = np.ones((len(self.span2id)), dtype=np.float32)
         self.weight_attr = np.ones((len(self.attr2id)), dtype=np.float32)
@@ -174,33 +182,38 @@ class MultiNERDataset(data.Dataset):
         self.weight_attr = 1.0 / (self.weight_attr ** 0.05)
         self.weight_attr = torch.from_numpy(self.weight_attr)
 
-        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity span types and {} entity attr types.".format(path, len(self.data), len(self.span2id), len(self.attr2id)))
+        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity span types and {} entity attr types.".format(path, len(self), len(self.span2id), len(self.attr2id)))
     
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..], [seq_attrs]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            labels_span = [self.span2id[tag] for tag in items[1]]
+            labels_span.extend([self.span2id['O']] * (length - len(items[1])))
+            labels_attr = [self.attr2id[tag] for tag in items[2]]
+            labels_attr.extend([self.attr2id['null']] * (length - len(items[2])))
+        else:
+            labels_span = [self.span2id[tag] for tag in items[1][:length]]
+            labels_span[-1] = self.span2id['O']
+            labels_attr = [self.attr2id[tag] for tag in items[2][:length]]
+            labels_attr[-1] = self.attr2id['null']
+        item = [torch.tensor([labels_span]), torch.tensor([labels_attr])] + seqs
+        return item
+
     def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                labels_span = [self.span2id[tag] for tag in items[1]]
-                labels_span.extend([self.span2id['O']] * (length - len(items[1])))
-                labels_attr = [self.attr2id[tag] for tag in items[2]]
-                labels_attr.extend([self.attr2id['null']] * (length - len(items[2])))
-            else:
-                labels_span = [self.span2id[tag] for tag in items[1][:length]]
-                labels_span[-1] = self.span2id['O']
-                labels_attr = [self.attr2id[tag] for tag in items[2][:length]]
-                labels_attr[-1] = self.attr2id['null']
-            item = [torch.tensor([labels_span]), torch.tensor([labels_attr])] + seqs
+            item = self._getitem(self.corpus[index])
             self.data.append(item)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.corpus)
     
-    def __getitem__(self, index):
-        return self.data[index]
+    def __getitem__(self, index): # override
+        if self.preload:
+            return self.data[index]
+        else:
+            return self._getitem(self.corpus[index])
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -222,8 +235,8 @@ class MultiNERDataset(data.Dataset):
     
     
 def MultiNERDataLoader(path, span2id, attr2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=MultiNERDataset.collate_fn, **kwargs):
-    dataset = MultiNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=MultiNERDataset.collate_fn, **kwargs):
+    dataset = MultiNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -237,32 +250,30 @@ class SpanAttrBoundaryNERDataset(MultiNERDataset):
     """
     ner dataset for three task(seq decode, left and right border of entity attr prediction) learning
     """
-    def _construct_data(self):
-        self.data = []
-        for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                span_labels = [self.span2id[tag] for tag in items[1]]
-                span_labels.extend([self.span2id['O']] * (length - len(items[1])))
-                attr_start_labels = [self.attr2id[at] if st == 'B' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
-                attr_start_labels.extend([self.attr2id['null']] * (length - len(items[2])))
-                attr_end_labels = [self.attr2id[at] if st == 'E' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
-                attr_end_labels.extend([self.attr2id['null']] * (length - len(items[2])))
-            else:
-                span_labels = [self.span2id[tag] for tag in items[1][:length]]
-                span_labels[-1] = self.span2id['O']
-                attr_start_labels = [self.attr2id[at] if st == 'B' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1][:length], items[2][:length])]
-                attr_start_labels[-1] = self.attr2id['null']
-                attr_end_labels = [self.attr2id[at] if st == 'E' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1][:length], items[2][:length])]
-                attr_end_labels[-1] = self.attr2id['null']
-            item = [torch.tensor([span_labels]), torch.tensor([attr_start_labels]), torch.tensor([attr_end_labels])] + seqs # make labels size (1, L)
-            self.data.append(item)
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            span_labels = [self.span2id[tag] for tag in items[1]]
+            span_labels.extend([self.span2id['O']] * (length - len(items[1])))
+            attr_start_labels = [self.attr2id[at] if st == 'B' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+            attr_start_labels.extend([self.attr2id['null']] * (length - len(items[2])))
+            attr_end_labels = [self.attr2id[at] if st == 'E' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1], items[2])]
+            attr_end_labels.extend([self.attr2id['null']] * (length - len(items[2])))
+        else:
+            span_labels = [self.span2id[tag] for tag in items[1][:length]]
+            span_labels[-1] = self.span2id['O']
+            attr_start_labels = [self.attr2id[at] if st == 'B' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1][:length], items[2][:length])]
+            attr_start_labels[-1] = self.attr2id['null']
+            attr_end_labels = [self.attr2id[at] if st == 'E' or st == 'S' else self.attr2id['null'] for st, at in zip(items[1][:length], items[2][:length])]
+            attr_end_labels[-1] = self.attr2id['null']
+        item = [torch.tensor([span_labels]), torch.tensor([attr_start_labels]), torch.tensor([attr_end_labels])] + seqs # make labels size (1, L)
+        return item
+
 
 def SpanAttrBoundaryNERDataLoader(path, span2id, attr2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=SpanAttrBoundaryNERDataset.collate_fn, **kwargs):
-    dataset = SpanAttrBoundaryNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=SpanAttrBoundaryNERDataset.collate_fn, **kwargs):
+    dataset = SpanAttrBoundaryNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -276,43 +287,40 @@ class SpanAttrBoundaryTogetherNERDataset(MultiNERDataset):
     """
     ner dataset for three task(seq decode, left and right border of entity attr prediction) learning
     """
-    def _construct_data(self):
-        self.data = []
-        for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-            
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                span_labels = [self.span2id[tag] for tag in items[1]]
-                span_labels.extend([self.span2id['O']] * (length - len(items[1])))
-                attr_boundary_labels = []
-                for st, at in zip(items[1], items[2]):
-                    if st == 'B' or st == 'E':
-                        attr_boundary_labels.append(self.attr2id[at])
-                    elif st == 'S':
-                        attr_boundary_labels.append(self.attr2id['Single'])
-                    else:
-                        attr_boundary_labels.append(self.attr2id['null'])
-                attr_boundary_labels.extend([self.attr2id['null']] * (length - len(items[2])))
-            else:
-                span_labels = [self.span2id[tag] for tag in items[1][:length]]
-                span_labels[-1] = self.span2id['O']
-                attr_boundary_labels = []
-                for st, at in zip(items[1][:length], items[2][:length]):
-                    if st == 'B' or st == 'E':
-                        attr_boundary_labels.append(self.attr2id[at])
-                    elif st == 'S':
-                        attr_boundary_labels.append(self.attr2id['Single'])
-                    else:
-                        attr_boundary_labels.append(self.attr2id['null'])
-                attr_boundary_labels[-1] = self.attr2id['null']
-            item = [torch.tensor([span_labels]), torch.tensor([attr_boundary_labels])] + seqs # make labels size (1, L)
-            self.data.append(item)
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            span_labels = [self.span2id[tag] for tag in items[1]]
+            span_labels.extend([self.span2id['O']] * (length - len(items[1])))
+            attr_boundary_labels = []
+            for st, at in zip(items[1], items[2]):
+                if st == 'B' or st == 'E':
+                    attr_boundary_labels.append(self.attr2id[at])
+                elif st == 'S':
+                    attr_boundary_labels.append(self.attr2id['Single'])
+                else:
+                    attr_boundary_labels.append(self.attr2id['null'])
+            attr_boundary_labels.extend([self.attr2id['null']] * (length - len(items[2])))
+        else:
+            span_labels = [self.span2id[tag] for tag in items[1][:length]]
+            span_labels[-1] = self.span2id['O']
+            attr_boundary_labels = []
+            for st, at in zip(items[1][:length], items[2][:length]):
+                if st == 'B' or st == 'E':
+                    attr_boundary_labels.append(self.attr2id[at])
+                elif st == 'S':
+                    attr_boundary_labels.append(self.attr2id['Single'])
+                else:
+                    attr_boundary_labels.append(self.attr2id['null'])
+            attr_boundary_labels[-1] = self.attr2id['null']
+        item = [torch.tensor([span_labels]), torch.tensor([attr_boundary_labels])] + seqs # make labels size (1, L)
+        return item
+
 
 def SpanAttrBoundaryTogetherNERDataLoader(path, span2id, attr2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=SpanAttrBoundaryTogetherNERDataset.collate_fn, **kwargs):
-    dataset = SpanAttrBoundaryTogetherNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=SpanAttrBoundaryTogetherNERDataset.collate_fn, **kwargs):
+    dataset = SpanAttrBoundaryTogetherNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -326,22 +334,18 @@ class XLNetSingleNERDataset(SingleNERDataset):
     """
     named entity recognition dataset for XLNet
     """
-    def _construct_data(self):
-        self.data = []
-        for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-            
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                labels = [self.tag2id['O']] * (length - len(items[1]))
-                labels.extend([self.tag2id[tag] for tag in items[1]])
-            else:
-                labels = [self.tag2id[tag] for tag in items[1][:length]]
-                labels[-2] = self.tag2id['O']
-                labels[-1] = self.tag2id['O']
-            item = [torch.tensor([labels])] + seqs # make labels size (1, L)
-            self.data.append(item)
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            labels = [self.tag2id['O']] * (length - len(items[1]))
+            labels.extend([self.tag2id[tag] for tag in items[1]])
+        else:
+            labels = [self.tag2id[tag] for tag in items[1][:length]]
+            labels[-2] = self.tag2id['O']
+            labels[-1] = self.tag2id['O']
+        item = [torch.tensor([labels])] + seqs # make labels size (1, L)
+        return item
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -364,8 +368,8 @@ class XLNetSingleNERDataset(SingleNERDataset):
     
     
 def XLNetSingleNERDataLoader(path, tag2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=XLNetSingleNERDataset.collate_fn, **kwargs):
-    dataset = XLNetSingleNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=XLNetSingleNERDataset.collate_fn, **kwargs):
+    dataset = XLNetSingleNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -379,27 +383,23 @@ class XLNetMultiNERDataset(MultiNERDataset):
     """
     named entity recognition dataset for XLNet MultiTask
     """
-    def _construct_data(self):
-        self.data = []
-        for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..], [seq_attrs]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                labels_span = [self.span2id['O']] * (length - len(items[1]))
-                labels_span.extend([self.span2id[tag] for tag in items[1]])
-                labels_attr = [self.attr2id['O']] * (length - len(items[2]))
-                labels_attr.extend([self.attr2id[tag] for tag in items[2]])
-            else:
-                labels_span = [self.span2id[tag] for tag in items[1][:length]]
-                labels_span[-2] = self.span2id['O']
-                labels_span[-1] = self.span2id['O']
-                labels_attr = [self.attr2id[tag] for tag in items[2][:length]]
-                labels_attr[-2] = self.attr2id['null']
-                labels_attr[-1] = self.attr2id['null']
-            item = [torch.tensor([labels_span]), torch.tensor([labels_attr])] + seqs
-            self.data.append(item)
+    def _getitem(self, items):
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            labels_span = [self.span2id['O']] * (length - len(items[1]))
+            labels_span.extend([self.span2id[tag] for tag in items[1]])
+            labels_attr = [self.attr2id['O']] * (length - len(items[2]))
+            labels_attr.extend([self.attr2id[tag] for tag in items[2]])
+        else:
+            labels_span = [self.span2id[tag] for tag in items[1][:length]]
+            labels_span[-2] = self.span2id['O']
+            labels_span[-1] = self.span2id['O']
+            labels_attr = [self.attr2id[tag] for tag in items[2][:length]]
+            labels_attr[-2] = self.attr2id['null']
+            labels_attr[-1] = self.attr2id['null']
+        item = [torch.tensor([labels_span]), torch.tensor([labels_attr])] + seqs
+        return item
     
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -422,8 +422,8 @@ class XLNetMultiNERDataset(MultiNERDataset):
     
     
 def XLNetMultiNERDataLoader(path, span2id, attr2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=XLNetMultiNERDataset.collate_fn, **kwargs):
-    dataset = XLNetMultiNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, **kwargs)
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=XLNetMultiNERDataset.collate_fn, **kwargs):
+    dataset = XLNetMultiNERDataset(path=path, span2id=span2id, attr2id=attr2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -560,7 +560,7 @@ class SpanMultiNERDataset(data.Dataset):
     """
     named entity recognition dataset
     """
-    def __init__(self, path, tag2id, tokenizer, **kwargs):
+    def __init__(self, path, tag2id, tokenizer, preload=True, **kwargs):
         """
         Args:
             path: path of the input file
@@ -569,6 +569,7 @@ class SpanMultiNERDataset(data.Dataset):
         """
         super().__init__()
         self.path = path
+        self.preload = preload
         self.tokenizer = tokenizer
         self.tag2id = tag2id
         self.kwargs = kwargs
@@ -586,7 +587,8 @@ class SpanMultiNERDataset(data.Dataset):
                 elif len(tokens) > 0:
                     self.corpus.append([list(seq) for seq in zip(*tokens)])
                     tokens = []
-        self._construct_data()
+        if self.preload:
+            self._construct_data()
 
         self.weight = np.ones((len(self.tag2id)), dtype=np.float32)
         for item in self.corpus:
@@ -598,33 +600,38 @@ class SpanMultiNERDataset(data.Dataset):
         self.weight = 1.0 / (self.weight ** 0.05)
         self.weight = torch.from_numpy(self.weight)
 
-        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self.data), len(self.tag2id)))
+        logging.info("Loaded sentence NER dataset {} with {} lines and {} entity types.".format(path, len(self), len(self.tag2id)))
     
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        seqs = list(self.tokenizer(*items, **self.kwargs))
+        length = seqs[0].size(1)
+        if length >= len(items[1]):
+            start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
+            end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
+            start_labels.extend([self.tag2id['null']] * (length - len(items[1])))
+            end_labels.extend([self.tag2id['null']] * (length - len(items[1])))
+        else:
+            start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
+            end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
+            start_labels[-1] = self.tag2id['null']
+            end_labels[-1] = self.tag2id['null']
+        item = [torch.tensor([start_labels]), torch.tensor([end_labels])] + seqs # make labels size (1, L)
+        return item
+
     def _construct_data(self):
         self.data = []
         for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            seqs = list(self.tokenizer(*items, **self.kwargs))
-            
-            length = seqs[0].size(1)
-            if length >= len(items[1]):
-                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
-                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1]]
-                start_labels.extend([self.tag2id['null']] * (length - len(items[1])))
-                end_labels.extend([self.tag2id['null']] * (length - len(items[1])))
-            else:
-                start_labels = [self.tag2id[tag[2:]] if tag[0] == 'B' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
-                end_labels = [self.tag2id[tag[2:]] if tag[0] == 'E' or tag[0] == 'S' else self.tag2id['null'] for tag in items[1][:length]]
-                start_labels[-1] = self.tag2id['null']
-                end_labels[-1] = self.tag2id['null']
-            item = [torch.tensor([start_labels]), torch.tensor([end_labels])] + seqs # make labels size (1, L)
+            item = self._getitem(self.corpus[index])
             self.data.append(item)
 
     def __len__(self):
-        return len(self.data)
+        return len(self.corpus)
 
     def __getitem__(self, index):
-        return self.data[index]
+        if self.preload:
+            return self.data[index]
+        else:
+            return self._getitem(self.corpus[index])
 
     @classmethod
     def collate_fn(cls, compress_seq, data):
@@ -646,10 +653,10 @@ class SpanMultiNERDataset(data.Dataset):
     
     
 def SpanMultiNERDataLoader(path, tag2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=SpanMultiNERDataset.collate_fn, sampler=None, **kwargs):
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=SpanMultiNERDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
-    dataset = SpanMultiNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
+    dataset = SpanMultiNERDataset(path=path, tag2id=tag2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -664,7 +671,7 @@ class MRCSpanMultiNERDataset(SpanMultiNERDataset):
     """
     named entity recognition dataset
     """
-    def __init__(self, data_path, query_path, tag2id, tokenizer, **kwargs):
+    def __init__(self, data_path, query_path, tag2id, tokenizer, preload=True, **kwargs):
         """
         Args:
             data_path: path of the input file
@@ -674,38 +681,35 @@ class MRCSpanMultiNERDataset(SpanMultiNERDataset):
         """
         with open(query_path, 'r', encoding='utf-8') as qf:
             self.query_dict = dict(line.strip().split() for line in qf)
-        super(MRCSpanMultiNERDataset, self).__init__(data_path, tag2id, tokenizer)
+        super(MRCSpanMultiNERDataset, self).__init__(data_path, tag2id, tokenizer, preload)
     
-    def _construct_data(self):
-        self.data = []
-        for index in range(len(self.corpus)):
-            items = self.corpus[index] # item = [[seq_tokens..], [seq_tags..]]
-            attrs = set(x[2:] for x in items[1] if x != 'O')
-            for ent_type in self.query_dict:
-                #if 'train' in self.path and ent_type not in attrs:
-                #    continue
-                items_copy = deepcopy(items)
-                seqs = list(self.tokenizer(*items_copy, self.query_dict[ent_type], **self.kwargs))
+    def _getitem(self, items): # items = [[seq_tokens..], [seq_tags..]]
+        attrs = set(x[2:] for x in items[1] if x != 'O')
+        for ent_type in self.query_dict:
+            #if 'train' in self.path and ent_type not in attrs:
+            #    continue
+            items_copy = deepcopy(items)
+            seqs = list(self.tokenizer(*items_copy, self.query_dict[ent_type], **self.kwargs))
 
-                length = seqs[0].size(1)
-                if length >= len(items_copy[1]):
-                    start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
-                    end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
-                    start_labels.extend([0] * (length - len(items_copy[1])))
-                    end_labels.extend([0] * (length - len(items_copy[1])))
-                else:
-                    start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
-                    end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
-                    start_labels[-1] = 0
-                    end_labels[-1] = 0
-                item = [torch.tensor([start_labels]), torch.tensor([end_labels]), torch.tensor([self.tag2id[ent_type]])] + seqs # make labels size (1, L)
-                self.data.append(item)
+            length = seqs[0].size(1)
+            if length >= len(items_copy[1]):
+                start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1]]
+                start_labels.extend([0] * (length - len(items_copy[1])))
+                end_labels.extend([0] * (length - len(items_copy[1])))
+            else:
+                start_labels = [1 if tag[0] == 'B' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                end_labels = [1 if tag[0] == 'E' or tag[0] == 'S' and tag[2:] == ent_type else 0 for tag in items_copy[1][:length]]
+                start_labels[-1] = 0
+                end_labels[-1] = 0
+            item = [torch.tensor([start_labels]), torch.tensor([end_labels]), torch.tensor([self.tag2id[ent_type]])] + seqs # make labels size (1, L)
+            return item
 
 def MRCSpanMultiNERDataLoader(data_path, query_path, tag2id, tokenizer, batch_size, 
-        shuffle, compress_seq=True, num_workers=8, collate_fn=MRCSpanMultiNERDataset.collate_fn, sampler=None, **kwargs):
+        shuffle, compress_seq=True, preload=True, num_workers=8, collate_fn=MRCSpanMultiNERDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
-    dataset = MRCSpanMultiNERDataset(data_path=data_path, query_path=query_path, tag2id=tag2id, tokenizer=tokenizer, **kwargs)
+    dataset = MRCSpanMultiNERDataset(data_path=data_path, query_path=query_path, tag2id=tag2id, tokenizer=tokenizer, preload=preload, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
             batch_size=batch_size,
             shuffle=shuffle,

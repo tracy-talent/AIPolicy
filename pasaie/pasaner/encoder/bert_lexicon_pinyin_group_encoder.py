@@ -100,18 +100,18 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
         """
         if 'roberta' in self.bert_name:
             # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
-            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
         else:
-            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
 
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
-        lexicon_pinyin_embed = torch.cat([seqs_lexicon_embed, seqs_lexicon_embed], dim=-1)
+        lexicon_pinyin_embed = torch.cat([seqs_pinyin_embed, seqs_lexicon_embed], dim=-1)
         lexicon_pinyin2bert_embed = self.lexicon_pinyin2bert_linear(lexicon_pinyin_embed)
-        lexicon_pinyin_att_output, _ = dot_product_attention(bert_seq_embed.unsqueeze(-2), lexicon_pinyin2bert_embed, att_lexicon_pinyin_mask)
+        lexicon_pinyin_att_output, _ = dot_product_attention(bert_seqs_embed.unsqueeze(-2), lexicon_pinyin2bert_embed, att_lexicon_pinyin_mask)
         flatten_emb_size = functools.reduce(lambda x, y: x * y, lexicon_pinyin_att_output.size()[-2:])
         lexicon_pinyin_att_output = lexicon_pinyin_att_output.contiguous().resize(*(lexicon_pinyin_att_output.size()[:-2] + (flatten_emb_size, )))
         lexicon_pinyin_att_output = self.lexicon_pinyin_dimreduce(lexicon_pinyin_att_output)
-        inputs_embed = bert_seq_embed + lexicon_pinyin_att_output # (B, L, EMBED)
+        inputs_embed = bert_seqs_embed + lexicon_pinyin_att_output # (B, L, EMBED)
         return inputs_embed
     
     
@@ -278,14 +278,40 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
         self.max_pinyin_num_of_token = max_pinyin_num_of_token
         self.max_pinyin_char_length = max_pinyin_char_length
         self.blank_padding = blank_padding
+        self.group_num = 4
         # pinyin character embedding matrix
         self.pinyin_char_embedding = nn.Embedding(len(self.pinyin_char2id), self.pinyin_char_size, padding_idx=self.pinyin_char2id['[PAD]'])
         # align word embedding and bert embedding
-        self.lexicon_pinyin2bert_linear = nn.Linear(self.word_size + self.pinyin_char_size, self.hidden_size)
-        self.lexicon_pinyin_dimreduce = nn.Linear(self.hidden_size * 3, self.hidden_size)
-        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size, kernel_size=3, padding=1)
+        # self.bert_linear = nn.Linear(self.hidden_size, self.hidden_size // 4)
+        # self.lexicon_pinyin2bert_linear = nn.Linear(self.word_size + self.pinyin_char_size, self.hidden_size)
+        word_cat_size = 64
+        pinyin_cat_size = 64
+        emb_size = self.hidden_size // 3
+        self.bert_linear = nn.Linear(self.hidden_size, emb_size)
+        self.lexicon2bert = nn.Linear(self.word_size, emb_size)
+        self.lexicon_dimred = nn.Linear(emb_size, word_cat_size)
+        # self.pinyin2bert = self.Linear(self.pinyin_char_size, self.hidden_size)
+        self.char_conv = nn.Conv1d(self.pinyin_char_size, emb_size, kernel_size=3, padding=1)
         self.masked_conv1d = masked_singlekernel_conv1d
+        self.pinyin_dimred = nn.Linear(emb_size, pinyin_cat_size)
+        # self.hidden_size = self.bert.config.hidden_size + word_cat_size * self.group_num + pinyin_cat_size * self.group_num
 
+    # def embedding_fusion_1(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
+    #     if 'roberta' in self.bert_name:
+    #         # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
+    #         bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
+    #     else:
+    #         bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
+    #     bert_seqs_embed = self.bert_linear(bert_seqs_embed)
+    #     seqs_pinyin_char_embed = self.pinyin_char_embedding(seqs_pinyin_char_ids)
+    #     pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask, self.char_conv)
+    #     lexicon_pinyin_embed = torch.cat([pinyin_conv, seqs_lexicon_embed], dim=-1)
+    #     lexicon_pinyin2bert_embed = self.lexicon_pinyin2bert_linear(lexicon_pinyin_embed)    
+    #     lexicon_pinyin_att_output, _ = dot_product_attention(bert_seqs_embed.unsqueeze(-2), lexicon_pinyin2bert_embed, att_lexicon_mask)
+    #     flatten_emb_size = functools.reduce(lambda x, y: x * y, lexicon_pinyin_att_output.size()[-2:])
+    #     lexicon_pinyin_att_output = lexicon_pinyin_att_output.contiguous().resize(*(lexicon_pinyin_att_output.size()[:-2] + (flatten_emb_size, )))
+    #     inputs_embed = torch.cat([bert_seqs_embed, lexicon_pinyin_att_output], dim=-1) # (B, L, EMBED)
+    #     return inputs_embed
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
         """
@@ -297,46 +323,53 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
         """
         if 'roberta' in self.bert_name:
             # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
-            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
         else:
-            bert_seq_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
-
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
+        
+        bert_seqs_embed = self.bert_linear(bert_seqs_embed)
+        lexicon2bert_embed = self.lexicon2bert(seqs_lexicon_embed)
+        lexicon_att_output, _ = dot_product_attention(bert_seqs_embed.unsqueeze(-2), lexicon2bert_embed, att_lexicon_mask)
+        lexicon_cat_feat = self.lexicon_dimred(lexicon_att_output)
+        lexicon_flatten_emb_size = functools.reduce(lambda x, y: x * y, lexicon_cat_feat.size()[-2:])
+        lexicon_cat_feat = lexicon_cat_feat.contiguous().resize(*(lexicon_cat_feat.size()[:-2] + (lexicon_flatten_emb_size, )))
         seqs_pinyin_char_embed = self.pinyin_char_embedding(seqs_pinyin_char_ids)
         pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask, self.char_conv)
-        lexicon_pinyin_embed = torch.cat([seqs_lexicon_embed, pinyin_conv], dim=-1)
-        lexicon_pinyin2bert_embed = self.lexicon_pinyin2bert_linear(lexicon_pinyin_embed)    
-        lexicon_pinyin_att_output, _ = dot_product_attention(bert_seq_embed.unsqueeze(-2), lexicon_pinyin2bert_embed, att_lexicon_mask)
-        flatten_emb_size = functools.reduce(lambda x, y: x * y, lexicon_pinyin_att_output.size()[-2:])
-        lexicon_pinyin_att_output = lexicon_pinyin_att_output.contiguous().resize(*(lexicon_pinyin_att_output.size()[:-2] + (flatten_emb_size, )))
-        lexicon_pinyin_att_output = self.lexicon_pinyin_dimreduce(lexicon_pinyin_att_output)
-        inputs_embed = bert_seq_embed + lexicon_pinyin_att_output # (B, L, EMBED)
+        pinyin_att_output, _ = dot_product_attention(bert_seqs_embed.unsqueeze(-2), pinyin_conv, att_lexicon_mask)
+        pinyin_cat_feat = self.pinyin_dimred(pinyin_att_output)
+        pinyin_flatten_emb_size = functools.reduce(lambda x, y: x * y, pinyin_cat_feat.size()[-2:])
+        pinyin_cat_feat = pinyin_cat_feat.contiguous().resize(*(pinyin_cat_feat.size()[:-2] + (pinyin_flatten_emb_size, )))
+        inputs_embed = torch.cat([bert_seqs_embed, lexicon_cat_feat, pinyin_cat_feat], dim=-1)
 
         return inputs_embed
     
 
     def lexicon_match(self, tokens):
-        indexed_lexicons = [[[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)] * 3]
-        indexed_pinyins_chars = [[[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * 3]
+        indexed_lexicons = [[[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)] * self.group_num]
+        indexed_pinyins_chars = [[[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * self.group_num]
         for i in range(len(tokens)):
             words = []
-            indexed_lexicons.append([[] for _ in range(3)])
-            indexed_pinyins_chars.append([[] for _ in range(3)])
-            for w in range(self.lexicon_window_size, 1, -1):
+            indexed_lexicons.append([[] for _ in range(self.group_num)])
+            indexed_pinyins_chars.append([[] for _ in range(self.group_num)])
+            for w in range(self.lexicon_window_size, 0, -1):
                 for p in range(w):
                     if i - p < 0:
                         break
                     if i - p + w > len(tokens):
                         continue
                     word = ''.join(tokens[i-p:i-p+w])
-                    if word in self.word2id and word not in '～'.join(words):
+                    # if word in self.word2id and word not in '～'.join(words):
+                    if word in self.word2id:
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True, neutral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
                         except:
                             pinyin = '[UNK]'
-                        if p == 0:
+                        if w == 1:
+                            g = 3
+                        elif p == 0:
                             g = 0
                         elif p == w - 1:
                             g = 2
@@ -347,14 +380,14 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
                             indexed_pinyins_chars[-1][g].append([self.pinyin_char2id[pc] if pc in self.pinyin_char2id else self.pinyin_char2id['[UNK]'] for pc in pinyin] + [self.pinyin_char2id['[PAD]']] * (self.max_pinyin_char_length - len(pinyin)))
                         else:
                             indexed_pinyins_chars[-1][g].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
-            for p in range(3):
+            for p in range(self.group_num):
                 if len(indexed_lexicons[-1][p]) == 0:
                     indexed_lexicons[-1][p].append(self.word2id['[UNK]'])
                     indexed_pinyins_chars[-1][p].append([self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length)
                 indexed_lexicons[-1][p].extend([self.word2id['[PAD]']] * (self.max_matched_lexcions - len(indexed_lexicons[-1][p])))
                 indexed_pinyins_chars[-1][p].extend([[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * (self.max_matched_lexcions - len(indexed_pinyins_chars[-1][p])))
-        indexed_lexicons.append([[self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)] * 3)
-        indexed_pinyins_chars.append([[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * 3)
+        indexed_lexicons.append([[self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcions - 1)] * self.group_num)
+        indexed_pinyins_chars.append([[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * self.group_num)
         return indexed_lexicons, indexed_pinyins_chars
 
 
@@ -394,8 +427,8 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
                     indexed_tokens.append(bert_padding_idx)
                 indexed_lexicons, indexed_pinyins_chars = self.lexicon_match(tokens[1:-1])
                 for _ in range(self.max_length - len(tokens)):
-                    indexed_lexicons.append([[self.word2id['[PAD]']] * self.max_matched_lexcions] * 3)
-                    indexed_pinyins_chars.append([[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * 3)
+                    indexed_lexicons.append([[self.word2id['[PAD]']] * self.max_matched_lexcions] * self.group_num)
+                    indexed_pinyins_chars.append([[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcions] * self.group_num)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]

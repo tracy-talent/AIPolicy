@@ -2,7 +2,7 @@ CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
+    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
     --dataset weibo \
@@ -13,7 +13,7 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 10 \
+    --batch_size 4 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.1 \
@@ -36,7 +36,7 @@ CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
+    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
     --dataset weibo \
@@ -47,7 +47,7 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 10 \
+    --batch_size 4 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.2 \
@@ -70,7 +70,7 @@ CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
+    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
     --dataset weibo \
@@ -81,7 +81,7 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 10 \
+    --batch_size 4 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.3 \
@@ -104,7 +104,7 @@ CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
+    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
     --dataset weibo \
@@ -115,7 +115,7 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 10 \
+    --batch_size 4 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.4 \
@@ -138,7 +138,7 @@ CUDA_VISIBLE_DEVICES=0 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num.txt \
+    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
     --dataset weibo \
@@ -149,7 +149,7 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --span_use_crf \
     --attr_use_lstm \
     --soft_label True \
-    --batch_size 10 \
+    --batch_size 4 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --dropout_rate 0.5 \
