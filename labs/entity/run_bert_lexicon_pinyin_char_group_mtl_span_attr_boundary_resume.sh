@@ -1,11 +1,11 @@
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
-    --dataset weibo \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
@@ -32,14 +32,14 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --adv fgm \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
-    --dataset weibo \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
@@ -66,14 +66,14 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --adv fgm \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
-    --dataset weibo \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
@@ -100,14 +100,14 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --adv fgm \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
-    --dataset weibo \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
@@ -134,14 +134,14 @@ python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --adv fgm \
     --metric micro_f1
 
-CUDA_VISIBLE_DEVICES=2 \
+CUDA_VISIBLE_DEVICES=1 \
 python train_bert_lexicon_pinyin_group_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type char \
     --model_type ple \
-    --dataset weibo \
+    --dataset resume \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
