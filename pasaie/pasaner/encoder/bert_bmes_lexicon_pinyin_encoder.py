@@ -450,7 +450,39 @@ class BERT_BMES_Lexicon_PinYin_Char_Encoder(nn.Module):
 
 
 class BERT_BMES_Lexicon_PinYin_Char_AttTogether_Encoder(BERT_BMES_Lexicon_PinYin_Char_Encoder):
-    def embedding_fusion_1(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
+    def __init__(self, 
+                pretrain_path,
+                word2id,
+                word2pinyin,
+                pinyin_char2id,
+                word_size=50,
+                lexicon_window_size=4,
+                pinyin_char_size=50,
+                max_length=512, 
+                max_pinyin_num_of_token=10,
+                max_pinyin_char_length=7,
+                bert_name='bert', 
+                blank_padding=True):
+        super().__init__(
+            pretrain_path,
+            word2id,
+            word2pinyin,
+            pinyin_char2id,
+            word_size,
+            lexicon_window_size,
+            pinyin_char_size,
+            max_length,
+            max_pinyin_num_of_token,
+            max_pinyin_char_length,
+            bert_name, 
+            blank_padding
+        )
+        del self.lexicon2bert
+        del self.pinyin2bert
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size, self.bert.config.hidden_size)
+
+
+    def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
         if 'roberta' in self.bert_name:
             # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
             bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
@@ -465,6 +497,56 @@ class BERT_BMES_Lexicon_PinYin_Char_AttTogether_Encoder(BERT_BMES_Lexicon_PinYin
         inputs_embed = torch.cat([bert_seqs_embed, cat_embed_att_output], dim=-1)
         return inputs_embed
 
+
+
+class BERT_BMES_Lexicon_PinYin_Char_AttTogether_Add_Encoder(BERT_BMES_Lexicon_PinYin_Char_Encoder):
+    def __init__(self, 
+                pretrain_path,
+                word2id,
+                word2pinyin,
+                pinyin_char2id,
+                word_size=50,
+                lexicon_window_size=4,
+                pinyin_char_size=50,
+                max_length=512, 
+                max_pinyin_num_of_token=10,
+                max_pinyin_char_length=7,
+                bert_name='bert', 
+                blank_padding=True):
+        super().__init__(
+            pretrain_path,
+            word2id,
+            word2pinyin,
+            pinyin_char2id,
+            word_size,
+            lexicon_window_size,
+            pinyin_char_size,
+            max_length,
+            max_pinyin_num_of_token,
+            max_pinyin_char_length,
+            bert_name, 
+            blank_padding
+        )
+        del self.lexicon2bert
+        del self.pinyin2bert
+        self.hidden_size = self.bert.config.hidden_size
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 3, self.hidden_size)
+        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size * 3, kernel_size=3, padding=1)
+
+    def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
+        if 'roberta' in self.bert_name:
+            # seq_out = self.bert(seqs, attention_mask=att_token_mask)[1][1] # hfl roberta
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask) # clue-roberta
+        else:
+            bert_seqs_embed, _ = self.bert(seqs_token_ids, attention_mask=att_token_mask)
+        bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
+        bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
+        seqs_pinyin_char_embed = self.pinyin_char_embedding(seqs_pinyin_char_ids)
+        pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask, self.char_conv)
+        cat_embed = self.bmes_lexicon_pinyin2bert(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, pinyin_conv], dim=-1))
+        cat_embed_att_output, _ = dot_product_attention(bert_seqs_embed, cat_embed, att_lexicon_mask)
+        inputs_embed = torch.add(bert_seqs_embed, cat_embed_att_output)
+        return inputs_embed
 
 
 class BERT_BMES_Lexicon_PinYin_Char_MultiConv_Encoder(BERT_BMES_Lexicon_PinYin_Char_Encoder):

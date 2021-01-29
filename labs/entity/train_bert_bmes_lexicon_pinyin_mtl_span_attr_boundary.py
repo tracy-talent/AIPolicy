@@ -32,7 +32,7 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], 
         help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char', 'char_multiconv', 'att_together'], 
+parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char', 'char_multiconv', 'att_together', 'att_together_add'], 
         help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -308,6 +308,20 @@ elif args.pinyin_embedding_type == 'char':
     )
 elif args.pinyin_embedding_type == 'att_together':
     sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_AttTogether_Encoder(
+        pretrain_path=args.pretrain_path,
+        word2id=word2id,
+        word2pinyin=word2pinyin,
+        pinyin_char2id=pinyin_char2id,
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
+        pinyin_char_size=args.pinyin_char_embedding_size,
+        max_length=args.max_length,
+        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
+        max_pinyin_char_length=args.max_pinyin_char_length,
+        blank_padding=True
+    )
+elif args.pinyin_embedding_type == 'att_together_add':
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_AttTogether_Add_Encoder(
         pretrain_path=args.pretrain_path,
         word2id=word2id,
         word2pinyin=word2pinyin,
