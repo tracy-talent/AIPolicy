@@ -235,9 +235,9 @@ framework = pasare.framework.SentenceRE(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0:
-    logger.info('load checkpoint')
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+# if ckpt_cnt > 0:
+#     logger.info('load checkpoint')
+#     framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:

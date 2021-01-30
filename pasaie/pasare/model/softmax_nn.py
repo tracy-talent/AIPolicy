@@ -22,6 +22,8 @@ class SoftmaxNN(SentenceRE):
         self.rel2id = rel2id
         self.id2rel = {}
         self.drop = nn.Dropout(dropout_rate)
+        if 'Entity-Origin(e1,e2)' in self.rel2id:
+            self.layernorm = nn.LayerNorm(num_class, elementwise_affine=True) # for Semeval and Fewrel
         for rel, rid in rel2id.items():
             self.id2rel[rid] = rel
 
@@ -49,4 +51,6 @@ class SoftmaxNN(SentenceRE):
         rep = self.sentence_encoder(*args) # (B, H)
         rep = self.drop(rep)
         logits = self.fc(rep) # (B, N)
+        if 'Entity-Origin(e1,e2)' in self.rel2id:
+            logits = self.layernorm(logits) # (B, N), for Semeval and Fewrel
         return logits

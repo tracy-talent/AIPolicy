@@ -45,7 +45,7 @@ parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr
         help='loss function')
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
                     help='Metric for picking up best checkpoint')
-parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp'],
+parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp', 'stanza'],
         help='DSP tool used')
 
 # Data
@@ -110,9 +110,7 @@ fix_seed(args.random_seed)
 
 # construct save path name
 def make_model_name():
-    model_name = args.bert_name + '_' + args.model_type + '_' + args.loss
-    if len(args.adv) > 0 and args.adv != 'none':
-        model_name += '_' + args.adv
+    model_name = args.bert_name + '_' + args.model_type
     if args.embed_entity_type:
         model_name += '_embed_entity'
     model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
@@ -120,6 +118,12 @@ def make_model_name():
         model_name += '_attention_cat'
     else:
         model_name += '_maxpool'
+    model_name += '_' + args.loss
+    if 'dice' in args.loss:
+        model_name += str(args.dice_alpha)
+    if len(args.adv) > 0 and args.adv != 'none':
+        model_name += '_' + args.adv
+    model_name += '_dpr' + str(args.dropout_rate)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -147,8 +151,8 @@ while os.path.exists(ckpt):
     ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
-    if 'policy' not in args.dataset:
-        pasare.download(args.dataset, root_path=config['path']['input'])
+    # if 'policy' not in args.dataset:
+    #     pasare.download(args.dataset, root_path=config['path']['input'])
     args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
     args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
     args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test.txt'.format(args.dataset))
@@ -221,6 +225,22 @@ if args.use_sampler:
     sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
 else:
     sampler = None
+if args.dsp_preprocessed:
+    if 'large-uncased-wwm' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_large_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-cased-wwm' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_large_cased_wwm_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-cased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_large_cased_{args.dsp_tool}_dsp_path.txt'
+    elif 'cased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_bert_cased_{args.dsp_tool}_dsp_path.txt'
+    else:
+        dsp_file_path_suffix = f'_tail_bert_{args.dsp_tool}_dsp_path.txt'
+
 framework = pasare.framework.SentenceWithDSPRE(
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
@@ -232,6 +252,7 @@ framework = pasare.framework.SentenceWithDSPRE(
     neg_classes=args.neg_classes,
     compress_seq=args.compress_seq,
     max_dsp_path_length=args.max_dsp_path_length if args.dsp_preprocessed else -1,
+    dsp_file_path_suffix=dsp_file_path_suffix if args.dsp_preprocessed else None,
     dsp_tool=args.dsp_tool,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
@@ -250,9 +271,9 @@ framework = pasare.framework.SentenceWithDSPRE(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0:
-    logger.info('load checkpoint')
-    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+# if ckpt_cnt > 0:
+#     logger.info('load checkpoint')
+#     framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:

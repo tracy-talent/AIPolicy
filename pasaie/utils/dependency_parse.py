@@ -241,6 +241,7 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp', langua
         raise NotImplementedError(f'{dsp_tool} DSP tool is not implemented, please use ltp, ddp or stanza!')
     corpus_name = corpus_path.split('/')[-1]
     max_len, min_len = 0, 1000000
+    max_seq_len, min_seq_len = 0, 1000000
     join_token = ' ' if language == 'en' else ''
     for fname in files:
         if not os.path.exists(os.path.join(corpus_path, f'{corpus_name}_{fname}.txt')):
@@ -248,8 +249,16 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp', langua
         if pretrain_path is not None:
             if 'multilingual' in pretrain_path:
                 dsp_file_name = f'{corpus_name}_{fname}_tail_bert_multilingual_{dsp_tool}_dsp_path.txt'
+            elif 'large-uncased-wwm' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_uncased_wwm_{dsp_tool}_dsp_path.txt'
+            elif 'large-uncased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_uncased_{dsp_tool}_dsp_path.txt'
             elif 'uncased' in pretrain_path:
                 dsp_file_name = f'{corpus_name}_{fname}_tail_bert_uncased_{dsp_tool}_dsp_path.txt'
+            elif 'large-cased-wwm' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_cased_wwm_{dsp_tool}_dsp_path.txt'
+            elif 'large-cased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_cased_{dsp_tool}_dsp_path.txt'
             elif 'cased' in pretrain_path:
                 dsp_file_name = f'{corpus_name}_{fname}_tail_bert_cased_{dsp_tool}_dsp_path.txt'
             else:
@@ -289,6 +298,9 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp', langua
                         for j, t in enumerate(line['token']):
                             if t.startswith('##'):
                                 line['token'][j] = t[2:]
+                        seq_len = len(sent0) + len(ent0) + len(sent1) + len(ent1) + len(sent2)
+                        max_seq_len = max(max_seq_len, seq_len)
+                        min_seq_len = min(min_seq_len, seq_len)
                     try:
                         ent_h_path, ent_t_path = dsp.parse(ori_token, line['h'], line['t'], bert_tokens=None if pretrain_path is None else line['token'])
                         max_len = max(max_len, max(len(ent_h_path), len(ent_t_path)))
@@ -301,4 +313,6 @@ def construct_corpus_dsp(corpus_path, pretrain_path=None, dsp_tool='ddp', langua
                     wf.write('\n')
                     if (i + 1) % 100 == 0:
                         print(f'processed {i + 1} lines', flush=True)
-    print(max_len, min_len)     
+    print({'max_dsp_path_len': max_len, 'min_dsp_path_len': min_len})
+    print({'max_seq_len': max_seq_len, 'min_seq_len': min_seq_len})
+

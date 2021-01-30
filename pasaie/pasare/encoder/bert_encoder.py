@@ -12,7 +12,7 @@ from transformers import BertModel, AlbertModel, BertTokenizer
 
 
 class BERTEncoder(nn.Module):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=256, blank_padding=True, mask_entity=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, blank_padding=True, mask_entity=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -25,6 +25,7 @@ class BERTEncoder(nn.Module):
             NotImplementedError: bert pretrained model is not implemented.
         """
         super().__init__()
+        self.language = language
         self.max_length = max_length
         self.blank_padding = blank_padding
         self.mask_entity = mask_entity
@@ -89,6 +90,7 @@ class BERTEncoder(nn.Module):
         else:
             rev = False
 
+        join_token = ' ' if self.language == 'en' else ''
         if not is_token:
             sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
             ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
@@ -96,11 +98,11 @@ class BERTEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            sent0 = self.tokenizer.tokenize(join_token.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[1]:]))
             # sent0 = sentence[:pos_min[0]]
             # ent0 = sentence[pos_min[0]:pos_min[1]]
             # sent1 = sentence[pos_min[1]:pos_max[0]]
@@ -145,7 +147,7 @@ class BERTEncoder(nn.Module):
 
 
 class BERTEntityEncoder(nn.Module):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -159,6 +161,7 @@ class BERTEntityEncoder(nn.Module):
             NotImplementedError: bert pretrained model is not implemented.
         """
         super().__init__()
+        self.language = language
         self.max_length = max_length
         self.blank_padding = blank_padding
         self.mask_entity = mask_entity
@@ -236,8 +239,6 @@ class BERTEntityEncoder(nn.Module):
         self.sentence = sentence
         pos_head = item['h']['pos']
         pos_tail = item['t']['pos']
-        tag_head = item['h']['entity']
-        tag_tail = item['t']['entity']
 
         pos_min = pos_head
         pos_max = pos_tail
@@ -248,6 +249,7 @@ class BERTEntityEncoder(nn.Module):
         else:
             rev = False
 
+        join_token = ' ' if self.language == 'en' else ''
         if not is_token:
             sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
             ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
@@ -255,11 +257,11 @@ class BERTEntityEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            sent0 = self.tokenizer.tokenize(join_token.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[1]:]))
             # sent0 = sentence[:pos_min[0]]
             # ent0 = sentence[pos_min[0]:pos_min[1]]
             # sent1 = sentence[pos_min[1]:pos_max[0]]
@@ -271,6 +273,8 @@ class BERTEntityEncoder(nn.Module):
             ent1 = ['[unused2]'] if not rev else ['[unused1]']
         else:
             if self.tag2id:
+                tag_head = item['h']['entity']
+                tag_tail = item['t']['entity']
                 if not rev:
                     ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
                     ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]
@@ -319,7 +323,7 @@ class BERTEntityEncoder(nn.Module):
 
 
 class BERTWithDSPEncoder(BERTEncoder):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -339,7 +343,8 @@ class BERTWithDSPEncoder(BERTEncoder):
                                                 max_length=max_length, 
                                                 bert_name=bert_name,
                                                 blank_padding=True, 
-                                                mask_entity=False)
+                                                mask_entity=False,
+                                                language=language)
         self.max_dsp_path_length = max_dsp_path_length
         self.parser = None
         if self.max_dsp_path_length > 0:
@@ -458,7 +463,7 @@ class BERTWithDSPEncoder(BERTEncoder):
 
 class BERTEntityWithDSPEncoder(BERTEntityEncoder):
     def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', tag2id=None, 
-                use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False):
+                use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -480,7 +485,8 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
                                                     max_length=max_length, 
                                                     tag2id=tag2id, 
                                                     blank_padding=blank_padding, 
-                                                    mask_entity=mask_entity)
+                                                    mask_entity=mask_entity,
+                                                    language=language)
         self.max_dsp_path_length = max_dsp_path_length
         self.parser = None
         if self.max_dsp_path_length > 0:
@@ -644,7 +650,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
 
 
 class RBERTEncoder(nn.Module):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, tag2id=None, blank_padding=True, mask_entity=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -658,6 +664,7 @@ class RBERTEncoder(nn.Module):
             NotImplementedError: bert pretrained model is not implemented.
         """
         super().__init__()
+        self.language = language
         self.max_length = max_length
         self.blank_padding = blank_padding
         self.mask_entity = mask_entity
@@ -731,8 +738,6 @@ class RBERTEncoder(nn.Module):
         self.sentence = sentence
         pos_head = item['h']['pos']
         pos_tail = item['t']['pos']
-        tag_head = item['h']['entity']
-        tag_tail = item['t']['entity']
 
         pos_min = pos_head
         pos_max = pos_tail
@@ -743,6 +748,7 @@ class RBERTEncoder(nn.Module):
         else:
             rev = False
 
+        join_token = ' ' if self.language == 'en' else ''
         if not is_token:
             sent0 = self.tokenizer.tokenize(sentence[:pos_min[0]])
             ent0 = self.tokenizer.tokenize(sentence[pos_min[0]:pos_min[1]])
@@ -750,11 +756,11 @@ class RBERTEncoder(nn.Module):
             ent1 = self.tokenizer.tokenize(sentence[pos_max[0]:pos_max[1]])
             sent2 = self.tokenizer.tokenize(sentence[pos_max[1]:])
         else:
-            sent0 = self.tokenizer.tokenize(''.join(sentence[:pos_min[0]]))
-            ent0 = self.tokenizer.tokenize(''.join(sentence[pos_min[0]:pos_min[1]]))
-            sent1 = self.tokenizer.tokenize(''.join(sentence[pos_min[1]:pos_max[0]]))
-            ent1 = self.tokenizer.tokenize(''.join(sentence[pos_max[0]:pos_max[1]]))
-            sent2 = self.tokenizer.tokenize(''.join(sentence[pos_max[1]:]))
+            sent0 = self.tokenizer.tokenize(join_token.join(sentence[:pos_min[0]]))
+            ent0 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[0]:pos_min[1]]))
+            sent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_min[1]:pos_max[0]]))
+            ent1 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[0]:pos_max[1]]))
+            sent2 = self.tokenizer.tokenize(join_token.join(sentence[pos_max[1]:]))
             # sent0 = sentence[:pos_min[0]]
             # ent0 = sentence[pos_min[0]:pos_min[1]]
             # sent1 = sentence[pos_min[1]:pos_max[0]]
@@ -766,6 +772,8 @@ class RBERTEncoder(nn.Module):
             ent1 = ['[unused2]'] if not rev else ['[unused1]']
         else:
             if self.tag2id:
+                tag_head = item['h']['entity']
+                tag_tail = item['t']['entity']
                 if not rev:
                     ent0_left_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2)]
                     ent0_right_boundary = ['[unused{}]'.format(3 + self.tag2id[tag_head] * 2 + 1)]

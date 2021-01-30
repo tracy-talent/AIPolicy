@@ -112,7 +112,7 @@ class SentenceWithDSPREDataset(SentenceREDataset):
     """
     Sentence-level relation extraction dataset with DSP feature
     """
-    def __init__(self, path, rel2id, tokenizer, max_dsp_path_length=-1, dsp_tool='ddp', is_bert_encoder=True, **kwargs):
+    def __init__(self, path, rel2id, tokenizer, max_dsp_path_length=-1, dsp_file_path_suffix=None, dsp_tool='ddp', is_bert_encoder=True, **kwargs):
         """[summary]
 
         Args:
@@ -131,12 +131,13 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         self.max_dsp_path_length = max_dsp_path_length
         self.is_bert_encoder = is_bert_encoder
         self.dsp_tool = dsp_tool
+        self.dsp_file_path_suffix = dsp_file_path_suffix
         super(SentenceWithDSPREDataset, self).__init__(path, rel2id, tokenizer, **kwargs)
 
     def _construct_data(self):
         if self.max_dsp_path_length > 0:
             self.dsp_path = []
-            dsp_file_path = self.path[:-4] + f'_tail_bert_{self.dsp_tool}_dsp_path.txt'
+            dsp_file_path = self.path[:-4] + self.dsp_file_path_suffix
             with open(dsp_file_path, 'r', encoding='utf-8') as f:
                 for line in f.readlines():
                     line = eval(line.strip())
@@ -191,8 +192,16 @@ class SentenceWithDSPREDataset(SentenceREDataset):
             seq_len = self.data[-1][-5][0].sum().item()
             max_ent_t_path_index = max(self.data[-1][-3][0]).squeeze().item()
             max_ent_h_path_index = max(self.data[-1][-4][0]).squeeze().item()
-            if max_ent_h_path_index + 1 >= seq_len or max_ent_t_path_index + 1 >= seq_len:
-                raise IndexError('DSP index exceeds sequence length')
+            try:
+                if max_ent_h_path_index >= seq_len or max_ent_t_path_index >= seq_len:
+                    raise IndexError('DSP index exceeds sequence length')
+            except:
+                for i in range(len(self.data[-1][-3][0])):
+                    if self.data[-1][-3][0][i] >= seq_len:
+                        self.data[-1][-3][0][i] = 0
+                for i in range(len(self.data[-1][-4][0])):
+                    if self.data[-1][-4][0][i] >= seq_len:
+                        self.data[-1][-4][0][i] = 0
 
 
     @classmethod
@@ -215,11 +224,13 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         return seqs
 
 
-def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, max_dsp_path_length=-1, dsp_tool='ddp',
-                            is_bert_encoder=True, num_workers=0, collate_fn=SentenceWithDSPREDataset.collate_fn, sampler=None, **kwargs):
+def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, 
+                            max_dsp_path_length=-1, dsp_file_path_suffix=None, dsp_tool='ddp', is_bert_encoder=True, 
+                            num_workers=0, collate_fn=SentenceWithDSPREDataset.collate_fn, sampler=None, **kwargs):
     if sampler:
         shuffle = False
-    dataset = SentenceWithDSPREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, max_dsp_path_length=max_dsp_path_length, 
+    dataset = SentenceWithDSPREDataset(path=path, rel2id=rel2id, tokenizer=tokenizer, 
+                                        max_dsp_path_length=max_dsp_path_length, dsp_file_path_suffix=dsp_file_path_suffix, 
                                         dsp_tool=dsp_tool, is_bert_encoder=is_bert_encoder, **kwargs)
     data_loader = data.DataLoader(dataset=dataset,
                                   batch_size=batch_size,

@@ -286,9 +286,9 @@ class BERT_BMES_Lexicon_PinYin_Char_Encoder(nn.Module):
         # self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size, self.hidden_size)
         self.lexicon2bert = nn.Linear(len(self.bmes2id) + self.word_size, self.hidden_size)
         self.pinyin2bert = nn.Linear(self.pinyin_char_size, self.hidden_size)
-        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size, kernel_size=3, padding=1)
+        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size * 2, kernel_size=3, padding=1)
         self.masked_conv1d = masked_singlekernel_conv1d
-        self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) + self.word_size + self.pinyin_char_size
+        self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) + self.word_size + self.pinyin_char_size * 2
 
     # def embedding_fusion_1(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
     #     if 'roberta' in self.bert_name:
@@ -479,7 +479,8 @@ class BERT_BMES_Lexicon_PinYin_Char_AttTogether_Encoder(BERT_BMES_Lexicon_PinYin
         )
         del self.lexicon2bert
         del self.pinyin2bert
-        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size, self.bert.config.hidden_size)
+        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size * 2, kernel_size=3, padding=1)
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 2, self.bert.config.hidden_size)
 
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
@@ -529,9 +530,10 @@ class BERT_BMES_Lexicon_PinYin_Char_AttTogether_Add_Encoder(BERT_BMES_Lexicon_Pi
         )
         del self.lexicon2bert
         del self.pinyin2bert
+        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size * 2, kernel_size=3, padding=1)
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 2, self.bert.config.hidden_size)
         self.hidden_size = self.bert.config.hidden_size
-        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 3, self.hidden_size)
-        self.char_conv = nn.Conv1d(self.pinyin_char_size, self.pinyin_char_size * 3, kernel_size=3, padding=1)
+
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_char_ids, seqs_lexicon_bmes_ids, att_pinyin_char_mask, att_lexicon_mask, att_token_mask):
         if 'roberta' in self.bert_name:
