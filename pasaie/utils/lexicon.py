@@ -23,12 +23,13 @@ class WordFrequencyFromCorpus(object):
         self.wordset = set(wv.vocab)
 
     @timeit
-    def word_frequency_statistics(self, data_path, lexicon_name='ctb', lexicon_window_size=8, output_path=None):
+    def word_frequency_statistics(self, data_path, lexicon_name='ctb', lexicon_window_size=8, output_path=None, min_ngram=2):
         """
         Args:
             data_path (str): data path.
             lexicon_window_size (int, optional): lexicon window size decide max length of word. Defaults to 8.
             output_path (str, optional): output path. Defaults to None.
+            unigram (bool, optional): the minimal ngram for frequencey statistics. Defaults to False.
 
         Returns:
             [type]: [description]
@@ -51,7 +52,7 @@ class WordFrequencyFromCorpus(object):
                     if len(line) > 0:
                         tokens.append(line[0])
                     elif len(tokens) > 0:
-                        for w in range(2, lexicon_window_size + 1):
+                        for w in range(min_ngram, lexicon_window_size + 1):
                             for i in range(len(tokens) - w + 1):
                                 word = ''.join(tokens[i:i+w])
                                 if word in self.wordset:
@@ -66,7 +67,7 @@ class WordFrequencyFromCorpus(object):
 
         word_freq_tokens = sorted(word_freq.items(), key=lambda item: len(item[0]), reverse=True)
         word_freq_naive = {w:f for w, (f, t) in word_freq_tokens}
-        with open(f'{output_path}/word_freq_naive_w2-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
+        with open(f'{output_path}/word_freq_naive_w{min_ngram}-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
             json.dump(word_freq_naive, of, ensure_ascii=False)
         word_freq_filter = OrderedDict()
 
@@ -86,21 +87,35 @@ class WordFrequencyFromCorpus(object):
                     word_freq_filter[w1] = (freq1 - ngrams_freq[w1], tokens1)
                 else:
                     word_freq_filter[w1] = (freq1, tokens1)
+                if word_freq_filter[w1][0] < 0:
+                    word_freq_filter[w1] = (0, word_freq_filter[w1][1]) # 一个ngram被多个>ngram共享会出现负数
         stat(lexicon_window_size, word_freq_filter, word_freq_tokens)
         word_freq_filter = OrderedDict({k:f for k, (f, _) in word_freq_filter.items()})
-        with open(f'{output_path}/word_freq_filter_w2-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
+        with open(f'{output_path}/word_freq_filter_w{min_ngram}-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
             json.dump(word_freq_filter, of, ensure_ascii=False)
         return word_freq_filter
 
 
 if __name__ == '__main__':
-    # lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin'
-    lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/sgns_merge_word.1293k.300d.bin'
     data_path = '../../input/benchmark/entity'
-    # corpus_name = ['weibo', 'resume', 'ontonotes4', 'msra', 'policy']
-    corpus_name = ['policy']
-    wstats = WordFrequencyFromCorpus(lexicon_path=lexicon_path)
-    for corpus in corpus_name:
-        for w in range(4, 9):
-            print('*' * 20 + f'process {corpus}, window_size: {w} ' + '*' * 20 + '\n')
-            wstats.word_frequency_statistics(os.path.join(data_path, corpus), lexicon_window_size=w, lexicon_name='sgns')
+    for lexicon in ['ctbword_gigachar_mix.710k.50d.bin', 'sgns_merge_word.1293k.300d.bin']:
+        lexicon_path = f'/home/liujian/NLP/corpus/embedding/chinese/lexicon/{lexicon}'
+        if 'ctb' in lexicon:
+            lexicon_name = 'ctb'
+        else:
+            lexicon_name = 'sgns'
+        wstats = WordFrequencyFromCorpus(lexicon_path=lexicon_path)
+        for corpus_name in ['weibo', 'resume', 'ontonotes4', 'msra', 'policy']:
+            for w in range(4, 9):
+                for ngram in [1, 2]:
+                    print('*' * 20 + f'process {corpus_name}, window_size: {w}, min_ngram: {ngram}' + '*' * 20 + '\n')
+                    wstats.word_frequency_statistics(os.path.join(data_path, corpus_name), lexicon_window_size=w, lexicon_name=lexicon_name, min_ngram=ngram)
+    # lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin'
+    # # lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/sgns_merge_word.1293k.300d.bin'
+    # # corpus_name = ['weibo', 'resume', 'ontonotes4', 'msra', 'policy']
+    # corpus_name = ['weibo']
+    # wstats = WordFrequencyFromCorpus(lexicon_path=lexicon_path)
+    # for corpus in corpus_name:
+    #     for w in range(4, 9):
+    #         print('*' * 20 + f'process {corpus}, window_size: {w} ' + '*' * 20 + '\n')
+    #         wstats.word_frequency_statistics(os.path.join(data_path, corpus), lexicon_window_size=w, lexicon_name='ctb', min_ngram=1)

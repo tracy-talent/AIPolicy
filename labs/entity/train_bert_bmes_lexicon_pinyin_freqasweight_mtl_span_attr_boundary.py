@@ -74,6 +74,8 @@ parser.add_argument('--char2vec_file', default='', type=str,
         help='character embedding file')
 parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
+parser.add_argument('--pinyin2vec_file', default='', type=str,
+        help='pinyin2vec embedding file')
 parser.add_argument('--word2pinyin_file', default='', type=str,
         help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
@@ -120,6 +122,8 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
+parser.add_argument('--group_num', default=3, type=int,
+                    help="group by 'bmes' when group_num=4, group by 'bme' when group_num = 3")
 parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
@@ -135,7 +139,11 @@ if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
-if 'ctb' in args.word2vec_file:
+if 'sgns_in_ctb' in args.word2vec_file:
+    lexicon_name = 'sgns_in_ctb'
+elif 'tencent_in_ctb' in args.word2vec_file:
+    lexicon_name = 'tencent_in_ctb'
+elif 'ctb' in args.word2vec_file:
     lexicon_name = 'ctb'
 elif 'sgns' in args.word2vec_file:
     lexicon_name = 'sgns'
@@ -151,23 +159,23 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_attention_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_plerand_bert'
     elif args.model_type == 'plecat':
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_plecat_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_plecat_bert'
     else:
-        model_name = f'lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_group_mtl_span_attr_boundary_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_freqasweight_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -254,71 +262,83 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load embedding and vocab
+# load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
+# load pinyin embedding and vocab
+pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
+pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
-pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin_num = 2
-pinyin_char_num = 2
-word2pinyin = {}
-with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip().split('\t')
-        line[1] = eval(line[1])
-        word2pinyin[line[0]] = line[1]
-        for p in line[1]:
-            if p not in pinyin2id:
-                pinyin2id[p] = pinyin_num
-                pinyin_num += 1
-            for c in p:
-                if c not in pinyin_char2id:
-                    pinyin_char2id[c] = pinyin_char_num
-                    pinyin_char_num += 1
+if 'char' in args.pinyin_embedding_type:
+    pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin_num = 2
+    pinyin_char_num = 2
+    word2pinyin = {}
+    with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip().split('\t')
+            line[1] = eval(line[1])
+            word2pinyin[line[0]] = line[1]
+            for p in line[1]:
+                if p not in pinyin2id:
+                    pinyin2id[p] = pinyin_num
+                    pinyin_num += 1
+                for c in p:
+                    if c not in pinyin_char2id:
+                        pinyin_char2id[c] = pinyin_char_num
+                        pinyin_char_num += 1
+# load word frequency file
+if args.group_num == 3:
+    word_freq_filename = f'word_freq_filter_w2-{args.lexicon_window_size}.json'
+else:
+    word_freq_filename = f'word_freq_filter_w2-{args.lexicon_window_size}.json'
+word_freq_file = os.path.join(config['path']['ner_dataset'], args.dataset, 'word_freq', lexicon_name, word_freq_filename)
+with open(word_freq_file, 'r', encoding='utf-8') as f:
+    word2freq = json.load(f)
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Word_Group_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(
         pretrain_path=args.pretrain_path,
+        word2freq=word2freq,
         word2id=word2id,
-        word2pinyin=word2pinyin,
         pinyin2id=pinyin2id,
+        pinyin_embedding=pinyin_embedding,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
-        pinyin_size=args.pinyin_word_embedding_size,
+        pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Char_Group_Encoder(
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_FreqAsWeight_Encoder(
         pretrain_path=args.pretrain_path,
+        word2freq=word2freq,
         word2id=word2id,
-        word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
+        max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_multiconv':
-    conv_channels = args.pinyin_char_embedding_size // 3
-    assert conv_channels * 3 == args.pinyin_char_embedding_size
-    sequence_encoder = pasaner.encoder.BERT_Lexicon_PinYin_Char_MultiConv_Group_Encoder(
+    conv_channels = args.pinyin_char_embedding_size * 2
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_MultiConv_FreqAsWeight_Encoder(
         pretrain_path=args.pretrain_path,
+        word2freq=word2freq,
         word2id=word2id,
-        word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
+        max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True,
         convs_config=[(conv_channels, 2), (conv_channels, 3), (conv_channels, 4)]
     )

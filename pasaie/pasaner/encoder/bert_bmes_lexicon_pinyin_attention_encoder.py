@@ -32,6 +32,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                 lexicon_window_size=4,
                 pinyin_size=50,
                 max_length=512, 
+                group_num=3,
                 bert_name='bert', 
                 blank_padding=True):
         """
@@ -39,9 +40,11 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             pretrain_path (str): path of pretrain model.
             word2id (dict): dictionary of word->idx mapping.
             pinyin2id (dict): dictionary of pinyin->idx mapping.
+            pinyin_embedding (nn.Embedding): pinyin embedding. Defaults to None.
             word_size (int, optional): size of word embedding. Defaults to 50.
             lexicon_window_size (int, optional): upper bound(include) of lexicon match window size. Defaults to 4.
             max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 512.
+            group_num (int, optional): group by 'bmes' when group_num=4, group by 'bme' when group_num = 3. Defaults to 3.
             bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert.
             blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
@@ -68,7 +71,11 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         self.bert.resize_token_embeddings(len(self.tokenizer))
         # self.embeddings = BertEmbeddings(self.bert.config)
 
-        self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[UNK]': 3}
+        self.group_num = group_num
+        if self.group_num == 3:
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[UNK]': 3}
+        else:
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, 'S': 3, '[UNK]': 4}
         self.word2id = word2id
         self.pinyin2id = pinyin2id
         self.word_size = word_size
@@ -112,7 +119,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
     
     
     def lexicon_match(self, tokens):
-        indexed_bmes = [[self.bmes2id['B']] * self.max_matched_lexcons]
+        indexed_bmes = [[self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons]
         indexed_lexicons = [[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         indexed_pinyins = [[self.pinyin2id['[UNK]']] + [self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         for i in range(len(tokens)):
@@ -120,7 +127,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             indexed_bmes.append([])
             indexed_lexicons.append([])
             indexed_pinyins.append([])
-            for w in range(self.lexicon_window_size, 1, -1):
+            for w in range(self.lexicon_window_size, 1 if self.group_num == 3 else 0, -1):
                 for p in range(w):
                     if i - p < 0:
                         break
@@ -142,7 +149,9 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                                         raise ValueError('pinyin length not exceed 7')
                         except:
                             pinyin = '[UNK]'
-                        if p == 0:
+                        if w == 0:
+                            g == 'S'
+                        elif p == 0:
                             g = 'B'
                         elif p == w - 1:
                             g = 'E'
@@ -158,7 +167,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             indexed_bmes[-1].extend([self.bmes2id['[UNK]']] * (self.max_matched_lexcons - len(indexed_bmes[-1])))
             indexed_lexicons[-1].extend([self.word2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_lexicons[-1])))
             indexed_pinyins[-1].extend([self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_pinyins[-1])))
-        indexed_bmes.append([self.bmes2id['B']] * self.max_matched_lexcons)
+        indexed_bmes.append([self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons)
         indexed_lexicons.append([self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1))
         indexed_pinyins.append([self.pinyin2id['[UNK]']] + [self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - 1))
         return indexed_bmes, indexed_lexicons, indexed_pinyins
@@ -234,6 +243,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
                 lexicon_window_size=4,
                 pinyin_size=50,
                 max_length=512, 
+                group_num=3,
                 bert_name='bert', 
                 blank_padding=True):
         super().__init__(
@@ -245,6 +255,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
             lexicon_window_size,
             pinyin_size,
             max_length,
+            group_num,
             bert_name, 
             blank_padding
         )
@@ -285,6 +296,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
                 pinyin_char_size=50,
                 max_length=512, 
                 max_pinyin_char_length=7,
+                group_num=3,
                 bert_name='bert', 
                 blank_padding=True):
         """
@@ -296,6 +308,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
             lexicon_window_size (int, optional): upper bound(include) of lexicon match window size. Defaults to 4.
             max_length (int, optional): max length of sentence, used for postion embedding. Defaults to 512.
             max_pinyin_char_length (int, optional): max character length of a pinyin. Defaults to 7.
+            group_num (int, optional): group by 'bmes' when group_num=4, group by 'bme' when group_num = 3. Defaults to 3.
             bert_name (str): model name of bert series model, such as bert, roberta, xlnet, albert.
             blank_padding (bool, optional): whether pad sequence to max length. Defaults to True.
         """
@@ -322,7 +335,11 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
         self.bert.resize_token_embeddings(len(self.tokenizer))
         # self.embeddings = BertEmbeddings(self.bert.config)
 
-        self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[UNK]': 3}
+        self.group_num = 3
+        if self.group_num == 3:
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[UNK]': 3}
+        else:
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, 'S': 3, '[UNK]': 4}
         self.word2id = word2id
         self.pinyin_char2id = pinyin_char2id
         self.word_size = word_size
@@ -368,7 +385,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
     
 
     def lexicon_match(self, tokens):
-        indexed_bmes = [[self.bmes2id['B']] * self.max_matched_lexcons]
+        indexed_bmes = [[self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons]
         indexed_lexicons = [[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         indexed_pinyins_chars = [[[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcons]
         for i in range(len(tokens)):
@@ -376,7 +393,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
             indexed_bmes.append([])
             indexed_lexicons.append([])
             indexed_pinyins_chars.append([])
-            for w in range(self.lexicon_window_size, 1, -1):
+            for w in range(self.lexicon_window_size, 1 if self.group_num == 3 else 0, -1):
                 for p in range(w):
                     if i - p < 0:
                         break
@@ -391,9 +408,9 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
                                 raise ValueError('pinyin length not exceed 7')
                         except:
                             pinyin = '[UNK]'
-                        # if w == 1:
-                        #     g = 'S'
-                        if p == 0:
+                        if w == 1:
+                            g = 'S'
+                        elif p == 0:
                             g = 'B'
                         elif p == w - 1:
                             g = 'E'
@@ -412,7 +429,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
             indexed_bmes[-1].extend([self.bmes2id['[UNK]']] * (self.max_matched_lexcons - len(indexed_bmes[-1])))
             indexed_lexicons[-1].extend([self.word2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_lexicons[-1])))
             indexed_pinyins_chars[-1].extend([[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * (self.max_matched_lexcons - len(indexed_pinyins_chars[-1])))
-        indexed_bmes.append([self.bmes2id['B']] * self.max_matched_lexcons)
+        indexed_bmes.append([self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons)
         indexed_lexicons.append([self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1))
         indexed_pinyins_chars.append([[self.pinyin_char2id['[PAD]']] * self.max_pinyin_char_length] * self.max_matched_lexcons)
         return indexed_bmes, indexed_lexicons, indexed_pinyins_chars
@@ -488,6 +505,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
                 pinyin_char_size=50,
                 max_length=512, 
                 max_pinyin_char_length=7,
+                group_num=3,
                 bert_name='bert', 
                 blank_padding=True):
         super().__init__(
@@ -499,6 +517,7 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
             pinyin_char_size,
             max_length,
             max_pinyin_char_length,
+            group_num,
             bert_name, 
             blank_padding
         )
@@ -520,3 +539,84 @@ class BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
         inputs_embed = torch.add(bert_seqs_embed, cat_embed_att_output)
         return inputs_embed
 
+
+class BERT_BMES_Lexicon_PinYin_Char_MultiConv_Attention_Cat_Encoder(BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder):
+    def __init__(self, 
+                pretrain_path,
+                word2id,
+                pinyin_char2id,
+                word_size=50,
+                lexicon_window_size=4,
+                pinyin_char_size=50,
+                max_length=512, 
+                max_pinyin_char_length=7,
+                group_num=3,
+                bert_name='bert', 
+                blank_padding=True,
+                convs_config=[(100, 2), (100, 3), (100, 4)]):
+        super().__init__(
+            pretrain_path,
+            word2id,
+            pinyin_char2id,
+            word_size,
+            lexicon_window_size,
+            pinyin_char_size,
+            max_length,
+            max_pinyin_char_length,
+            group_num,
+            bert_name, 
+            blank_padding
+        )
+        self.char_conv = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv1d(in_channels=self.pinyin_char_size, out_channels=oc, kernel_size=ks),
+                nn.MaxPool1d(kernel_size=self.max_pinyin_char_length - ks + 1),
+                nn.ReLU()
+            )
+            for oc, ks in convs_config
+        ])
+        self.masked_conv1d = masked_multikernel_conv1d
+        pinyin_conv_size = sum(cc[0] for cc in convs_config)
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + pinyin_conv_size, self.bert.config.hidden_size)
+        self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) + self.word_size + pinyin_conv_size
+
+
+
+class BERT_BMES_Lexicon_PinYin_Char_MultiConv_Attention_Add_Encoder(BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder):
+    def __init__(self, 
+                pretrain_path,
+                word2id,
+                pinyin_char2id,
+                word_size=50,
+                lexicon_window_size=4,
+                pinyin_char_size=50,
+                max_length=512, 
+                max_pinyin_char_length=7,
+                group_num=3,
+                bert_name='bert', 
+                blank_padding=True,
+                convs_config=[(100, 2), (100, 3), (100, 4)]):
+        super().__init__(
+            pretrain_path,
+            word2id,
+            pinyin_char2id,
+            word_size,
+            lexicon_window_size,
+            pinyin_char_size,
+            max_length,
+            max_pinyin_char_length,
+            group_num,
+            bert_name, 
+            blank_padding
+        )
+        self.char_conv = nn.ModuleList([
+            nn.Sequential(
+                nn.Conv1d(in_channels=self.pinyin_char_size, out_channels=oc, kernel_size=ks),
+                nn.MaxPool1d(kernel_size=self.max_pinyin_char_length - ks + 1),
+                nn.ReLU()
+            )
+            for oc, ks in convs_config
+        ])
+        self.masked_conv1d = masked_multikernel_conv1d
+        pinyin_conv_size = sum(cc[0] for cc in convs_config)
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + pinyin_conv_size, self.bert.config.hidden_size)

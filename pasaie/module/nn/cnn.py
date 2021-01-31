@@ -27,13 +27,13 @@ def masked_singlekernel_conv1d(hiddens, weights, conv):
     dim1 = functools.reduce(lambda x, y: x * y, shape[:-2])
     dim2 = shape[-2]
     dim3 = shape[-1]
-    hiddens = hiddens.contiguous().resize(dim1, dim2, dim3).transpose(-2, -1)
-    weights = weights.contiguous().resize(dim1, dim2, 1).float().transpose(-2, -1)
+    hiddens = hiddens.contiguous().view(dim1, dim2, dim3).transpose(-2, -1)
+    weights = weights.contiguous().view(dim1, dim2, 1).float().transpose(-2, -1)
     hiddens *= weights
     conv_hiddens = conv(hiddens)
     conv_hiddens *= weights
     conv_hiddens = F.relu(F.max_pool1d(conv_hiddens, conv_hiddens.size(-1)).squeeze(-1))
-    conv_hiddens = conv_hiddens.contiguous().resize(*(shape[:-2] + conv_hiddens.size()[-1:]))
+    conv_hiddens = conv_hiddens.contiguous().view(*(shape[:-2] + conv_hiddens.size()[-1:]))
     return conv_hiddens
 
 
@@ -52,12 +52,12 @@ def masked_multikernel_conv1d(hiddens, weights, convs):
     dim1 = functools.reduce(lambda x, y: x * y, shape[:-2])
     dim2 = shape[-2]
     dim3 = shape[-1]
-    hiddens = hiddens.contiguous().resize(dim1, dim2, dim3).transpose(-2, -1)
-    weights = weights.contiguous().resize(dim1, dim2, 1).float().transpose(-2, -1)
+    hiddens = hiddens.contiguous().view(dim1, dim2, dim3).transpose(-2, -1)
+    weights = weights.contiguous().view(dim1, dim2, 1).float().transpose(-2, -1)
     hiddens *= weights
     convs_out = [conv(hiddens).squeeze(-1) for conv in convs]
     conv_hiddens = torch.cat(convs_out, dim=-1)
-    conv_hiddens = conv_hiddens.contiguous().resize(*(shape[:-2] + conv_hiddens.size()[-1:]))
+    conv_hiddens = conv_hiddens.contiguous().view(*(shape[:-2] + conv_hiddens.size()[-1:]))
     return conv_hiddens
 
 

@@ -121,6 +121,8 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
+parser.add_argument('--group_num', default=3, type=int,
+                    help="group by 'bmes' when group_num=4, group by 'bme' when group_num = 3")
 parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
@@ -156,23 +158,23 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_plerand_bert'
     elif args.model_type == 'plecat':
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_plecat_bert'
     else:
-        model_name = f'bme_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}att_mtl_span_attr_boundary_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -297,6 +299,7 @@ if args.pinyin_embedding_type == 'word_att_cat':
         lexicon_window_size=args.lexicon_window_size,
         pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'word_att_add':
@@ -309,6 +312,7 @@ elif args.pinyin_embedding_type == 'word_att_add':
         lexicon_window_size=args.lexicon_window_size,
         pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_att_cat':
@@ -319,8 +323,9 @@ elif args.pinyin_embedding_type == 'char_att_cat':
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
         max_pinyin_char_length=args.max_pinyin_char_length,
+        max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char_att_add':
@@ -331,8 +336,9 @@ elif args.pinyin_embedding_type == 'char_att_add':
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
         max_pinyin_char_length=args.max_pinyin_char_length,
+        max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
     )
 else:

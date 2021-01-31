@@ -73,8 +73,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.word_embedding = word_embedding
         
         preload = True
-        if 'char' in encoder_name and 'group' in encoder_name and ('ontonotes4' in train_path or 'msra' in train_path):
-            preload = False
+        # if 'char' in encoder_name and 'bmes' in encoder_name and ('ontonotes4' in train_path or 'msra' in train_path):
+        #     preload = False
         # Load Data
         if train_path != None:
             self.train_loader = SpanAttrBoundaryNERDataLoader(
@@ -360,6 +360,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
                     loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
                     loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                    if torch.abs(loss_span) > 10:
+                        loss_span = 0.
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
                     else:

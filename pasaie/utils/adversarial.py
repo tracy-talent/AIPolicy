@@ -474,6 +474,8 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
         loss_attr_end = criterion(attr_end_logits.permute(0, 2, 1), attr_end_labels) # B * S
         loss_attr_end = torch.sum(loss_attr_end * mask, dim=-1) / seqs_len # B
         loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+        if torch.abs(loss_span) > 10:
+            loss_span = 0.
         if autoweighted_loss is not None:
             loss = autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
         else:
