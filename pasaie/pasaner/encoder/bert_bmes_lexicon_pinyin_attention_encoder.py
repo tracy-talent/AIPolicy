@@ -111,7 +111,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
-        cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, pinyin_conv], dim=-1)
+        cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(bert_seqs_embed, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2bert)
         inputs_embed = torch.cat([bert_seqs_embed, cat_embed_att_output], dim=-1) # (B, L, EMBED)
 

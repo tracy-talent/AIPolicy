@@ -1,10 +1,11 @@
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
+python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/tencent_in_ctb.396k.200d.bin \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.200d.vec \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
+    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
+    --group_num 3 \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -33,12 +34,13 @@ python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
+python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/tencent_in_ctb.396k.200d.bin \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.200d.vec \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
+    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
+    --group_num 3 \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -67,12 +69,13 @@ python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
+python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/tencent_in_ctb.396k.200d.bin \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.200d.vec \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
+    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
+    --group_num 3 \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -101,12 +104,13 @@ python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
+python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/tencent_in_ctb.396k.200d.bin \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.200d.vec \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
+    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
+    --group_num 3 \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
@@ -135,12 +139,13 @@ python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
     --metric micro_f1
 
 CUDA_VISIBLE_DEVICES=1 \
-python train_bert_bmes_lexicon_pinyin_mtl_span_attr_boundary.py \
+python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/tencent_in_ctb.396k.200d.bin \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.200d.vec \
+    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin \
+    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/glove/glove_num5.1375.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
+    --group_num 3 \
     --model_type ple \
     --dataset weibo \
     --compress_seq \
