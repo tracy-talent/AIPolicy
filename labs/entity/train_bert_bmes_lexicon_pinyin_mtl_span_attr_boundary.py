@@ -32,7 +32,7 @@ parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 
         help='bert series model name')
 parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], 
         help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char', 'char_multiconv', 'att_together', 'att_together_add'], 
+parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_cat', 'word_att_add', 'char_att_cat', 'char_att_add'], 
         help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -71,10 +71,10 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--char2vec_file', default='', type=str,
-        help='character embedding file')
 parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
+parser.add_argument('--pinyin2vec_file', default='', type=str,
+        help='pinyin2vec embedding file')
 parser.add_argument('--word2pinyin_file', default='', type=str,
         help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
@@ -136,7 +136,11 @@ if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
-if 'ctb' in args.word2vec_file:
+if 'sgns_in_ctb' in args.word2vec_file:
+    lexicon_name = 'sgns_in_ctb'
+elif 'tencent_in_ctb' in args.word2vec_file:
+    lexicon_name = 'tencent_in_ctb'
+elif 'ctb' in args.word2vec_file:
     lexicon_name = 'ctb'
 elif 'sgns' in args.word2vec_file:
     lexicon_name = 'sgns'
@@ -172,7 +176,7 @@ def make_model_name():
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += f'_relu_crf{args.crf_lr:.0e}'
+    model_name += f'_relu_crf{args.crf_lr:.0e}_bert{args.bert_lr:.0e}'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -255,101 +259,81 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load embedding and vocab
+# load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
+# load pinyin embedding and vocab
+pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
+pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
-pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin_num = 2
-pinyin_char_num = 2
-word2pinyin = {}
-with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip().split('\t')
-        line[1] = eval(line[1])
-        word2pinyin[line[0]] = line[1]
-        for p in line[1]:
-            if p not in pinyin2id:
-                pinyin2id[p] = pinyin_num
-                pinyin_num += 1
-            for c in p:
-                if c not in pinyin_char2id:
-                    pinyin_char2id[c] = pinyin_char_num
-                    pinyin_char_num += 1
+if 'char' in args.pinyin_embedding_type:
+    pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin_num = 2
+    pinyin_char_num = 2
+    word2pinyin = {}
+    with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip().split('\t')
+            line[1] = eval(line[1])
+            word2pinyin[line[0]] = line[1]
+            for p in line[1]:
+                if p not in pinyin2id:
+                    pinyin2id[p] = pinyin_num
+                    pinyin_num += 1
+                for c in p:
+                    if c not in pinyin_char2id:
+                        pinyin_char2id[c] = pinyin_char_num
+                        pinyin_char_num += 1
 
 # Define the sentence encoder
-if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Word_Encoder(
+if args.pinyin_embedding_type == 'word_att_cat':
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(
         pretrain_path=args.pretrain_path,
         word2id=word2id,
-        word2pinyin=word2pinyin,
         pinyin2id=pinyin2id,
+        pinyin_embedding=pinyin_embedding,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
-        pinyin_size=args.pinyin_word_embedding_size,
+        pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         blank_padding=True
     )
-elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_Encoder(
+elif args.pinyin_embedding_type == 'word_att_add':
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(
         pretrain_path=args.pretrain_path,
         word2id=word2id,
-        word2pinyin=word2pinyin,
+        pinyin2id=pinyin2id,
+        pinyin_embedding=pinyin_embedding,
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
+        pinyin_size=pinyin2vec.shape[-1],
+        max_length=args.max_length,
+        blank_padding=True
+    )
+elif args.pinyin_embedding_type == 'char_att_cat':
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(
+        pretrain_path=args.pretrain_path,
+        word2id=word2id,
         pinyin_char2id=pinyin_char2id,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
         blank_padding=True
     )
-elif args.pinyin_embedding_type == 'att_together':
-    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_AttTogether_Encoder(
+elif args.pinyin_embedding_type == 'char_att_add':
+    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(
         pretrain_path=args.pretrain_path,
         word2id=word2id,
-        word2pinyin=word2pinyin,
         pinyin_char2id=pinyin_char2id,
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
         max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
         blank_padding=True
-    )
-elif args.pinyin_embedding_type == 'att_together_add':
-    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_AttTogether_Add_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2id=word2id,
-        word2pinyin=word2pinyin,
-        pinyin_char2id=pinyin_char2id,
-        word_size=word2vec.shape[-1],
-        lexicon_window_size=args.lexicon_window_size,
-        pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        max_pinyin_char_length=args.max_pinyin_char_length,
-        blank_padding=True
-    )
-elif args.pinyin_embedding_type == 'char_multiconv':
-    conv_channels = args.pinyin_char_embedding_size // 3
-    assert conv_channels * 3 == args.pinyin_char_embedding_size
-    sequence_encoder = pasaner.encoder.BERT_BMES_Lexicon_PinYin_Char_MultiConv_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2id=word2id,
-        word2pinyin=word2pinyin,
-        pinyin_char2id=pinyin_char2id,
-        word_size=word2vec.shape[-1],
-        lexicon_window_size=args.lexicon_window_size,
-        pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        max_pinyin_char_length=args.max_pinyin_char_length,
-        blank_padding=True,
-        convs_config=[(conv_channels, 2), (conv_channels, 3), (conv_channels, 4)]
     )
 else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')

@@ -141,6 +141,8 @@ def construct_embedding_from_numpy(word2id, word_size=50, word2vec=None, finetun
     # word embedding
     word_embedding = nn.Embedding(num_word, word_size)
     if word2vec is not None:
+        if '[OTHER]' in word2id:
+            word2vec[word2id['[UNK]']] = word2vec[word2id['[OTHER]']]
         if 'pad' in word2id:
             word2vec[word2id['[PAD]']] = word2vec[word2id['pad']]
         if 'cls' in word2id:

@@ -11,7 +11,7 @@ python train_supervised_bert_with_dsp.py \
     --adv fgm \
     --loss ce \
     --dice_alpha 0.6 \
-    --batch_size 12 \
+    --batch_size 10 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
@@ -37,7 +37,7 @@ python train_supervised_bert_with_dsp.py \
     --adv fgm \
     --loss ce \
     --dice_alpha 0.6 \
-    --batch_size 12 \
+    --batch_size 10 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
@@ -63,7 +63,7 @@ python train_supervised_bert_with_dsp.py \
     --adv fgm \
     --loss ce \
     --dice_alpha 0.6 \
-    --batch_size 12 \
+    --batch_size 10 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
@@ -89,7 +89,7 @@ python train_supervised_bert_with_dsp.py \
     --adv fgm \
     --loss ce \
     --dice_alpha 0.6 \
-    --batch_size 12 \
+    --batch_size 10 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
@@ -115,7 +115,7 @@ python train_supervised_bert_with_dsp.py \
     --adv fgm \
     --loss ce \
     --dice_alpha 0.6 \
-    --batch_size 12 \
+    --batch_size 10 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \

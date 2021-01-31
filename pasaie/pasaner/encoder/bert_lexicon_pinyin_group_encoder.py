@@ -132,7 +132,7 @@ class BERT_Lexicon_PinYin_Word_Group_Encoder(nn.Module):
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True, nuetral_tone_with_five=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
                         except:
@@ -363,7 +363,7 @@ class BERT_Lexicon_PinYin_Char_Group_Encoder(nn.Module):
                     # if word in self.word2id:
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, v_to_u=True, neutral_tone_with_five=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
                         except:

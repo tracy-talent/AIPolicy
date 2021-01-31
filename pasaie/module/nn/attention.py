@@ -20,6 +20,13 @@ def dot_product_attention(att_query, att_kv, att_mask):
     att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
     return att_output, att_weight.data
 
+def dot_product_attention_with_project(att_query, att_kv, att_mask, project_mat):
+        att_kv_project = project_mat(att_kv)
+        att_score = torch.matmul(att_kv_project, att_query.unsqueeze(-1)).squeeze(-1)
+        att_score[att_mask == 0] = 1e-9
+        att_weight = F.softmax(att_score, dim=-1)
+        att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
+        return att_output, att_weight.data
 
 class MultiHeadedAttention(nn.Module):
     def __init__(self, num_heads, d_model, dropout=0.1):
