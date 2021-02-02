@@ -135,7 +135,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset == 'weibo' and args.model_type != 'plerand':
+if (args.dataset == 'weibo' or args.dataset == 'resume') and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
@@ -512,6 +512,6 @@ logger.info('Span Micro recall: {}'.format(result['span_micro_r']))
 logger.info('Span Micro F1: {}'.format(result['span_micro_f1']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
-logger.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('(w{:d}, dpr{:.1f})Micro F1: {}'.format(args.lexicon_window_size, args.dropout_rate, result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
 

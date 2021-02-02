@@ -24,7 +24,7 @@ python train_bert_bmes_lexicon_pinyin_freqasweight_mtl_span_attr_boundary.py \
     --warmup_step 0 \
     --max_length 200 \
     --max_pinyin_char_length 7 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 5 \
     --pinyin_char_embedding_size 50 \
     --max_epoch 10 \
     --optimizer adam \
@@ -58,7 +58,7 @@ python train_bert_bmes_lexicon_pinyin_freqasweight_mtl_span_attr_boundary.py \
     --warmup_step 0 \
     --max_length 200 \
     --max_pinyin_char_length 7 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 5 \
     --pinyin_char_embedding_size 50 \
     --max_epoch 10 \
     --optimizer adam \
@@ -92,7 +92,7 @@ python train_bert_bmes_lexicon_pinyin_freqasweight_mtl_span_attr_boundary.py \
     --warmup_step 0 \
     --max_length 200 \
     --max_pinyin_char_length 7 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 5 \
     --pinyin_char_embedding_size 50 \
     --max_epoch 10 \
     --optimizer adam \
@@ -126,7 +126,7 @@ python train_bert_bmes_lexicon_pinyin_freqasweight_mtl_span_attr_boundary.py \
     --warmup_step 0 \
     --max_length 200 \
     --max_pinyin_char_length 7 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 5 \
     --pinyin_char_embedding_size 50 \
     --max_epoch 10 \
     --optimizer adam \
@@ -160,7 +160,7 @@ python train_bert_bmes_lexicon_pinyin_freqasweight_mtl_span_attr_boundary.py \
     --warmup_step 0 \
     --max_length 200 \
     --max_pinyin_char_length 7 \
-    --lexicon_window_size 4 \
+    --lexicon_window_size 5 \
     --pinyin_char_embedding_size 50 \
     --max_epoch 10 \
     --optimizer adam \

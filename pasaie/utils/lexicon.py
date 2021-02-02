@@ -8,9 +8,36 @@
 import os
 import json
 from timedec import timeit
-from collections import deque, defaultdict, OrderedDict
+from collections import defaultdict, OrderedDict
 
 from gensim.models import KeyedVectors
+
+
+class TrieNode(object):
+    def __init__(self):
+        self.next = {}
+        self.isword = False
+
+
+class Trie(object):
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, tokens):
+        node = self.root
+        for token in tokens:
+            if token not in node.next:
+                node.next[token] = TrieNode()
+            node = node.next[token]
+        node.isword = True
+    
+    def query(self, tokens):
+        node = self.root
+        for token in tokens:
+            if token not in node.next:
+                return False
+            node = node.next[token]
+        return node.isword
 
 
 class WordFrequencyFromCorpus(object):
@@ -21,13 +48,25 @@ class WordFrequencyFromCorpus(object):
         """
         wv = KeyedVectors.load(lexicon_path)
         self.wordset = set(wv.vocab)
+        self.trie = Trie()
+        for word in self.wordset:
+            self.trie.insert(word)
+
+
+    def enumerate_matched(self, tokens, pos, max_ngram, min_ngram):
+        matched_words = []
+        for i in range(min_ngram, min(len(tokens), pos + max_ngram) + 1):
+            if self.trie.query(tokens[pos:pos+i]):
+                matched_words.append((pos, tokens[pos:pos+i]))
+        return matched_words
+
 
     @timeit
-    def word_frequency_statistics(self, data_path, lexicon_name='ctb', lexicon_window_size=8, output_path=None, min_ngram=2):
+    def word_frequency_statistics(self, data_path, lexicon_name='ctb', max_ngram='$', min_ngram=2, output_path=None):
         """
         Args:
             data_path (str): data path.
-            lexicon_window_size (int, optional): lexicon window size decide max length of word. Defaults to 8.
+            max_ngram (int or str, optional): lexicon window size decide max length of word, '$' means no length limit. Defaults to 8.
             output_path (str, optional): output path. Defaults to None.
             unigram (bool, optional): the minimal ngram for frequencey statistics. Defaults to False.
 
@@ -37,10 +76,8 @@ class WordFrequencyFromCorpus(object):
         if output_path is None:
             output_path = f'{data_path}/word_freq/{lexicon_name}'
         os.makedirs(output_path, exist_ok=True)
-        word_freq = {}
+        word_freq = defaultdict(lambda: 0)
         for ds in ['train', 'dev']:
-            if 'msra' in data_path and ds == 'dev':
-                continue
             dataset_file = f'{data_path}/{ds}.char.bmoes'
             if not os.path.exists(dataset_file):
                 continue
@@ -52,48 +89,28 @@ class WordFrequencyFromCorpus(object):
                     if len(line) > 0:
                         tokens.append(line[0])
                     elif len(tokens) > 0:
-                        for w in range(min_ngram, lexicon_window_size + 1):
-                            for i in range(len(tokens) - w + 1):
-                                word = ''.join(tokens[i:i+w])
-                                if word in self.wordset:
-                                    if word in word_freq:
-                                        word_freq[word][0] += 1
-                                    else:
-                                        word_freq[word] = [1, tokens[i:i+w]]
+                        max_word_length = max_ngram
+                        if max_ngram == '$':
+                            max_word_length = int(1e6)
+                        matched_pos_tokens_pairs = []
+                        for i in range(len(tokens)):
+                            matched_pos_tokens_pairs.extend(self.enumerate_matched(tokens, i, max_word_length, min_ngram))
+                        matched_pos_tokens_pairs.sort(key=lambda x: -len(x[1]))
+                        while matched_pos_tokens_pairs:
+                            pos_tokens = matched_pos_tokens_pairs[0]
+                            word_freq[''.join(pos_tokens[1])] += 1
+                            for i in range(len(pos_tokens[1])):
+                                for j in range(i + 1, len(pos_tokens[1]) + 1):
+                                    if (pos_tokens[0] + i, pos_tokens[1][i:j]) in matched_pos_tokens_pairs:
+                                        matched_pos_tokens_pairs.remove((pos_tokens[0] + i, pos_tokens[1][i:j]))
                         tokens = []
                         sent_num += 1
                         if (sent_num  + 1) % 1000 == 0:
                             print(f'processed {sent_num + 1} lines', flush=True)
-
-        word_freq_tokens = sorted(word_freq.items(), key=lambda item: len(item[0]), reverse=True)
-        word_freq_naive = {w:f for w, (f, t) in word_freq_tokens}
-        with open(f'{output_path}/word_freq_naive_w{min_ngram}-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
-            json.dump(word_freq_naive, of, ensure_ascii=False)
-        word_freq_filter = OrderedDict()
-
-        @timeit
-        def stat(window, word_freq_filter, word_freq_tokens):
-            ngrams_freq = defaultdict(lambda: 0)
-            for w1, (freq1, tokens1) in word_freq_tokens:
-                if len(tokens1) < window:
-                    window -= 1
-                    ngrams_freq = defaultdict(lambda: 0)
-                    for w2, (freq2, tokens2) in word_freq_filter.items():
-                        for i in range(len(tokens2) - window + 1):
-                            word = ''.join(tokens2[i:i+window])
-                            if word in self.wordset:
-                                ngrams_freq[word] += freq2
-                if w1 in ngrams_freq:
-                    word_freq_filter[w1] = (freq1 - ngrams_freq[w1], tokens1)
-                else:
-                    word_freq_filter[w1] = (freq1, tokens1)
-                if word_freq_filter[w1][0] < 0:
-                    word_freq_filter[w1] = (0, word_freq_filter[w1][1]) # 一个ngram被多个>ngram共享会出现负数
-        stat(lexicon_window_size, word_freq_filter, word_freq_tokens)
-        word_freq_filter = OrderedDict({k:f for k, (f, _) in word_freq_filter.items()})
-        with open(f'{output_path}/word_freq_filter_w{min_ngram}-{lexicon_window_size}.json', 'w', encoding='utf-8') as of:
-            json.dump(word_freq_filter, of, ensure_ascii=False)
-        return word_freq_filter
+        word_freq = OrderedDict(sorted(word_freq.items(), key=lambda x: -len(x[0])))
+        with open(f'{output_path}/word_freq_w{min_ngram}-{max_ngram}.json', 'w', encoding='utf-8') as of:
+            json.dump(word_freq, of, ensure_ascii=False)
+        return word_freq
 
 
 if __name__ == '__main__':
@@ -105,11 +122,12 @@ if __name__ == '__main__':
         else:
             lexicon_name = 'sgns'
         wstats = WordFrequencyFromCorpus(lexicon_path=lexicon_path)
+        max_ngrams = ['$'] + list(range(4, 9))
         for corpus_name in ['weibo', 'resume', 'ontonotes4', 'msra', 'policy']:
-            for w in range(4, 9):
+            for w in max_ngrams:
                 for ngram in [1, 2]:
                     print('*' * 20 + f'process {corpus_name}, window_size: {w}, min_ngram: {ngram}' + '*' * 20 + '\n')
-                    wstats.word_frequency_statistics(os.path.join(data_path, corpus_name), lexicon_window_size=w, lexicon_name=lexicon_name, min_ngram=ngram)
+                    wstats.word_frequency_statistics(os.path.join(data_path, corpus_name), max_ngram=w, lexicon_name=lexicon_name, min_ngram=ngram)
     # lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/ctbword_gigachar_mix.710k.50d.bin'
     # # lexicon_path = '/home/liujian/NLP/corpus/embedding/chinese/lexicon/sgns_merge_word.1293k.300d.bin'
     # # corpus_name = ['weibo', 'resume', 'ontonotes4', 'msra', 'policy']
@@ -118,4 +136,4 @@ if __name__ == '__main__':
     # for corpus in corpus_name:
     #     for w in range(4, 9):
     #         print('*' * 20 + f'process {corpus}, window_size: {w} ' + '*' * 20 + '\n')
-    #         wstats.word_frequency_statistics(os.path.join(data_path, corpus), lexicon_window_size=w, lexicon_name='ctb', min_ngram=1)
+    #         wstats.word_frequency_statistics(os.path.join(data_path, corpus), max_ngram=w, lexicon_name='ctb', min_ngram=1)
