@@ -132,7 +132,7 @@ def tokenize_chinese_chars(text):
     return "".join(output)
 
 def strip_accents(text):
-    """Strips accents from a piece of text."""
+    """Strips accents from a piece of text, such as café"""
     text = unicodedata.normalize("NFD", text)
     output = []
     for char in text:

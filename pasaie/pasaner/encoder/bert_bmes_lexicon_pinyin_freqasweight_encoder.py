@@ -6,6 +6,7 @@
 """
 
 from ...tokenization.utils import convert_by_vocab, strip_accents
+from ...utils.common import is_eng_word, is_digit, is_pinyin
 from ...module.nn.attention import dot_product_attention
 from ...module.nn.cnn import masked_singlekernel_conv1d, masked_multikernel_conv1d
 
@@ -139,14 +140,15 @@ class BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(nn.Module):
                         try:
                             pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
-                                if pinyin.isnumeric():
+                                if is_digit(pinyin):
                                     pinyin = '[DIGIT]'
                                 else:
-                                    pinyin = strip_accents(pinyin)
-                                    if pinyin.encode('utf-8').isalpha():
+                                    if is_eng_word(pinyin):
                                         pinyin = '[ENG]'
                                     else:
                                         raise ValueError('pinyin length not exceed 7')
+                            elif not is_pinyin(pinyin):
+                                pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
                         if w == 1:
@@ -349,14 +351,9 @@ class BERT_BMES_Lexicon_PinYin_Char_FreqAsWeight_Encoder(nn.Module):
                         try:
                             pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
-                                if pinyin.isnumeric():
-                                    pinyin = '[DIGIT]'
-                                else:
-                                    pinyin = strip_accents(pinyin)
-                                    if pinyin.encode('utf-8').isalpha():
-                                        pinyin = '[ENG]'
-                                    else:
-                                        raise ValueError('pinyin length not exceed 7')
+                                raise ValueError('pinyin length not exceed 7')
+                            elif not is_pinyin(pinyin) and not is_eng_word(pinyin):
+                                pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
                         if w == 1:

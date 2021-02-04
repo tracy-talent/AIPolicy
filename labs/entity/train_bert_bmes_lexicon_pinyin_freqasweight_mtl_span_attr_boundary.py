@@ -135,7 +135,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if (args.dataset == 'weibo' or args.dataset == 'resume') and args.model_type != 'plerand':
+if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
@@ -270,10 +270,10 @@ pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args
 pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
 if 'char' in args.pinyin_embedding_type:
-    pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin_char2id = {'[PAD]': 0, '[UNK]': 1, '\'': 2}
     pinyin2id = {'[PAD]': 0, '[UNK]': 1}
-    pinyin_num = 2
-    pinyin_char_num = 2
+    pinyin_num = len(pinyin2id)
+    pinyin_char_num = len(pinyin_char2id)
     word2pinyin = {}
     with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
         for line in f:
@@ -290,9 +290,9 @@ if 'char' in args.pinyin_embedding_type:
                         pinyin_char_num += 1
 # load word frequency file
 if args.group_num == 3:
-    word_freq_filename = f'word_freq_filter_w2-{args.lexicon_window_size}.json'
+    word_freq_filename = f'word_freq_w2-{args.lexicon_window_size}.json'
 else:
-    word_freq_filename = f'word_freq_filter_w2-{args.lexicon_window_size}.json'
+    word_freq_filename = f'word_freq_w2-{args.lexicon_window_size}.json'
 word_freq_file = os.path.join(config['path']['ner_dataset'], args.dataset, 'word_freq', lexicon_name, word_freq_filename)
 with open(word_freq_file, 'r', encoding='utf-8') as f:
     word2freq = json.load(f)
