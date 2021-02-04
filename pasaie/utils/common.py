@@ -18,7 +18,7 @@ def is_digit(word):
         return False
 
 def is_pinyin(word):
-    if re.match('^[a-z]{1,6}+[1-5]$', word):
+    if re.match('^[a-z]{1,6}[1-5]$', word):
         return True
     else:
         return False
