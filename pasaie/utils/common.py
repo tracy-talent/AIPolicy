@@ -17,8 +17,18 @@ def is_digit(word):
     else:
         return False
 
+
 def is_pinyin(word):
     if re.match('^[a-z]{1,6}[1-5]$', word):
+        return True
+    else:
+        return False
+
+
+def is_punctuation(word):
+    if word in ['￥', '%', '：', '—', '-', '&', '。', '…', '’', '？', '！', '”', '#', '(', '[', ']', '）', '、', '~',
+                '!', ')', '@', '{', '|', '*', '\\', '`', '?', '·', '.', '_', '>', '》', '】', '；', '$', '（', ':',
+                '/', '“', '+', '}', "'", '"', '，', '【', '《', ';', ',', '=', '^', '<', '‘']:
         return True
     else:
         return False

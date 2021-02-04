@@ -6,7 +6,7 @@
 """
 
 from ...tokenization.utils import convert_by_vocab, strip_accents
-from ...utils.common import is_eng_word, is_digit, is_pinyin
+from ...utils.common import is_eng_word, is_digit, is_pinyin, is_punctuation
 from ...module.nn.attention import dot_product_attention
 from ...module.nn.cnn import masked_singlekernel_conv1d, masked_multikernel_conv1d
 
@@ -137,20 +137,16 @@ class BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(nn.Module):
                     word = ''.join(tokens[i-p:i-p+w])
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
-                        try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
-                            if len(pinyin) > 7:
-                                if is_digit(pinyin):
-                                    pinyin = '[DIGIT]'
-                                else:
-                                    if is_eng_word(pinyin):
-                                        pinyin = '[ENG]'
-                                    else:
-                                        raise ValueError('pinyin length not exceed 7')
-                            elif not is_pinyin(pinyin):
-                                pinyin = '[UNK]'
-                        except:
+                        pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
+                        if is_digit(pinyin):
+                            pinyin = '[DIGIT]'
+                        elif is_eng_word(pinyin):
+                            pinyin = '[ENG]'
+                        elif is_pinyin(word) or is_punctuation(pinyin):
+                            pinyin = pinyin
+                        else:
                             pinyin = '[UNK]'
+
                         if w == 1:
                             g = 3
                         elif p == 0:
@@ -352,7 +348,7 @@ class BERT_BMES_Lexicon_PinYin_Char_FreqAsWeight_Encoder(nn.Module):
                             pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
-                            elif not is_pinyin(pinyin) and not is_eng_word(pinyin):
+                            elif not is_pinyin(pinyin) and not is_eng_word(pinyin) and not pinyin.isdigit():
                                 pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
