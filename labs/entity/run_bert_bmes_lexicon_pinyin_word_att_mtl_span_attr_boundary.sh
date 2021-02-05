@@ -47,9 +47,9 @@ fi
 
 if [ $3 == glove ]
 then
-    pinyin2vec=glove/glove_num5.1409.{$pinyin_dim}d.vec
+    pinyin2vec=glove/glove_num5.1409.${pinyin_dim}d.vec
 else
-    pinyin2vec=word2vec/word2vec_num5.1409.{$pinyin_dim}d.vec
+    pinyin2vec=word2vec/word2vec_num5.1409.${pinyin_dim}d.vec
 fi
 
 for lws in ${lexicon_window_sizes[*]}

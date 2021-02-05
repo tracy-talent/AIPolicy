@@ -1,8 +1,7 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file
 GPU=0
-#dropout_rates=(0.1 0.2 0.3 0.4 0.5)
-dropout_rates=(0.1)
+dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 default_dropout=0.2 # 调整lexicon_window_size时使用
 lexicon_window_sizes=(4)
 default_lexicon_window=5 #调整dropout_rates时使用
@@ -47,9 +46,9 @@ fi
 
 if [ $3 == glove ]
 then
-    pinyin2vec=glove/glove_num5.1409.{$pinyin_dim}d.vec
+    pinyin2vec=glove/glove_num5.1409.${pinyin_dim}d.vec
 else
-    pinyin2vec=word2vec/word2vec_num5.1409.{$pinyin_dim}d.vec
+    pinyin2vec=word2vec/word2vec_num5.1409.${pinyin_dim}d.vec
 fi
 
 for lws in ${lexicon_window_sizes[*]}
