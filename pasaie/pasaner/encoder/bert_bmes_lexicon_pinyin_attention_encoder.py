@@ -138,7 +138,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
                                 if is_digit(pinyin):
                                     pinyin = '[DIGIT]'

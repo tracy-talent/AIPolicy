@@ -23,7 +23,6 @@ from transformers.modeling_bert import BertEmbeddings
 from pypinyin import lazy_pinyin, Style
 
 
-
 class BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(nn.Module):
     def __init__(self, 
                 pretrain_path,
@@ -137,14 +136,19 @@ class BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(nn.Module):
                     word = ''.join(tokens[i-p:i-p+w])
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
-                        pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
-                        if is_digit(pinyin):
-                            pinyin = '[DIGIT]'
-                        elif is_eng_word(pinyin):
-                            pinyin = '[ENG]'
-                        elif is_pinyin(word) or is_punctuation(pinyin):
-                            pinyin = pinyin
-                        else:
+                        try:
+                            pinyins = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True, strict=False)
+                            # FIXME: 因为英文单词/数字可能被识别为word，此时其中任一character都应与word一致
+                            if is_digit(word):
+                                pinyin = '[DIGIT]'
+                            elif is_eng_word(word):
+                                pinyin = '[ENG]'
+                            elif is_pinyin(pinyins[p]) or is_punctuation(pinyins[p]):
+                                pinyin = pinyin
+                            else:
+                                pinyin = '[UNK]'
+                        except:
+                            print(f"{pinyins}'s {p}th pinyin out of range")
                             pinyin = '[UNK]'
 
                         if w == 1:
@@ -345,7 +349,7 @@ class BERT_BMES_Lexicon_PinYin_Char_FreqAsWeight_Encoder(nn.Module):
                     # if word in self.word2id:
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True, strict=False)[p]
                             if len(pinyin) > 7:
                                 raise ValueError('pinyin length not exceed 7')
                             elif not is_pinyin(pinyin) and not is_eng_word(pinyin) and not pinyin.isdigit():
