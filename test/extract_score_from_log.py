@@ -104,6 +104,8 @@ def resolve_data(param_dict):
     f1_max = max(f1_list)
     
     for param_name, score_dict in param_dict.items():
+        if score_dict['pinyin_vec'] is None:
+            continue
         simplify_param = parse_params_dir(param_name, score_dict['pinyin_vec'])
         simplify_param += color.red(f"(dpr={score_dict['dpr']},wz={score_dict['wz']})")
         span_micro_p = f"{score_dict['Span Micro precision']}"
