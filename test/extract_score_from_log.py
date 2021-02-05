@@ -40,7 +40,11 @@ def extract_score_from_logs(log_dir, save_path=None):
             # 对同一参数目录下的所有log文件取均值
             tmp_dict = {}
             for score_name, score_list in target_scores.items():
-                tmp_dict[score_name] = round(np.mean(score_list), ndigits=4)
+                if score_name in target_score_strings:
+                    factor = 100
+                else:
+                    factor = 1
+                tmp_dict[score_name] = round(np.mean(score_list) * factor, ndigits=2)
             if len(tmp_dict) > 0:
                 tmp_dict['pinyin_vec'] = pinyin_vec
                 param_dict[subdir] = tmp_dict
@@ -107,16 +111,16 @@ def resolve_data(param_dict):
         if score_dict['pinyin_vec'] is None:
             continue
         simplify_param = parse_params_dir(param_name, score_dict['pinyin_vec'])
-        simplify_param += color.red(f"(dpr={score_dict['dpr']},wz={score_dict['wz']})")
-        span_micro_p = f"{score_dict['Span Micro precision']}"
-        span_micro_r = f"{score_dict['Span Micro recall']}"
-        span_micro_f1 = f"{score_dict['Span Micro F1']}"
-        micro_p = color.red(f"{score_dict['Micro precision']}") if score_dict['Micro precision'] == precision_max \
-            else f"{score_dict['Micro precision']}"
-        micro_r = color.red(f"{score_dict['Micro recall']}") if score_dict['Micro recall'] == recall_max \
-            else f"{score_dict['Micro recall']}"
-        micro_f1 = color.red(f"{score_dict['Micro F1']}") if score_dict['Micro F1'] == f1_max \
-            else f"{score_dict['Micro F1']}"
+        simplify_param += color.red(f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})")
+        span_micro_p = "%.2f" % score_dict['Span Micro precision']
+        span_micro_r = "%.2f" % score_dict['Span Micro recall']
+        span_micro_f1 = "%.2f" % score_dict['Span Micro F1']
+        micro_p = "%.2f" % score_dict['Micro precision']
+        micro_r = "%.2f" % score_dict['Micro recall']
+        micro_f1 = "%.2f" % score_dict['Micro F1']
+        micro_p = color.red(micro_p) if float(micro_p) == precision_max else micro_p
+        micro_r = color.red(micro_r) if float(micro_r) == recall_max else micro_r
+        micro_f1 = color.red(micro_f1) if float(micro_f1) == f1_max else micro_f1
         ret_list.append([simplify_param,
                          span_micro_p + '/' + micro_p,
                          span_micro_r + '/' + micro_r,
@@ -158,5 +162,5 @@ class Colored(object):
 
 
 if __name__ == '__main__':
-    extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
+    extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output_tmp\entity\logs',
                             save_path=None)
