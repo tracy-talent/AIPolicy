@@ -6,7 +6,7 @@
 """
 
 from ...tokenization.utils import convert_by_vocab, strip_accents
-from ...utils.common import is_eng_word, is_digit, is_pinyin, is_punctuation
+from ...utils.common import is_eng_word, is_digit, is_pinyin, is_punctuation, unfold_pinyin_list
 from ...module.nn.attention import dot_product_attention
 from ...module.nn.cnn import masked_singlekernel_conv1d, masked_multikernel_conv1d
 
@@ -138,17 +138,21 @@ class BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder(nn.Module):
                         words.append(word)
                         try:
                             pinyins = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True, strict=False)
+                            pinyins = unfold_pinyin_list(pinyins)
+                            if len(pinyins) != len(word):
+                                print(word, pinyins)
+                                pinyins = word
                             # FIXME: 因为英文单词/数字可能被识别为word，此时其中任一character都应与word一致
-                            if is_digit(word):
+                            pinyin = pinyins[p]
+                            if is_digit(pinyin):
                                 pinyin = '[DIGIT]'
-                            elif is_eng_word(word):
+                            elif is_eng_word(pinyin):
                                 pinyin = '[ENG]'
-                            elif is_pinyin(pinyins[p]) or is_punctuation(pinyins[p]):
-                                pinyin = pinyin
+                            elif is_pinyin(pinyin) or is_punctuation(pinyin):
+                                pass
                             else:
                                 pinyin = '[UNK]'
                         except:
-                            print(f"{pinyins}'s {p}th pinyin out of range")
                             pinyin = '[UNK]'
 
                         if w == 1:

@@ -32,3 +32,14 @@ def is_punctuation(word):
         return True
     else:
         return False
+
+
+# 由于英文单词/数字会被lazy_pinyin作为一个整体作为元素，所以需要展开为char，与word长度一致
+def unfold_pinyin_list(pinyin_list):
+    unfold_list = []
+    for pinyin in pinyin_list:
+        if is_pinyin(pinyin):
+            unfold_list.append(pinyin)
+        else:
+            unfold_list += list(pinyin)
+    return unfold_list
