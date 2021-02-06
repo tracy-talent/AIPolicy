@@ -308,8 +308,8 @@ class Span_Multi_NER(nn.Module):
                 test_path, 
                 ckpt, 
                 logger, 
-                tb_logdir, 
-                max_span=7,
+                tb_logdir,
+                word_embedding=None, 
                 compress_seq=True,
                 tagscheme='bmoes', 
                 batch_size=32, 
@@ -338,6 +338,13 @@ class Span_Multi_NER(nn.Module):
         self.tagscheme = tagscheme
         self.max_grad_norm = max_grad_norm
         self.early_stopping_step = early_stopping_step
+        if word_embedding is not None and word_embedding.weight.requires_grad:
+            self.word_embedding = nn.Embedding(*word_embedding.weight.size())
+            self.word_embedding.weight.data.copy_(word_embedding.weight.data)
+            self.word_embedding.weight.requires_grad = word_embedding.weight.requires_grad
+            del word_embedding
+        else:
+            self.word_embedding = word_embedding
 
         # Load Data
         if train_path != None:
@@ -458,8 +465,11 @@ class Span_Multi_NER(nn.Module):
         else:
             self.adv = None
         # Cuda
+        word_embedding = self.word_embedding
+        del self.word_embedding # avoid embedding to cuda
         if torch.cuda.is_available():
             self.cuda()
+        self.word_embedding = word_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger
@@ -527,9 +537,15 @@ class Span_Multi_NER(nn.Module):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
                         try:
-                            data[i] = data[i].cuda()
+                            if i == 3 and self.word_embedding is not None:
+                                data[i] = self.word_embedding(data[i]).cuda()
+                            else:
+                                data[i] = data[i].cuda()
                         except:
                             pass
+                else:
+                    if self.word_embedding is not None:
+                        data[3] = self.word_embedding(data[3])
                 args = data[2:]
                 if 'StartPrior' in self.model.__class__.__name__:
                     start_logits, end_logits = self.parallel_model(data[0], *args)
@@ -697,9 +713,15 @@ class Span_Multi_NER(nn.Module):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
                         try:
-                            data[i] = data[i].cuda()
+                            if i == 3 and self.word_embedding is not None:
+                                data[i] = self.word_embedding(data[i]).cuda()
+                            else:
+                                data[i] = data[i].cuda()
                         except:
                             pass
+                else:
+                    if self.word_embedding is not None:
+                        data[3] = self.word_embedding(data[3])
                 args = data[2:]
                 if 'StartPrior' in self.model.__class__.__name__:
                     start_logits, end_logits = self.parallel_model(None, *args)

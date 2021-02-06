@@ -25,7 +25,8 @@ class BaseFramework(nn.Module):
                 model, 
                 ckpt, 
                 logger, 
-                tb_logdir, 
+                tb_logdir,
+                word_embedding=None, 
                 batch_size=32, 
                 max_epoch=100, 
                 lr=1e-3,
@@ -50,6 +51,13 @@ class BaseFramework(nn.Module):
         self.max_epoch = max_epoch
         self.metric = metric
         self.early_stopping_step = early_stopping_step
+        if word_embedding is not None and word_embedding.weight.requires_grad:
+            self.word_embedding = nn.Embedding(*word_embedding.weight.size())
+            self.word_embedding.weight.data.copy_(word_embedding.weight.data)
+            self.word_embedding.weight.requires_grad = word_embedding.weight.requires_grad
+            del word_embedding
+        else:
+            self.word_embedding = word_embedding
 
         # Model
         self.model = model
@@ -168,8 +176,11 @@ class BaseFramework(nn.Module):
         else:
             self.adv = None
         # Cuda
+        word_embedding = self.word_embedding
+        del self.word_embedding # avoid embedding to cuda
         if torch.cuda.is_available():
             self.cuda()
+        self.word_embedding = word_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger

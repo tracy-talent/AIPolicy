@@ -4,14 +4,13 @@ from __future__ import print_function
 
 from .bert_encoder import BERTEncoder, MRC_BERTEncoder
 from .bert_wlf_encoder import BERTWLFEncoder, MRC_BERTWLFEncoder
-from .bert_lexicon_encoder import BERTLexiconEncoder
 from .bert_wlf_pinyin_encoder import BERT_WLF_PinYin_Word_Encoder, BERT_WLF_PinYin_Char_Encoder, BERT_WLF_PinYin_Char_MultiConv_Encoder
-from .bert_lexicon_pinyin_encoder import BERT_Lexicon_PinYin_Word_Encoder, BERT_Lexicon_PinYin_Char_Encoder, BERT_Lexicon_PinYin_Char_MultiConv_Encoder
 from .bert_bmes_lexicon_pinyin_freqasweight_encoder import BERT_BMES_Lexicon_PinYin_Word_FreqAsWeight_Encoder, BERT_BMES_Lexicon_PinYin_Char_FreqAsWeight_Encoder, BERT_BMES_Lexicon_PinYin_Char_MultiConv_FreqAsWeight_Encoder
 from .bert_bmes_lexicon_pinyin_attention_encoder import BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder, BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder
 from .bert_bmes_lexicon_pinyin_attention_encoder import BERT_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder, BERT_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder
 from .bert_bmes_lexicon_pinyin_attention_encoder import BERT_BMES_Lexicon_PinYin_Char_MultiConv_Attention_Cat_Encoder, BERT_BMES_Lexicon_PinYin_Char_MultiConv_Attention_Add_Encoder
-from .bert_pinyin_encoder import BERT_PinYin_Word_Encoder, BERT_PinYin_Char_Encoder, BERT_PinYin_Char_MultiConv_Encoder
+from .base_bmes_lexicon_pinyin_encoder import BASE_BMES_Lexicon_PinYin_Word_Cat_Encoder, BASE_BMES_Lexicon_PinYin_Char_Cat_Encoder, BASE_BMES_Lexicon_PinYin_Char_MultiConv_Cat_Encoder
+from .bert_bmes_lexicon_attention_encoder import BERT_BMES_Lexicon_Attention_Cat_Encoder, BERT_BMES_Lexicon_Attention_Add_Encoder
 from .bert_bilstm_encoder import BERT_BILSTM_Encoder
 from .xlnet_encoder import XLNetEncoder
 from .base_encoder import BaseEncoder
@@ -27,13 +26,6 @@ __all__ = [
     'BERT_WLF_PinYin_Word_Encoder',
     'BERT_WLF_PinYin_Char_Encoder',
     'BERT_WLF_PinYin_Char_MultiConv_Encoder',
-    'BERTLexiconEncoder',
-    'BERT_Lexicon_PinYin_Word_Encoder',
-    'BERT_Lexicon_PinYin_Char_Encoder',
-    'BERT_Lexicon_PinYin_Char_MultiConv_Encoder',
-    'BERT_PinYin_Word_Encoder',
-    'BERT_PinYin_Char_Encoder',
-    'BERT_PinYin_Char_MultiConv_Encoder',
     'BERT_BILSTM_Encoder',
     'BaseEncoder',
     'BaseWLFEncoder',

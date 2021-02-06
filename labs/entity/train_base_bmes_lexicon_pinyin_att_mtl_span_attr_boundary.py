@@ -1,8 +1,8 @@
 """
  Author: liujian
- Date: 2021-01-21 23:00:37
+ Date: 2021-02-06 16:04:01
  Last Modified by: liujian
- Last Modified time: 2021-01-21 23:00:37
+ Last Modified time: 2021-02-06 16:04:01
 """
 
 # coding:utf-8
@@ -29,9 +29,8 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand'], 
-        help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word', type=str, choices=['word', 'char', 'char_multiconv'], 
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], help='model type')
+parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word', 'char', 'multiconv'],  
         help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -70,6 +69,12 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
+parser.add_argument('--token2vec_file', default='', type=str,
+        help='token2vec embedding file')
+parser.add_argument('--word2vec_file', default='', type=str,
+        help='word2vec embedding file')
+parser.add_argument('--pinyin2vec_file', default='', type=str,
+        help='pinyin2vec embedding file')
 parser.add_argument('--word2pinyin_file', default='', type=str,
         help='map from word to pinyin')
 parser.add_argument('--custom_dict', default='', type=str,
@@ -82,6 +87,8 @@ parser.add_argument('--dice_alpha', default=0.6, type=float,
         help='alpha of dice loss')
 parser.add_argument('--batch_size', default=64, type=int,
         help='Batch size')
+parser.add_argument('--crf_lr', default=1e-3, type=float,
+        help='CRF Learning rate')
 parser.add_argument('--lr', default=1e-3, type=float,
         help='Learning rate')
 parser.add_argument('--bert_lr', default=3e-5, type=float,
@@ -104,6 +111,8 @@ parser.add_argument('--max_pinyin_num_of_token', default=10, type=int,
         help='max pinyin num of every token')
 parser.add_argument('--max_pinyin_char_length', default=7, type=int,
         help='max length of a pinyin')
+parser.add_argument('--lexicon_window_size', default=4, type=int,
+        help='upper bound(include) of lexicon window size')
 parser.add_argument('--max_epoch', default=3, type=int,
         help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
@@ -112,6 +121,8 @@ parser.add_argument('--experts_layers', default=2, type=int,
                     help='experts layers of PLE MTL')
 parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
+parser.add_argument('--group_num', default=3, type=int,
+                    help="group by 'bmes' when group_num=4, group by 'bme' when group_num = 3")
 parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
@@ -126,31 +137,47 @@ config.read(os.path.join(project_path, 'config.ini'))
 if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
 
+# get lexicon name which used in model_name
+if 'sgns_in_ctb' in args.word2vec_file:
+    lexicon_name = 'sgns_in_ctb'
+elif 'tencent_in_ctb' in args.word2vec_file:
+    lexicon_name = 'tencent_in_ctb'
+elif 'ctb' in args.word2vec_file:
+    lexicon_name = 'ctb'
+elif 'sgns' in args.word2vec_file:
+    lexicon_name = 'sgns'
+elif 'giga' in args.word2vec_file:
+    lexicon_name = 'giga'
+elif 'tencent' in args.word2vec_file:
+    lexicon_name = 'tencent'
+else:
+    raise FileNotFoundError(f'{args.word2vec_file} is not found!')
 # construct save path name
 def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
     elif args.model_type == 'attention':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
     elif args.model_type == 'mmoe':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
     elif args.model_type == 'plethree':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
     elif args.model_type == 'plerand':
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+    elif args.model_type == 'plecat':
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat_bert'
     else:
-        model_name = f'pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
-    # model_name += '_noact'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += '_relu_crf1e-3'
+    model_name += f'_relu_crf{args.crf_lr:.0e}_bert{args.bert_lr:.0e}'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -166,7 +193,7 @@ def make_model_name():
     #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
     model_name += '_' + args.loss
     if 'dice' in args.loss:
-        model_name += '_' + str(args.dice_alpha)
+        model_name += str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
         model_name += '_autoweighted'
     if len(args.adv) > 0 and args.adv != 'none':
@@ -233,62 +260,66 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
+# load word embedding and vocab
+token2id, token2vec = load_wordvec(args.token2vec_file, binary='.bin' in args.token2vec_file)
+token2id, token_embedding = construct_embedding_from_numpy(word2id=token2id, word2vec=token2vec, finetune=False)
+# load word embedding and vocab
+word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
+# load pinyin embedding and vocab
+pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
+pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
-pinyin_char2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin2id = {'[PAD]': 0, '[UNK]': 1}
-pinyin_num = 2
-pinyin_char_num = 2
-word2pinyin = {}
-with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip().split('\t')
-        line[1] = eval(line[1])
-        word2pinyin[line[0]] = line[1]
-        for p in line[1]:
-            if p not in pinyin2id:
-                pinyin2id[p] = pinyin_num
-                pinyin_num += 1
-            for c in p:
-                if c not in pinyin_char2id:
-                    pinyin_char2id[c] = pinyin_char_num
-                    pinyin_char_num += 1
+if 'char' in args.pinyin_embedding_type:
+    pinyin_char2id = {'[PAD]': 0, '[UNK]': 1, '\'': 2}
+    pinyin2id = {'[PAD]': 0, '[UNK]': 1}
+    pinyin_num = len(pinyin2id)
+    pinyin_char_num = len(pinyin_char2id)
+    word2pinyin = {}
+    with open(args.word2pinyin_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip().split('\t')
+            line[1] = eval(line[1])
+            word2pinyin[line[0]] = line[1]
+            for p in line[1]:
+                if p not in pinyin2id:
+                    pinyin2id[p] = pinyin_num
+                    pinyin_num += 1
+                for c in p:
+                    if c not in pinyin_char2id:
+                        pinyin_char2id[c] = pinyin_char_num
+                        pinyin_char_num += 1
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Word_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Cat_Encoder(
+        token2id=token2id,
+        word2id=word2id,
         pinyin2id=pinyin2id,
-        pinyin_size=args.pinyin_word_embedding_size,
+        token_embedding=token_embedding,
+        pinyin_embedding=pinyin_embedding,
+        token_size=token2vec.shape[-1],
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
+        pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        custom_dict=args.custom_dict,
+        group_num=args.group_num,
         blank_padding=True
     )
 elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Cat_Encoder(
+        token2id=token2id,
+        word2id=word2id,
         pinyin_char2id=pinyin_char2id,
+        token_embedding=token_embedding,
+        token_size=token2vec.sjape[-1],
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
         max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
+        max_length=args.max_length,
+        group_num=args.group_num,
         blank_padding=True
-    )
-elif args.pinyin_embedding_type == 'char_multiconv':
-    sequence_encoder = pasaner.encoder.BERT_PinYin_Char_MultiConv_Encoder(
-        pretrain_path=args.pretrain_path,
-        word2pinyin=word2pinyin,
-        pinyin_char2id=pinyin_char2id,
-        pinyin_char_size=args.pinyin_char_embedding_size,
-        max_length=args.max_length,
-        max_pinyin_num_of_token=args.max_pinyin_num_of_token,
-        max_pinyin_char_length=args.max_pinyin_char_length,
-        custom_dict=args.custom_dict,
-        blank_padding=True,
-        convs_config=[(256, 2), (256, 3), (256, 4)]
     )
 else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')
@@ -333,6 +364,20 @@ elif args.model_type == 'mmoe':
     )
 elif args.model_type == 'ple' or args.model_type == 'plerand':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
+        sequence_encoder=sequence_encoder, 
+        span2id=span2id,
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        span_use_lstm=args.span_use_lstm, # True
+        attr_use_lstm=args.attr_use_lstm, # False
+        span_use_crf=args.span_use_crf,
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num
+    )
+elif args.model_type == 'plecat':
+    model = pasaner.model.BILSTM_CRF_Span_Attr_Cat_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
         span2id=span2id,
         attr2id=attr2id,
@@ -393,6 +438,7 @@ else:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary
 framework = framework_class(
     model=model,
+    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,
@@ -403,6 +449,7 @@ framework = framework_class(
     tagscheme=args.tagscheme, 
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
+    crf_lr=args.crf_lr,
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
@@ -444,6 +491,6 @@ logger.info('Span Micro recall: {}'.format(result['span_micro_r']))
 logger.info('Span Micro F1: {}'.format(result['span_micro_f1']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
-logger.info('Micro F1: {}'.format(result['micro_f1']))
+logger.info('(w{:d}, dpr{:.1f})Micro F1: {}'.format(args.lexicon_window_size, args.dropout_rate, result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
 

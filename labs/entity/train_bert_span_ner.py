@@ -112,7 +112,10 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = args.model + '_' + args.bert_name + '_' + args.loss
+    model_name = args.model + '_attr_boundary_' + args.bert_name
+    if args.use_lstm:
+        model_name += '_lstm'
+    model_name += '_' + args.loss
     if 'dice' in args.loss:
         model_name += '_' + str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
@@ -275,6 +278,8 @@ elif args.model == 'multi':
         metric=args.metric,
         sampler=sampler
     )
+else:
+    raise NotImplementedError(f'{args.model} is not implemented.')
 
 # Load pretrained model
 # if ckpt_cnt > 0:

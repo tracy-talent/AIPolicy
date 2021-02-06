@@ -63,7 +63,7 @@ class BaseEncoder(nn.Module):
             else:
                 self.word_embedding.weight.data.copy_(word2vec)
 
-        # Position Embedding
+        # Tokenizer
         self.tokenizer = WordTokenizer(vocab=self.token2id, unk_token="[UNK]")
 
     def forward(self, seqs, att_mask):

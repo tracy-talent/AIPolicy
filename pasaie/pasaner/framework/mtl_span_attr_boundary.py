@@ -329,11 +329,6 @@ class MTL_Span_Attr_Boundary(nn.Module):
                             pass
                 else:
                     if self.word_embedding is not None:
-                        # we = self.word_embedding(data[4])
-                        # for i in range(we.size(0)):
-                        #     for j in range(we.size(1)):
-                        #         if we[i][j].isnan().any():
-                        #             print(f'word embedding {j} has nan:', self.model.sequence_encoder.word_tokenizer.convert_ids_to_tokens(j))
                         data[4] = self.word_embedding(data[4])
                 args = data[3:]
                 if 'StartPrior' in self.model.__class__.__name__:

@@ -1,15 +1,16 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file
 GPU=0
-dropout_rates=(0.1 0.2 0.3 0.4 0.5)
+#dropout_rates=(0.1 0.2 0.3 0.4 0.5)
+dropout_rates=(0.1)
 default_dropout=0.2 # 调整lexicon_window_size时使用
 lexicon_window_sizes=(4)
 default_lexicon_window=5 #调整dropout_rates时使用
 python_command="
-python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
+    --token2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctb.704k.50d.vec \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type char_att_add \
+    --pinyin_embedding_type word \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \

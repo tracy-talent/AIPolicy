@@ -56,7 +56,7 @@ for lws in ${lexicon_window_sizes[*]}
 do
     for dpr in ${dropout_rates[*]}
     do  
-    echo "Run dataset{$1}: dpr=$dpr, wz=$lws"
+    echo "Run dataset $1: dpr=$dpr, wz=$lws"
     CUDA_VISIBLE_DEVICES=${GPU} \
     $python_command \
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
