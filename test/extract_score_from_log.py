@@ -90,7 +90,11 @@ def extract_target_scores(log_path):
 def parse_params_dir(params_dir_str, pinyin_vec):
     group_name = params_dir_str.split('_', maxsplit=1)[0]
     lexicon_dict = 'ctb' if 'ctb' in params_dir_str else 'sgns'
-    return '_'.join([group_name, lexicon_dict, pinyin_vec])
+    if re.findall('pinyin_\w+_freq', params_dir_str):
+        fusion_pattern = 'freq'
+    else:
+        fusion_pattern = 'attn'
+    return '_'.join([group_name, fusion_pattern, lexicon_dict, pinyin_vec])
 
 
 def resolve_data(param_dict):
@@ -162,5 +166,5 @@ class Colored(object):
 
 
 if __name__ == '__main__':
-    extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output_tmp\entity\logs',
+    extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
                             save_path=None)
