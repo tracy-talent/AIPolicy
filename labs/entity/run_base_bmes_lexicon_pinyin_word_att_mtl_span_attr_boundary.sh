@@ -8,9 +8,9 @@ lexicon_window_sizes=(4)
 default_lexicon_window=5 #调整dropout_rates时使用
 python_command="
 python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
-    --token2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/ctb.704k.50d.vec \
+    --token2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word \
+    --pinyin_embedding_type word_att_add \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \
@@ -20,7 +20,7 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --span_use_lstm \
     --span_use_crf \
     --attr_use_lstm \
-    --batch_size 32 \
+    --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \

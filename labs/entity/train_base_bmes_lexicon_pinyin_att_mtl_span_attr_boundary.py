@@ -30,7 +30,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
 parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word', 'char', 'multiconv'],  
+parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_add', 'word_att_cat', 'char_att_add', 'char_att_cat'],  
         help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -158,26 +158,26 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior'
     elif args.model_type == 'attention':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention'
     elif args.model_type == 'mmoe':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe'
     elif args.model_type == 'ple':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple'
     elif args.model_type == 'plethree':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple'
     elif args.model_type == 'pletogether':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple'
     elif args.model_type == 'plerand':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand'
     elif args.model_type == 'plecat':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat'
     else:
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += f'_relu_crf{args.crf_lr:.0e}_bert{args.bert_lr:.0e}'
+    model_name += f'_relu_crf{args.crf_lr:.0e}'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
@@ -291,8 +291,8 @@ if 'char' in args.pinyin_embedding_type:
                         pinyin_char_num += 1
 
 # Define the sentence encoder
-if args.pinyin_embedding_type == 'word':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Cat_Encoder(
+if args.pinyin_embedding_type == 'word_att_add':
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(
         token2id=token2id,
         word2id=word2id,
         pinyin2id=pinyin2id,
@@ -304,10 +304,27 @@ if args.pinyin_embedding_type == 'word':
         pinyin_size=pinyin2vec.shape[-1],
         max_length=args.max_length,
         group_num=args.group_num,
-        blank_padding=True
+        blank_padding=True,
+        compress_seq=args.compress_seq
     )
-elif args.pinyin_embedding_type == 'char':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Cat_Encoder(
+elif args.pinyin_embedding_type == 'word_att_cat':
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(
+        token2id=token2id,
+        word2id=word2id,
+        pinyin2id=pinyin2id,
+        token_embedding=token_embedding,
+        pinyin_embedding=pinyin_embedding,
+        token_size=token2vec.shape[-1],
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
+        pinyin_size=pinyin2vec.shape[-1],
+        max_length=args.max_length,
+        group_num=args.group_num,
+        blank_padding=True,
+        compress_seq=args.compress_seq
+    )
+elif args.pinyin_embedding_type == 'char_att_add':
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(
         token2id=token2id,
         word2id=word2id,
         pinyin_char2id=pinyin_char2id,
@@ -319,7 +336,24 @@ elif args.pinyin_embedding_type == 'char':
         max_pinyin_char_length=args.max_pinyin_char_length,
         max_length=args.max_length,
         group_num=args.group_num,
-        blank_padding=True
+        blank_padding=True,
+        compress_seq=args.compress_seq
+    )
+elif args.pinyin_embedding_type == 'char_att_cat':
+    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(
+        token2id=token2id,
+        word2id=word2id,
+        pinyin_char2id=pinyin_char2id,
+        token_embedding=token_embedding,
+        token_size=token2vec.sjape[-1],
+        word_size=word2vec.shape[-1],
+        lexicon_window_size=args.lexicon_window_size,
+        pinyin_char_size=args.pinyin_char_embedding_size,
+        max_pinyin_char_length=args.max_pinyin_char_length,
+        max_length=args.max_length,
+        group_num=args.group_num,
+        blank_padding=True,
+        compress_seq=args.compress_seq
     )
 else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')

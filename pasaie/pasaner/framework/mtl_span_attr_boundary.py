@@ -355,12 +355,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
                     loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
                     loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
-                    if torch.abs(loss_span) > 10:
-                        loss_span = 0.
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
                     else:
-                        loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                        if torch.abs(loss_span) > 10:
+                            loss = (loss_attr_start + loss_attr_end) / 2
+                        else:
+                            loss = (loss_span + loss_attr_start + loss_attr_end) / 3
                     loss.backward()
                 else:
                     retain_graph = False

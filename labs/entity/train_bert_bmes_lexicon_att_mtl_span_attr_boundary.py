@@ -1,10 +1,9 @@
 """
  Author: liujian
- Date: 2021-01-29 14:47:29
+ Date: 2021-02-07 12:50:50
  Last Modified by: liujian
- Last Modified time: 2021-01-29 14:47:29
+ Last Modified time: 2021-02-07 12:50:50
 """
-
 
 # coding:utf-8
 import sys
@@ -31,7 +30,8 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
 parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], help='model type')
-parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_cat', 'word_att_add', 'char_att_cat', 'char_att_add'],  help='embedding type of pinyin')
+parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['att_cat', 'att_add'],  
+        help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
