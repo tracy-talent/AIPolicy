@@ -346,8 +346,8 @@ def extract_kvpairs_by_start_end_together(tag_seq, word_seq, neg_tag):
     i = 0
     while i < len(tag_seq):
         s_tag = tag_seq[i]
-        if s_tag == 'Single':
-            pairs.append(((i, i + 1), s_tag, word_seq[i][2:] if word_seq[i].startswith('##') else word_seq[i]))
+        if s_tag.startswith('S-'):
+            pairs.append(((i, i + 1), s_tag[2:], word_seq[i][2:] if word_seq[i].startswith('##') else word_seq[i]))
         elif s_tag != neg_tag:
             for j, e_tag in enumerate(tag_seq[i+1:]):
                 # if e_tag != neg_tag and e_tag != s_tag or j + 2 > 30:

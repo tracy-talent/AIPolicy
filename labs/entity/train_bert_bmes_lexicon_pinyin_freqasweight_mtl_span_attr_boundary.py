@@ -266,8 +266,9 @@ attr2id = load_vocab(args.attr2id_file)
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load pinyin embedding and vocab
-pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
-pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
+if 'word' in args.pinyin_embedding_type:
+    pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
+    pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
 if 'char' in args.pinyin_embedding_type:
     pinyin_char2id = {'[PAD]': 0, '[UNK]': 1, '\'': 2}

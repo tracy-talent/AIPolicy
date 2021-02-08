@@ -35,6 +35,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                 logger, 
                 tb_logdir,
                 word_embedding=None, 
+                bigram_embedding=None, 
                 compress_seq=True,
                 tagscheme='bmoes',
                 batch_size=32, 
@@ -69,6 +70,13 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
             del word_embedding
         else:
             self.word_embedding = word_embedding
+        if bigram_embedding is not None and bigram_embedding.weight.requires_grad:
+            self.bigram_embedding = nn.Embedding(*bigram_embedding.weight.size())
+            self.bigram_embedding.weight.data.copy_(bigram_embedding.weight.data)
+            self.bigram_embedding.weight.requires_grad = bigram_embedding.weight.requires_grad
+            del bigram_embedding
+        else:
+            self.bigram_embedding = bigram_embedding
 
         # Load Data
         if train_path != None:
@@ -133,6 +141,9 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
         if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
              embedding_params = self.word_embedding.parameters()
              pretrained_params_id.extend(list(map(id, embedding_params)))
+        if self.bigram_embedding is not None and self.bigram_embedding.weight.requires_grad:
+            embedding_params = self.bigram_embedding.parameters()
+            pretrained_params_id.extend(list(map(id, embedding_params)))
         if self.is_bert_encoder:
             encoder_params = self.parallel_model.module.sequence_encoder.parameters()
             pretrained_params_id.extend(list(map(id, encoder_params)))
@@ -229,10 +240,14 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
         else:
             self.adv = None
         # Cuda
+        word_embedding = self.word_embedding
+        bigram_embedding = self.bigram_embedding
         del self.word_embedding # avoid embedding to cuda
+        del self.bigram_embedding # avoid embedding to cuda
         if torch.cuda.is_available():
             self.cuda()
         self.word_embedding = word_embedding
+        self.bigram_embedding = bigram_embedding
         # Ckpt
         self.ckpt = ckpt
         # logger
@@ -313,18 +328,17 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                         try:
                             if i == 3 and self.word_embedding is not None:
                                 data[i] = self.word_embedding(data[i]).cuda()
+                            elif i == 6 and self.bigram_embedding is not None:
+                                data[i] = self.bigram_embedding(data[i]).cuda()
                             else:
                                 data[i] = data[i].cuda()
                         except:
                             pass
                 else:
-                    if self.word_embedding is not None: # for debug, embedding has nan
-                        # we = self.word_embedding(data[3])
-                       # for i in range(we.size(0)):
-                       #     for j in range(we.size(1)):
-                       #         if we[i][j].isnan().any():
-                       #             print(f'word embedding {j} has nan:', self.model.sequence_encoder.word_tokenizer.convert_ids_to_tokens(j))
+                    if self.word_embedding is not None and len(data) > 3:
                         data[3] = self.word_embedding(data[3])
+                    if bigram_embedding is not None and len(data) > 6:
+                        data[6] = self.bigram_embedding(data[6])
                 args = data[2:]
                 logits_span, logits_attr = self.parallel_model(*args)
                 outputs_seq_span = data[0]
@@ -545,10 +559,17 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                         try:
                             if i == 3 and self.word_embedding is not None:
                                 data[i] = self.word_embedding(data[i]).cuda()
+                            elif i == 6 and self.bigram_embedding is not None:
+                                data[i] = self.bigram_embedding(data[i]).cuda()
                             else:
                                 data[i] = data[i].cuda()
                         except:
                             pass
+                else:
+                    if self.word_embedding is not None and len(data) > 3:
+                        data[3] = self.word_embedding(data[3])
+                    if bigram_embedding is not None and len(data) > 6:
+                        data[6] = self.bigram_embedding(data[6])
                 args = data[2:]
                 logits_span, logits_attr = self.parallel_model(*args)
                 outputs_seq_span = data[0]

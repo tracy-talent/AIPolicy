@@ -3,16 +3,20 @@
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 lexicon_window_sizes=(4)
 python_command="
-python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+python train_base_bigram_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
+    --unigram2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.bin \
+    --bigram2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.bi.3987k.50d.bin \
+    --word2pinyin_file /home/mist/NLP/corpus/pinyin/word2pinyin_num5.txt \
+    --pinyin_embedding_type word_att_cat \
     --group_num 3 \
+    --model_type ple \
     --dataset $1 \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
-    --use_lstm \
+    --span_use_lstm \
+    --span_use_crf \
+    --attr_use_lstm \
     --batch_size 16 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
@@ -58,8 +62,8 @@ do
     echo "Run dataset $1: dpr=$dpr, wz=$lws"
     CUDA_VISIBLE_DEVICES=$4 \
     $python_command \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/$pinyin2vec \
+    --word2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
+    --pinyin2vec_file /home/mist/NLP/corpus/pinyin/$pinyin2vec \
     --max_length $maxlen \
     --dropout_rate $dpr \
     --lexicon_window_size $lws

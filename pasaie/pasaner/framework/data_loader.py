@@ -298,7 +298,7 @@ class SpanAttrBoundaryTogetherNERDataset(MultiNERDataset):
                 if st == 'B' or st == 'E':
                     attr_boundary_labels.append(self.attr2id[at])
                 elif st == 'S':
-                    attr_boundary_labels.append(self.attr2id['Single'])
+                    attr_boundary_labels.append(self.attr2id[f'S-{at}'])
                 else:
                     attr_boundary_labels.append(self.attr2id['null'])
             attr_boundary_labels.extend([self.attr2id['null']] * (length - len(items[2])))
@@ -310,7 +310,7 @@ class SpanAttrBoundaryTogetherNERDataset(MultiNERDataset):
                 if st == 'B' or st == 'E':
                     attr_boundary_labels.append(self.attr2id[at])
                 elif st == 'S':
-                    attr_boundary_labels.append(self.attr2id['Single'])
+                    attr_boundary_labels.append(self.attr2id[f'S-{at}'])
                 else:
                     attr_boundary_labels.append(self.attr2id['null'])
             attr_boundary_labels[-1] = self.attr2id['null']

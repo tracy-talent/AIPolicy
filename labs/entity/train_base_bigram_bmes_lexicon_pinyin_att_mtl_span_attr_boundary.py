@@ -1,9 +1,4 @@
-"""
- Author: liujian
- Date: 2021-02-06 16:04:01
- Last Modified by: liujian
- Last Modified time: 2021-02-06 16:04:01
-"""
+
 
 # coding:utf-8
 import sys
@@ -69,8 +64,10 @@ parser.add_argument('--span2id_file', default='', type=str,
         help='entity span to ID file')
 parser.add_argument('--attr2id_file', default='', type=str,
         help='entity attr to ID file')
-parser.add_argument('--token2vec_file', default='', type=str,
-        help='token2vec embedding file')
+parser.add_argument('--unigram2vec_file', default='', type=str,
+        help='unigram2vec embedding file')
+parser.add_argument('--bigram2vec_file', default='', type=str,
+        help='bigram2vec embedding file')
 parser.add_argument('--word2vec_file', default='', type=str,
         help='word2vec embedding file')
 parser.add_argument('--pinyin2vec_file', default='', type=str,
@@ -158,23 +155,23 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior'
     elif args.model_type == 'attention':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention'
     elif args.model_type == 'mmoe':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe'
     elif args.model_type == 'ple':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple'
     elif args.model_type == 'plethree':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple'
     elif args.model_type == 'pletogether':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple'
     elif args.model_type == 'plerand':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand'
     elif args.model_type == 'plecat':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat'
     else:
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary'
     # model_name += '_drop_ln'
     # model_name += '_drop'
     model_name += f'_relu_crf{args.crf_lr:.0e}'
@@ -260,9 +257,12 @@ for arg in vars(args):
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
-# load token embedding and vocab
-token2id, token2vec = load_wordvec(args.token2vec_file, binary='.bin' in args.token2vec_file)
-token2id, token_embedding = construct_embedding_from_numpy(word2id=token2id, word2vec=token2vec, finetune=False)
+# load unigram embedding and vocab
+unigram2id, unigram2vec = load_wordvec(args.unigram2vec_file, binary='.bin' in args.unigram2vec_file)
+unigram2id, unigram_embedding = construct_embedding_from_numpy(word2id=unigram2id, word2vec=unigram2vec, finetune=False)
+# load bigram embedding and vocab
+bigram2id, bigram2vec = load_wordvec(args.bigram2vec_file, binary='.bin' in args.bigram2vec_file)
+bigram2id, bigram_embedding = construct_embedding_from_numpy(word2id=bigram2id, word2vec=bigram2vec, finetune=False)
 # load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
@@ -293,13 +293,15 @@ if 'char' in args.pinyin_embedding_type:
 
 # Define the sentence encoder
 if args.pinyin_embedding_type == 'word_att_add':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(
-        token2id=token2id,
+    sequence_encoder = pasaner.encoder.BASE_Bigram_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(
+        unigram2id=unigram2id,
+        bigram2id=bigram2id,
         word2id=word2id,
         pinyin2id=pinyin2id,
-        token_embedding=token_embedding,
+        unigram_embedding=unigram_embedding,
         pinyin_embedding=pinyin_embedding,
-        token_size=token2vec.shape[-1],
+        unigram_size=unigram2vec.shape[-1],
+        bigram_size=bigram2vec.shape[-1],
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_size=pinyin2vec.shape[-1],
@@ -309,13 +311,15 @@ if args.pinyin_embedding_type == 'word_att_add':
         compress_seq=args.compress_seq
     )
 elif args.pinyin_embedding_type == 'word_att_cat':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(
-        token2id=token2id,
+    sequence_encoder = pasaner.encoder.BASE_Bigram_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(
+        unigram2id=unigram2id,
+        bigram2id=bigram2id,
         word2id=word2id,
         pinyin2id=pinyin2id,
-        token_embedding=token_embedding,
+        unigram_embedding=unigram_embedding,
         pinyin_embedding=pinyin_embedding,
-        token_size=token2vec.shape[-1],
+        unigram_size=unigram2vec.shape[-1],
+        bigram_size=bigram2vec.shape[-1],
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_size=pinyin2vec.shape[-1],
@@ -325,12 +329,14 @@ elif args.pinyin_embedding_type == 'word_att_cat':
         compress_seq=args.compress_seq
     )
 elif args.pinyin_embedding_type == 'char_att_add':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(
-        token2id=token2id,
+    sequence_encoder = pasaner.encoder.BASE_Bigram_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(
+        unigram2id=unigram2id,
+        bigram2id=bigram2id,
         word2id=word2id,
         pinyin_char2id=pinyin_char2id,
-        token_embedding=token_embedding,
-        token_size=token2vec.sjape[-1],
+        unigram_embedding=unigram_embedding,
+        unigram_size=unigram2vec.shape[-1],
+        bigram_size=bigram2vec.shape[-1],
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
@@ -341,12 +347,14 @@ elif args.pinyin_embedding_type == 'char_att_add':
         compress_seq=args.compress_seq
     )
 elif args.pinyin_embedding_type == 'char_att_cat':
-    sequence_encoder = pasaner.encoder.BASE_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(
-        token2id=token2id,
+    sequence_encoder = pasaner.encoder.BASE_Bigram_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(
+        unigram2id=unigram2id,
+        bigram2id=bigram2id,
         word2id=word2id,
         pinyin_char2id=pinyin_char2id,
-        token_embedding=token_embedding,
-        token_size=token2vec.sjape[-1],
+        unigram_embedding=unigram_embedding,
+        unigram_size=unigram2vec.shape[-1],
+        bigram_size=bigram2vec.shape[-1],
         word_size=word2vec.shape[-1],
         lexicon_window_size=args.lexicon_window_size,
         pinyin_char_size=args.pinyin_char_embedding_size,
@@ -474,6 +482,7 @@ else:
 framework = framework_class(
     model=model,
     word_embedding=word_embedding,
+    bigram_embedding=bigram_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,

@@ -41,14 +41,14 @@ class AutomaticWeightedLoss(nn.Module):
         loss_sum = 0
         loss_num = len(x)
         for i, loss in enumerate(x):
-            if self.mode == 'cls':
+            if torch.abs(loss) > 10:
+                loss_num -= 1
+            elif self.mode == 'cls':
                 loss_sum += 2.0 / (self.params[i] ** 2) * loss + torch.log(self.params[i] ** 2) # +1 to avoid negtive
                 #loss_sum += 2 * torch.exp(-self.params[i]) * loss + self.params[i]
             else:
                 loss_sum += 1.0 / (self.params[i] ** 2) * loss + torch.log(self.params[i] ** 2) # +1 to avoid negtive
                 #loss_sum += torch.exp(-self.params[i]) * loss + self.params[i]
-            if torch.abs(loss) > 10:
-                loss_num -= 1
         if loss_num == 0:
             loss_num = len(x)
         loss_sum /= loss_num
