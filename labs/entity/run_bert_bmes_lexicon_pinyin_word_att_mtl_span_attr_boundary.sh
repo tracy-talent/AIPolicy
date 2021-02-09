@@ -1,12 +1,13 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=(0.1 0.2 0.3 0.4 0.5)
-lexicon_window_sizes=(4)
+dropout_rates=(0.5)
+lexicon_window_sizes=(16)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2pinyin_file /home/mist/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type word_att_add \
+    --only_test \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \

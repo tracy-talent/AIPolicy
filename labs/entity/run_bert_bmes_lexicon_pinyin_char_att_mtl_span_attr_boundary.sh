@@ -1,7 +1,7 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: GPU id
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
-lexicon_window_sizes=(4)
+lexicon_window_sizes=(8 7 6 5 4)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \

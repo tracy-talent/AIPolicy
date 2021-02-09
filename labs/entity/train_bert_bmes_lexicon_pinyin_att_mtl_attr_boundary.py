@@ -148,7 +148,7 @@ def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
     return dataset_name
 def make_model_name():
-    model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_attr_boundary_bert'
+    model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_attr_boundary_bert'
     if args.use_lstm:
         model_name += '_lstm'
     model_name += '_' + args.loss
@@ -312,7 +312,7 @@ model = pasaner.model.Span_Pos_CLS(
 framework = pasaner.framework.Span_Multi_NER(
         model=model,
         train_path=args.train_file if not args.only_test else None,
-        val_path=args.val_file if not args.only_test else None,
+        val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
         test_path=args.test_file if not args.dataset == 'msra' else None,
         ckpt=ckpt,
         logger=logger,
@@ -337,9 +337,9 @@ framework = pasaner.framework.Span_Multi_NER(
     )
 
 # Load pretrained model
-#if ckpt_cnt > 0:
-#    logger.info('load checkpoint')
-#    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+if ckpt_cnt > 0 and args.only_test:
+   logger.info('load checkpoint')
+   framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:

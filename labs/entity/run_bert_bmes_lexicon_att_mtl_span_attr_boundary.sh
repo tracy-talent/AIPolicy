@@ -6,6 +6,7 @@ python_command="
 python train_bert_bmes_lexicon_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --embedding_fusion_type att_add \
+    --only_test \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \

@@ -160,23 +160,23 @@ def make_dataset_name():
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_startprior'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_startprior'
     elif args.model_type == 'attention':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_attention'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_attention'
     elif args.model_type == 'mmoe':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_mmoe'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe'
     elif args.model_type == 'ple':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple'
     elif args.model_type == 'plethree':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_three_boundary_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple'
     elif args.model_type == 'pletogether':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_together_ple'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_together_ple'
     elif args.model_type == 'plerand':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_plerand'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plerand'
     elif args.model_type == 'plecat':
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary_plecat'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat'
     else:
-        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_attn_mtl_span_attr_boundary'
+        model_name = f'bigram_bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary'
     # model_name += '_drop_ln'
     # model_name += '_drop'
     model_name += f'_relu_crf{args.crf_lr:.0e}'
@@ -489,7 +489,7 @@ framework = framework_class(
     word_embedding=word_embedding,
     bigram_embedding=bigram_embedding,
     train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test else None,
+    val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,
     ckpt=ckpt,
     logger=logger,
@@ -513,9 +513,9 @@ framework = framework_class(
 )
 
 # Load pretrained model
-#if ckpt_cnt > 0:
-#    logger.info('load checkpoint')
-#    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+if ckpt_cnt > 0 and args.only_test:
+   logger.info('load checkpoint')
+   framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
