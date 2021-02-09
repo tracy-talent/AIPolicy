@@ -337,7 +337,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                 else:
                     if self.word_embedding is not None and len(data) > 3:
                         data[3] = self.word_embedding(data[3])
-                    if bigram_embedding is not None and len(data) > 6:
+                    if self.bigram_embedding is not None and len(data) > 6:
                         data[6] = self.bigram_embedding(data[6])
                 args = data[2:]
                 logits_span, logits_attr = self.parallel_model(*args)
@@ -568,7 +568,7 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                 else:
                     if self.word_embedding is not None and len(data) > 3:
                         data[3] = self.word_embedding(data[3])
-                    if bigram_embedding is not None and len(data) > 6:
+                    if self.bigram_embedding is not None and len(data) > 6:
                         data[6] = self.bigram_embedding(data[6])
                 args = data[2:]
                 logits_span, logits_attr = self.parallel_model(*args)

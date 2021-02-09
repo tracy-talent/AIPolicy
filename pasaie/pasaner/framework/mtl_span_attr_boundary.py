@@ -346,7 +346,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 else:
                     if self.word_embedding is not None and len(data) > 4:
                         data[4] = self.word_embedding(data[4])
-                    if bigram_embedding is not None and len(data) > 7:
+                    if self.bigram_embedding is not None and len(data) > 7:
                         data[7] = self.bigram_embedding(data[7])
                 args = data[3:]
                 if 'StartPrior' in self.model.__class__.__name__:
@@ -597,7 +597,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 else:
                     if self.word_embedding is not None and len(data) > 4:
                         data[4] = self.word_embedding(data[4])
-                    if bigram_embedding is not None and len(data) > 7:
+                    if self.bigram_embedding is not None and len(data) > 7:
                         data[7] = self.bigram_embedding(data[7])
                 args = data[3:]
                 if 'StartPrior' in self.model.__class__.__name__:

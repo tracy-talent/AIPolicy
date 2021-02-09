@@ -32,12 +32,16 @@ def extract_score_from_logs(log_dir, save_path=None):
             for logfile in os.listdir(subdir_path):
                 if logfile.endswith('.log'):
                     score_dict, dpr, wz, pinyin_vec = extract_target_scores(os.path.join(subdir_path, logfile))
+                    if dpr is None or wz is None:
+                        continue
+                    if pinyin_vec is None and 'char' in subdir:
+                        pinyin_vec = 'char'
                     if all(score_str in score_dict for score_str in target_score_strings):
                         target_scores['dpr'].append(float(dpr))
                         target_scores['wz'].append(float(wz))
                         for score_name, score in score_dict.items():
                             target_scores[score_name].append(float(score))
-
+            
             # 对同一参数目录下的所有log文件取均值
             tmp_dict = {}
             for score_name, score_list in target_scores.items():
@@ -47,6 +51,9 @@ def extract_score_from_logs(log_dir, save_path=None):
                     factor = 1
                 tmp_dict[score_name] = round(np.mean(score_list) * factor, ndigits=2)
             if len(tmp_dict) > 0:
+                if pinyin_vec is None:
+                    pinyin_vec = 'char'
+                    print(subdir_path)
                 tmp_dict['pinyin_vec'] = pinyin_vec
                 param_dict[subdir] = tmp_dict
         dataset_scores[dataset] = param_dict
@@ -54,6 +61,7 @@ def extract_score_from_logs(log_dir, save_path=None):
     table_list = display_results(dataset_scores)
     if save_path:
         save_as_excel(dataset_scores, save_path=save_path)
+        # print('\n'.join(table_list))
     else:
         print('\n'.join(table_list))
 
@@ -213,15 +221,15 @@ def set_style(font_name="Times New Roman",
     return style
 
 
-def write_sheet_head(sheet, dataset, cur_row, height_color=0x0a):
-    sheet.write(cur_row, 0, dataset, set_style(color=height_color, height=20*16, bold=False))
+def write_sheet_head(sheet, dataset, cur_row, hl_color=0x0a):
+    sheet.write(cur_row, 0, dataset, set_style(color=hl_color, height=20*16, bold=False))
     column_list = ['Params', 'Precision', 'Recall', 'F1']
     for ith, v in enumerate(column_list):
         sheet.write(cur_row + 1, ith, v, set_style(borders_tags=[2, 2, 2, 2], bold=True))
     return cur_row + 2
 
 
-def write_sheet_content(sheet, param_dict, cur_row, height_color=0x0A):
+def write_sheet_content(sheet, param_dict, cur_row, hl_color=0x0A):
     precision_list, recall_list, f1_list = [], [], []
     for _, score_dict in param_dict.items():
         precision_list.append(score_dict['Micro precision'])
@@ -243,16 +251,16 @@ def write_sheet_content(sheet, param_dict, cur_row, height_color=0x0A):
             micro_p = "%.2f" % score_dict['Micro precision']
             micro_r = "%.2f" % score_dict['Micro recall']
             micro_f1 = "%.2f" % score_dict['Micro F1']
-            micro_p_color = height_color if score_dict['Micro precision'] == precision_max else 0
-            micro_r_color = height_color if score_dict['Micro recall'] == recall_max else 0
-            micro_f1_color = height_color if score_dict['Micro F1'] == f1_max else 0
-            p_seg = [(span_micro_p, set_font()), ('/', set_font()), (micro_p, set_font(color=micro_p_color))]
-            r_seg = [(span_micro_r, set_font()), ('/', set_font()), (micro_r, set_font(color=micro_r_color))]
-            f1_seg = [(span_micro_f1, set_font()), ('/', set_font()), (micro_f1, set_font(color=micro_f1_color))]
+            micro_p_color = hl_color if score_dict['Micro precision'] == precision_max else 0
+            micro_r_color = hl_color if score_dict['Micro recall'] == recall_max else 0
+            micro_f1_color = hl_color if score_dict['Micro F1'] == f1_max else 0
+            p_seg = [(span_micro_p, set_font()), (' / ', set_font()), (micro_p, set_font(color=micro_p_color))]
+            r_seg = [(span_micro_r, set_font()), (' / ', set_font()), (micro_r, set_font(color=micro_r_color))]
+            f1_seg = [(span_micro_f1, set_font()), (' / ', set_font()), (micro_f1, set_font(color=micro_f1_color))]
             bottom_tag = 2 if ith + 1 == len(param_dict) else 0
 
             simple_params = parse_params_dir(param_name, score_dict['pinyin_vec'])
-            params_seg = [(simple_params, set_font()), (f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})", set_font(color=height_color))]
+            params_seg = [(simple_params, set_font()), (f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})", set_font(color=hl_color))]
             sheet.write(cur_row, 0, params_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
             sheet.write_rich_text(cur_row, 1, p_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
             sheet.write_rich_text(cur_row, 2, r_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
@@ -264,13 +272,13 @@ def write_sheet_content(sheet, param_dict, cur_row, height_color=0x0A):
 
 def save_as_excel(res_dict, save_path):
     workbook = xlwt.Workbook(encoding='utf-8')
-    sheet = workbook.add_sheet("sheet")
 
-    cur_row = 0
     for dataset, param_dict in res_dict.items():
+        cur_row = 0
+        sheet = workbook.add_sheet(f"sheet_{dataset}")
         cur_row = write_sheet_head(sheet, dataset, cur_row)
         cur_row = write_sheet_content(sheet, param_dict, cur_row)
-    set_column_width(sheet)
+        set_column_width(sheet)
     workbook.save(save_path)
 
 
@@ -294,5 +302,7 @@ class Colored(object):
 
 
 if __name__ == '__main__':
-    extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
+    # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
+    #                         save_path='./example.xls')
+    extract_score_from_logs('/home/mist/github/AIPolicy/output/entity/logs',
                             save_path='./example.xls')
