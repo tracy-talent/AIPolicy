@@ -1,5 +1,6 @@
 import os
 import re
+import xlwt
 from collections import defaultdict
 
 import numpy as np
@@ -52,8 +53,7 @@ def extract_score_from_logs(log_dir, save_path=None):
 
     table_list = display_results(dataset_scores)
     if save_path:
-        with open(save_path, 'w', encoding='utf8') as fout:
-            fout.write('\n'.join(table_list))
+        save_as_excel(dataset_scores, save_path=save_path)
     else:
         print('\n'.join(table_list))
 
@@ -146,6 +146,134 @@ def display_results(res_dict):
     return table_list
 
 
+def init_xlwt_style():
+    font = xlwt.Font()
+    font.name = 'Times New Roman'
+    font.height = 20 * 11   # 字体大小，11为字号，20为衡量单位
+    font.bold = False
+
+    borders = xlwt.Borders()
+    # 细实线:1，小粗实线:2，细虚线:3，中细虚线:4，大粗实线:5，双线:6，细点虚线:7
+    # 大粗虚线:8，细点划线:9，粗点划线:10，细双点划线:11，粗双点划线:12，斜点划线:13
+    borders.left = 1
+    borders.right = 1
+    borders.top = 1
+    borders.bottom = 1
+
+    alignment = xlwt.Alignment()
+    # 0x01(左端对齐)、0x02(水平方向上居中对齐)、0x03(右端对齐)
+    alignment.horz = 0x02
+    # 0x00(上端对齐)、 0x01(垂直方向上居中对齐)、0x02(底端对齐)
+    alignment.vert = 0x01
+
+    style0 = xlwt.XFStyle()
+    style0.font = font
+    style0.borders = borders
+    style0.alignment = alignment
+
+    return style0
+
+
+def set_font(font_name="Times New Roman", color=0, height=20*14, bold=False):
+    font = xlwt.Font()  # 为样式创建字体
+    font.name = font_name     # 字体类型：比如宋体、仿宋也可以是汉仪瘦金书繁
+    font.colour_index = color     # 设置字体颜色
+    font.height = height     # 字体大小
+    font.bold = bold     # 粗体
+    return font
+
+
+def set_column_width(sheet):
+    sheet.col(0).width = 100 * 256
+    sheet.col(1).width = 16 * 256
+    sheet.col(2).width = 16 * 256
+    sheet.col(3).width = 16 * 256
+
+
+def set_style(font_name="Times New Roman",
+              height=20*14,
+              color=0,
+              borders_tags=None,
+              bold=False):
+    style = xlwt.XFStyle()  # 初始化样式
+    font = set_font(font_name, color, height, bold)
+    style.font = font
+    # NO_LINE： 官方代码中NO_LINE所表示的值为0，没有边框; THIN： 官方代码中THIN所表示的值为1，边框为实线
+    if borders_tags:
+        borders = xlwt.Borders()
+        borders.left, borders.right, borders.top, borders.bottom = borders_tags
+        style.borders = borders
+    alignment = xlwt.Alignment()
+    # 0x01(左端对齐)、0x02(水平方向上居中对齐)、0x03(右端对齐)
+    alignment.horz = 0x02
+    # 0x00(上端对齐)、 0x01(垂直方向上居中对齐)、0x02(底端对齐)
+    alignment.vert = 0x01
+    style.alignment = alignment
+
+    return style
+
+
+def write_sheet_head(sheet, dataset, cur_row, height_color=0x0a):
+    sheet.write(cur_row, 0, dataset, set_style(color=height_color, height=20*16, bold=False))
+    column_list = ['Params', 'Precision', 'Recall', 'F1']
+    for ith, v in enumerate(column_list):
+        sheet.write(cur_row + 1, ith, v, set_style(borders_tags=[2, 2, 2, 2], bold=True))
+    return cur_row + 2
+
+
+def write_sheet_content(sheet, param_dict, cur_row, height_color=0x0A):
+    precision_list, recall_list, f1_list = [], [], []
+    for _, score_dict in param_dict.items():
+        precision_list.append(score_dict['Micro precision'])
+        recall_list.append(score_dict['Micro recall'])
+        f1_list.append(score_dict['Micro F1'])
+    if len(precision_list) == 0 or len(recall_list) == 0 or len(f1_list) == 0:
+        return cur_row
+    precision_max = max(precision_list)
+    recall_max = max(recall_list)
+    f1_max = max(f1_list)
+
+    for ith, (param_name, score_dict) in enumerate(param_dict.items()):
+        if score_dict['pinyin_vec'] is None:
+            continue
+        else:
+            span_micro_p = "%.2f" % score_dict['Span Micro precision']
+            span_micro_r = "%.2f" % score_dict['Span Micro recall']
+            span_micro_f1 = "%.2f" % score_dict['Span Micro F1']
+            micro_p = "%.2f" % score_dict['Micro precision']
+            micro_r = "%.2f" % score_dict['Micro recall']
+            micro_f1 = "%.2f" % score_dict['Micro F1']
+            micro_p_color = height_color if score_dict['Micro precision'] == precision_max else 0
+            micro_r_color = height_color if score_dict['Micro recall'] == recall_max else 0
+            micro_f1_color = height_color if score_dict['Micro F1'] == f1_max else 0
+            p_seg = [(span_micro_p, set_font()), ('/', set_font()), (micro_p, set_font(color=micro_p_color))]
+            r_seg = [(span_micro_r, set_font()), ('/', set_font()), (micro_r, set_font(color=micro_r_color))]
+            f1_seg = [(span_micro_f1, set_font()), ('/', set_font()), (micro_f1, set_font(color=micro_f1_color))]
+            bottom_tag = 2 if ith + 1 == len(param_dict) else 0
+
+            simple_params = parse_params_dir(param_name, score_dict['pinyin_vec'])
+            params_seg = [(simple_params, set_font()), (f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})", set_font(color=height_color))]
+            sheet.write(cur_row, 0, params_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
+            sheet.write_rich_text(cur_row, 1, p_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
+            sheet.write_rich_text(cur_row, 2, r_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
+            sheet.write_rich_text(cur_row, 3, f1_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
+            cur_row += 1
+
+    return cur_row
+
+
+def save_as_excel(res_dict, save_path):
+    workbook = xlwt.Workbook(encoding='utf-8')
+    sheet = workbook.add_sheet("sheet")
+
+    cur_row = 0
+    for dataset, param_dict in res_dict.items():
+        cur_row = write_sheet_head(sheet, dataset, cur_row)
+        cur_row = write_sheet_content(sheet, param_dict, cur_row)
+    set_column_width(sheet)
+    workbook.save(save_path)
+
+
 class Colored(object):
     #  前景色:红色  背景色:默认
     def red(self, s):
@@ -167,4 +295,4 @@ class Colored(object):
 
 if __name__ == '__main__':
     extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
-                            save_path=None)
+                            save_path='./example.xls')
