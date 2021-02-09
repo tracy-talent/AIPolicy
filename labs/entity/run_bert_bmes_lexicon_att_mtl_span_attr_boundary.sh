@@ -21,7 +21,6 @@ python train_bert_bmes_lexicon_att_mtl_span_attr_boundary.py \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
-    --max_epoch 5 \
     --optimizer adam \
     --loss ce \
     --adv fgm \
@@ -31,8 +30,10 @@ python train_bert_bmes_lexicon_att_mtl_span_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
+    maxep=10
 else
     maxlen=256
+    maxep=5
 fi
 
 if [ $2 == sgns ]
@@ -51,6 +52,7 @@ do
     $python_command \
     --word2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
     --max_length $maxlen \
+    --max_epoch $maxep \
     --dropout_rate $dpr \
     --lexicon_window_size $lws
     done

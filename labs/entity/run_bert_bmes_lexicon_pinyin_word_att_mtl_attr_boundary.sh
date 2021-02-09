@@ -21,7 +21,6 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
     --warmup_step 0 \
     --max_pinyin_char_length 7 \
     --pinyin_char_embedding_size 50 \
-    --max_epoch 5 \
     --optimizer adam \
     --loss ce \
     --adv fgm \
@@ -31,8 +30,10 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
+    maxep=10
 else
     maxlen=256
+    maxep=5
 fi
 
 if [ $2 == sgns ]
@@ -61,6 +62,7 @@ do
     --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
     --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/$pinyin2vec \
     --max_length $maxlen \
+    --max_epoch $maxep \
     --dropout_rate $dpr \
     --lexicon_window_size $lws
     done

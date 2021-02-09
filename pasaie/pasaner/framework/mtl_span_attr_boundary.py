@@ -723,7 +723,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             with open(result_file, 'w', encoding='utf-8') as f:
                 for sent, pred, gold in zip(sentences, preds_kvpairs, golds_kvpairs):
                     words = self.sequence_encoder.word_tokenizer.tokenize(sent)
-                    result_file.write(f'{words}\n{pred}\n{gold}\n')
+                    result_file.write(f'{words}\n{pred}\n{gold}\n\n')
 
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v

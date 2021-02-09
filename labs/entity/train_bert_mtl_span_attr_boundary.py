@@ -369,9 +369,9 @@ if not args.only_test:
 
 # Test
 if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader)
+    result = framework.eval_model(framework.val_loader, f'{args.dataset}_case_study_without_lexicon_pinyin.txt')
 else:
-    result = framework.eval_model(framework.test_loader)
+    result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_without_lexicon_pinyin.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))
