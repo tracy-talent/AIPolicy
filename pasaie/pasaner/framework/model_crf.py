@@ -285,9 +285,15 @@ class Model_CRF(BaseFramework):
                 if torch.cuda.is_available():
                     for i in range(len(data)):
                         try:
-                            data[i] = data[i].cuda()
+                            if i == 2 and self.word_embedding is not None:
+                                data[i] = self.word_embedding(data[i]).cuda()
+                            else:
+                                data[i] = data[i].cuda()
                         except:
                             pass
+                else:
+                    if self.word_embedding is not None:
+                        data[2] = self.word_embedding(data[2])
                 args = data[1:]
                 logits = self.parallel_model(*args)
                 outputs_seq = data[0]

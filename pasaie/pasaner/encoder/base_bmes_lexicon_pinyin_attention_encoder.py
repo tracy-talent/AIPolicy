@@ -195,9 +195,9 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens, blank_id=self.token2id['[PAD]'], unk_id=self.token2id['[UNK]'])
         if self.blank_padding:
             if len(indexed_tokens) <= self.max_length:
-                padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
+                token_padding_idx = self.token2id['[PAD]']
                 while len(indexed_tokens) < self.max_length:
-                    indexed_tokens.append(padding_idx)
+                    indexed_tokens.append(token_padding_idx)
                 indexed_bmes, indexed_lexicons, indexed_pinyins = self.lexicon_match(tokens)
                 for _ in range(self.max_length - len(tokens)):
                     indexed_bmes.append([self.bmes2id['[UNK]']] * self.max_matched_lexcons)
@@ -214,7 +214,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         indexed_pinyins = torch.tensor(indexed_pinyins).long().unsqueeze(0) # (1, L, W)
         indexed_bmes = torch.tensor(indexed_bmes).long().unsqueeze(0) # (1, L, W)
         # attention mask
-        att_token_mask = (indexed_tokens != self.tokenizer.convert_tokens_to_ids('[PAD]')).type(torch.uint8) # (1, L)
+        att_token_mask = (indexed_tokens != self.token2id['[PAD]']).type(torch.uint8) # (1, L)
         att_lexicon_mask = (indexed_lexicons != self.word2id['[PAD]']).type(torch.uint8) # (1, L, 3, W)
 
         # ensure the first three is indexed_tokens and indexed_lexicons and indexed_token2pinyins, the last is att_token_mask
