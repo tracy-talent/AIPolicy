@@ -83,11 +83,11 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             self.pinyin_embedding.weight.requires_grad = pinyin_embedding.weight.requires_grad
         # LSTM
         self.bilstm = nn.LSTM(input_size=self.token_size, 
-                            hidden_size=self.token_size * 2, 
+                            hidden_size=self.token_size, 
                             num_layers=1, 
                             bidirectional=True, 
                             batch_first=True)
-        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.pinyin_size + self.word_size, self.token_size * 2)
+        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.pinyin_size + self.word_size, self.token_size)
         # Tokenizer
         self.tokenizer = WordTokenizer(vocab=self.token2id, unk_token="[UNK]")
         # hidden size of encoder output
@@ -115,7 +115,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(token_seqs_hidden, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2token)
-        inputs_embed = torch.cat([token_seqs_embed, cat_embed_att_output], dim=-1)
+        inputs_embed = torch.cat([token_seqs_hidden, cat_embed_att_output], dim=-1)
 
         return inputs_embed
     
@@ -252,7 +252,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BASE_BMES_Lexicon_PinY
             blank_padding,
             compress_seq
         )
-        self.hidden_size = self.token_size * 2
+        self.hidden_size = self.token_size
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
         """
@@ -341,11 +341,11 @@ class BASE_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
         self.masked_conv1d = masked_singlekernel_conv1d
          # LSTM
         self.bilstm = nn.LSTM(input_size=self.token_size, 
-                            hidden_size=self.token_size * 2, 
+                            hidden_size=self.token_size, 
                             num_layers=1, 
                             bidirectional=True, 
                             batch_first=True)
-        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 2, self.token_size * 2)
+        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_char_size * 2, self.token_size)
         # Tokenizer
         self.tokenizer = WordTokenizer(vocab=self.token2id, unk_token="[UNK]")
         # hidden size of encoder output
@@ -375,7 +375,7 @@ class BASE_BMES_Lexicon_PinYin_Char_Attention_Cat_Encoder(nn.Module):
         pinyin_conv = self.masked_conv1d(seqs_pinyin_char_embed, att_pinyin_char_mask, self.char_conv)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_char_embed], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(token_seqs_hidden, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2token)
-        inputs_embed = torch.cat([token_seqs_embed, cat_embed_att_output], dim=-1)
+        inputs_embed = torch.cat([token_seqs_hidden, cat_embed_att_output], dim=-1)
 
         return inputs_embed
     
@@ -510,7 +510,7 @@ class BASE_BMES_Lexicon_PinYin_Char_Attention_Add_Encoder(BASE_BMES_Lexicon_PinY
             blank_padding,
             compress_seq
         )
-        self.hidden_size = self.token_size * 2
+        self.hidden_size = self.token_size
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
         """
@@ -581,7 +581,7 @@ class BASE_BMES_Lexicon_PinYin_Char_MultiConv_Attention_Cat_Encoder(BASE_BMES_Le
         ])
         self.masked_conv1d = masked_multikernel_conv1d
         pinyin_conv_size = sum(cc[0] for cc in convs_config)
-        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.word_size + pinyin_conv_size, self.token_size * 2)
+        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.word_size + pinyin_conv_size, self.token_size)
         self.hidden_size = self.token_size + len(self.bmes2id) + self.word_size + pinyin_conv_size
 
 

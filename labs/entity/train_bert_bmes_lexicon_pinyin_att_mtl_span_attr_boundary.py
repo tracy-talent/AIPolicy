@@ -485,8 +485,8 @@ framework = framework_class(
 # Load pretrained model
 if ckpt_cnt > 0 and args.only_test:
    logger.info('load checkpoint')
+   logger.info(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
-   print(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
 
 # Train the model
 if not args.only_test:
@@ -495,9 +495,9 @@ if not args.only_test:
 
 # Test
 if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{args.dataset}_case_study_full.txt')
+    result = framework.eval_model(framework.val_loader, f'{args.dataset}_{lexicon_name}_case_study_full.txt')
 else:
-    result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_full.txt')
+    result = framework.eval_model(framework.test_loader, f'{args.dataset}_{lexicon_name}_case_study_full.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

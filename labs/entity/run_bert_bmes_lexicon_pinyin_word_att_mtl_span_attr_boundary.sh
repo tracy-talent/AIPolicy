@@ -1,7 +1,7 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=(0.5)
-lexicon_window_sizes=(16)
+dropout_rates=(0.3)
+lexicon_window_sizes=(4)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
@@ -19,7 +19,7 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --attr_use_lstm \
     --batch_size 32 \
     --lr 1e-3 \
-    --bert_lr 3e-5 \
+    --bert_lr 2e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
@@ -34,19 +34,23 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
-    maxep=10
+    maxep=30
 else
     maxlen=256
-    maxep=5
+    maxep=10
 fi
 
 if [ $2 == sgns ]
 then
     lexicon2vec=sgns_merge_word.1293k.300d.bin
     pinyin_dim=300
+    #dropout_rates=(0.5 0.4 0.3 0.2 0.1)
+    #lexicon_window_sizes=(14 12 11 8 5)
 else
     lexicon2vec=ctbword_gigachar_mix.710k.50d.bin
     pinyin_dim=50
+    #dropout_rates=(0.5 0.4 0.3 0.2 0.1)
+    #lexicon_window_sizes=(13)
 fi
 
 if [ $3 == glove ]

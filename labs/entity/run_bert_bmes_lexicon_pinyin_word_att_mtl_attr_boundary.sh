@@ -1,11 +1,11 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=(0.1 0.2 0.3 0.4 0.5)
-lexicon_window_sizes=(4)
+dropout_rates=(0.1 0.1 0.2 0.2 0.3 0.3)
+lexicon_window_sizes=(13)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
+    --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2pinyin_file /home/mist/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type word_att_add \
     --group_num 3 \
     --dataset $1 \
@@ -13,7 +13,7 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
     --tagscheme bmoes \
     --bert_name bert \
     --use_lstm \
-    --batch_size 16 \
+    --batch_size 32 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
@@ -30,7 +30,7 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
-    maxep=10
+    maxep=15
 else
     maxlen=256
     maxep=5
@@ -59,8 +59,8 @@ do
     echo "Run dataset $1: dpr=$dpr, wz=$lws"
     CUDA_VISIBLE_DEVICES=$4 \
     $python_command \
-    --word2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
-    --pinyin2vec_file /home/liujian/NLP/corpus/pinyin/$pinyin2vec \
+    --word2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
+    --pinyin2vec_file /home/mist/NLP/corpus/pinyin/$pinyin2vec \
     --max_length $maxlen \
     --max_epoch $maxep \
     --dropout_rate $dpr \
