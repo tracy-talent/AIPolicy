@@ -1,2 +1,2 @@
-bash run_bert_bmes_lexicon_pinyin_word_att_mtl_span_attr_boundary.sh resume ctb word2vec 0
-bash run_bert_bmes_lexicon_pinyin_word_att_mtl_span_attr_boundary.sh resume sgns word2vec 0
+bash run_bert_bmes_lexicon_pinyin_word_att_mtl_span_attr_boundary.sh msra ctb word2vec 0
+bash run_bert_bmes_lexicon_pinyin_word_att_mtl_span_attr_boundary.sh msra sgns word2vec 0

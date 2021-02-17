@@ -134,6 +134,8 @@ config.read(os.path.join(project_path, 'config.ini'))
 #set global random seed
 if args.dataset == 'weibo' and args.model_type != 'plerand':
     fix_seed(args.random_seed)
+if args.only_test:
+    args.compress_seq = False
 
 # get lexicon name which used in model_name
 if 'sgns_in_ctb' in args.word2vec_file:
@@ -487,6 +489,8 @@ if ckpt_cnt > 0 and args.only_test:
    logger.info('load checkpoint')
    logger.info(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
    framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+#    logger.info(re.sub('\d+\.pth\.tar', f'test_3.pth.tar', ckpt)) # resume
+#    framework.load_model(re.sub('\d+\.pth\.tar', f'test_3.pth.tar', ckpt)) # resume
 
 # Train the model
 if not args.only_test:

@@ -1,13 +1,12 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=(0.3)
-lexicon_window_sizes=(4)
+dropout_rates=(0.1 0.2 0.3)
+lexicon_window_sizes=(16)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2pinyin_file /home/mist/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type word_att_add \
-    --only_test \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \
@@ -17,9 +16,9 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --span_use_lstm \
     --span_use_crf \
     --attr_use_lstm \
-    --batch_size 32 \
+    --batch_size 64 \
     --lr 1e-3 \
-    --bert_lr 2e-5 \
+    --bert_lr 3e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
@@ -27,14 +26,13 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pinyin_char_embedding_size 50 \
     --optimizer adam \
     --loss ce \
-    --adv fgm \
     --metric micro_f1
 "
 
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
-    maxep=30
+    maxep=10
 else
     maxlen=256
     maxep=10
@@ -44,13 +42,13 @@ if [ $2 == sgns ]
 then
     lexicon2vec=sgns_merge_word.1293k.300d.bin
     pinyin_dim=300
-    #dropout_rates=(0.5 0.4 0.3 0.2 0.1)
-    #lexicon_window_sizes=(14 12 11 8 5)
+    dropout_rates=(0.5 0.4)
+    lexicon_window_sizes=(16)
 else
     lexicon2vec=ctbword_gigachar_mix.710k.50d.bin
     pinyin_dim=50
-    #dropout_rates=(0.5 0.4 0.3 0.2 0.1)
-    #lexicon_window_sizes=(13)
+    dropout_rates=(0.3 0.2 0.1)
+    lexicon_window_sizes=(9)
 fi
 
 if [ $3 == glove ]
