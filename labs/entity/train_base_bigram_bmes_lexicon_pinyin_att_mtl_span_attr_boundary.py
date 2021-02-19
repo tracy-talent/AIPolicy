@@ -264,17 +264,51 @@ span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load unigram embedding and vocab
 unigram2id, unigram2vec = load_wordvec(args.unigram2vec_file, binary='.bin' in args.unigram2vec_file)
-unigram2id, unigram_embedding = construct_embedding_from_numpy(word2id=unigram2id, word2vec=unigram2vec, finetune=False)
-# load bigram embedding and vocab
 bigram2id, bigram2vec = load_wordvec(args.bigram2vec_file, binary='.bin' in args.bigram2vec_file)
-bigram2id, bigram_embedding = construct_embedding_from_numpy(word2id=bigram2id, word2vec=bigram2vec, finetune=False)
+corpus_unigram_vocab = {}
+corpus_bigram_vocab = {}
+for datafile in [args.train_file, args.val_file, args.test_file]:
+    with open(datafile, 'r', encoding='utf-8') as f:
+        lasttoken = None
+        for line in f:
+            line = line.strip().split()
+            if len(line) > 0:
+                if line[0] not in corpus_unigram_vocab:
+                    corpus_unigram_vocab[line[0]] = len(corpus_unigram_vocab)
+                if lasttoken is not None:
+                    bigram = lasttoken + line[0]
+                    if bigram not in corpus_bigram_vocab:
+                        corpus_bigram_vocab[bigram] = len(corpus_bigram_vocab)
+                lattoken = line[0]
+            else:
+                lasttoken = None
+corpus_unigram2vec = np.empty((len(corpus_unigram_vocab), unigram2vec.shape[-1]))
+corpus_bigram2vec = np.empty((len(corpus_bigram_vocab), bigram2vec.shape[-1]))
+unigram_scale = np.sqrt(3.0 / unigram2vec.shape[-1])
+bigram_scale = np.sqrt(3.0 / bigram2vec.shape[-1])
+for token, idx in corpus_unigram_vocab.items():
+    if token in unigram2id:
+        corpus_unigram2vec[idx] = unigram2vec[unigram2id[token]]
+    elif token.lower() in unigram2id:
+        corpus_unigram2vec[idx] = unigram2vec[unigram2id[token.lower()]]
+    else:
+        corpus_unigram2vec[idx] = np.random.uniform(-unigram_scale, unigram_scale, unigram2vec.shape[-1])
+for token, idx in corpus_bigram_vocab.items():
+    if token in bigram2id:
+        corpus_bigram2vec[idx] = bigram2vec[bigram2id[token]]
+    elif token.lower() in bigram2id:
+        corpus_bigram2vec[idx] = bigram2vec[bigram2id[token.lower()]]
+    else:
+        corpus_bigram2vec[idx] = np.random.uniform(-bigram_scale, bigram_scale, bigram2vec.shape[-1])
+unigram2id, unigram_embedding = construct_embedding_from_numpy(word2id=corpus_unigram_vocab, word2vec=corpus_unigram2vec, finetune=True)
+bigram2id, bigram_embedding = construct_embedding_from_numpy(word2id=corpus_bigram_vocab, word2vec=corpus_bigram2vec, finetune=True)
 # load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
-word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=True)
 # load pinyin embedding and vocab
 if 'word' in args.pinyin_embedding_type:
     pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
-    pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
+    pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=True)
 # load map from word to pinyin
 if 'char' in args.pinyin_embedding_type:
     pinyin_char2id = {'[PAD]': 0, '[UNK]': 1, '\'': 2}

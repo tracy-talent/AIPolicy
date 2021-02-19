@@ -25,6 +25,12 @@ import configparser
 
 
 parser = argparse.ArgumentParser()
+parser.add_argument('--tag2id_file', default='', type=str,
+        help='Relation to ID file')
+parser.add_argument('--use_lstm', action='store_true', 
+        help='whether add lstm encoder on top of bert')
+parser.add_argument('--use_crf', action='store_true', 
+        help='whether use crf for sequence decode')
 parser.add_argument('--pretrain_path', default='bert-base-chinese', 
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
@@ -243,6 +249,7 @@ if args.dataset != 'none':
         args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id_together.{args.tagscheme}')
     else:
         args.attr2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'attr2id.{args.tagscheme}')
+    args.tag2id_file = os.path.join(config['path']['ner_dataset'], args.dataset, f'tag2id.{args.tagscheme}')
     if not os.path.exists(args.test_file):
         logger.warn("Test file {} does not exist! Use val file instead".format(args.test_file))
         args.test_file = args.val_file
@@ -257,6 +264,7 @@ logger.info('Arguments:')
 for arg in vars(args):
     logger.info('{}: {}'.format(arg, getattr(args, arg)))
 
+tag2id = load_vocab(args.tag2id_file)
 #  load tag and vocab
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
@@ -375,145 +383,42 @@ elif args.pinyin_embedding_type == 'char_att_cat':
 else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')
 
+
 # Define the model
-if args.model_type == 'attention':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_Attention(
-            sequence_encoder=sequence_encoder, 
-            span2id=span2id,
-            attr2id=attr2id,
-            compress_seq=args.compress_seq,
-            share_lstm=args.share_lstm, # False
-            span_use_lstm=args.span_use_lstm, # True
-            attr_use_lstm=args.attr_use_lstm, # False
-            span_use_crf=args.span_use_crf,
-            dropout_rate=args.dropout_rate
-        )
-elif args.model_type == 'startprior':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_StartPrior(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        soft_label=args.soft_label,
-        dropout_rate=args.dropout_rate
-    )
-elif args.model_type == 'mmoe':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_MMoE(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate
-    )
-elif args.model_type == 'ple' or args.model_type == 'plerand':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_PLE(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate,
-        experts_layers=args.experts_layers,
-        experts_num=args.experts_num
-    )
-elif args.model_type == 'plecat':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Cat_Boundary_PLE(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate,
-        experts_layers=args.experts_layers,
-        experts_num=args.experts_num
-    )
-elif args.model_type == 'plethree':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Three_Boundary_PLE(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate,
-        experts_layers=args.experts_layers,
-        experts_num=args.experts_num
-    )
-elif args.model_type == 'pletogether':
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary_Together_PLE(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate,
-        experts_layers=args.experts_layers,
-        experts_num=args.experts_num
-    )
-else:
-    model = pasaner.model.BILSTM_CRF_Span_Attr_Boundary(
-        sequence_encoder=sequence_encoder, 
-        span2id=span2id,
-        attr2id=attr2id,
-        compress_seq=args.compress_seq,
-        share_lstm=args.share_lstm, # False
-        span_use_lstm=args.span_use_lstm, # True
-        attr_use_lstm=args.attr_use_lstm, # False
-        span_use_crf=args.span_use_crf,
-        dropout_rate=args.dropout_rate
-    )
+model = pasaner.model.BILSTM_CRF(
+    sequence_encoder=sequence_encoder, 
+    tag2id=tag2id, 
+    compress_seq=args.compress_seq,
+    use_lstm=args.use_lstm, 
+    use_crf=args.use_crf,
+    dropout_rate=args.dropout_rate
+)
 
 # Define the whole training framework
-if 'together' in args.model_type:
-    framework_class = pasaner.framework.MTL_Span_Attr_Boundary_Together
-else:
-    framework_class = pasaner.framework.MTL_Span_Attr_Boundary
-framework = framework_class(
+framework = pasaner.framework.Model_CRF(
     model=model,
-    word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
     test_path=args.test_file if not args.dataset == 'msra' else None,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
+    word_embedding=word_embedding,
     compress_seq=args.compress_seq,
-    tagscheme=args.tagscheme, 
+    tagscheme=args.tagscheme,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
-    crf_lr=args.crf_lr,
     lr=args.lr,
     bert_lr=args.bert_lr,
     weight_decay=args.weight_decay,
     early_stopping_step=args.early_stopping_step,
-    warmup_step=args.warmup_step, 
-    mtl_autoweighted_loss=args.use_mtl_autoweighted_loss,
+    warmup_step=args.warmup_step,
     opt=args.optimizer,
     loss=args.loss,
     adv=args.adv,
     dice_alpha=args.dice_alpha,
-    metric=args.metric,
+    metric=args.metric
 )
-
 # Load pretrained model
 if ckpt_cnt > 0 and args.only_test:
    logger.info('load checkpoint')
@@ -531,17 +436,8 @@ else:
     result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
-logger.info('Span Accuracy: {}'.format(result['span_acc']))
-if 'together' in args.model_type:
-    logger.info('Attr Accuracy: {}'.format(result['attr_acc']))
-else:
-    logger.info('Attr Start Accuracy: {}'.format(result['attr_start_acc']))
-    logger.info('Attr End Accuracy: {}'.format(result['attr_start_acc']))
-logger.info('Span Micro precision: {}'.format(result['span_micro_p']))
-logger.info('Span Micro recall: {}'.format(result['span_micro_r']))
-logger.info('Span Micro F1: {}'.format(result['span_micro_f1']))
+logger.info('Accuracy: {}'.format(result['acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
 logger.info('(w{:d}, dpr{:.1f})Micro F1: {}'.format(args.lexicon_window_size, args.dropout_rate, result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))
-

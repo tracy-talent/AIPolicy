@@ -83,14 +83,15 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             self.pinyin_embedding.weight.requires_grad = pinyin_embedding.weight.requires_grad
         # LSTM
         self.bilstm = nn.LSTM(input_size=self.token_size, 
-                            hidden_size=self.token_size, 
+                            hidden_size=200, #self.token_size, 
                             num_layers=1, 
                             bidirectional=True, 
                             batch_first=True)
-        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.pinyin_size + self.word_size, self.token_size)
+        self.bmes_lexicon_pinyin2token = nn.Linear(len(self.bmes2id) + self.pinyin_size + self.word_size, 200)
         # Tokenizer
         self.tokenizer = WordTokenizer(vocab=self.token2id, unk_token="[UNK]")
         # hidden size of encoder output
+        #self.hidden_size = self.token_size + len(self.bmes2id) + self.pinyin_size + self.word_size
         self.hidden_size = self.token_size + len(self.bmes2id) + self.pinyin_size + self.word_size
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
@@ -102,6 +103,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             (B, H), representations for sentences
         """
         token_seqs_embed = self.token_embedding(seqs_token_ids)
+        #token_seqs_embed = F.dropout(token_seqs_embed, 0.5)
         if self.compress_seq:
             token_seqs_length = att_token_mask.sum(dim=-1).detach().cpu()
             token_seqs_embed_packed = pack_padded_sequence(token_seqs_embed, token_seqs_length, batch_first=True)
@@ -114,8 +116,9 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
+        #cat_embed = torch.cat([bmes_one_hot_embed, F.dropout(torch.cat([seqs_lexicon_embed, seqs_pinyin_embed], dim=-1), 0.5)], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(token_seqs_hidden, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2token)
-        inputs_embed = torch.cat([token_seqs_hidden, cat_embed_att_output], dim=-1)
+        inputs_embed = F.dropout(torch.cat([token_seqs_embed, cat_embed_att_output], dim=-1), 0.5)
 
         return inputs_embed
     
@@ -139,17 +142,16 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
                         try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
                             if len(pinyin) > 7:
-                                if is_digit(pinyin):
+                                if pinyin.isnumeric():
                                     pinyin = '[DIGIT]'
                                 else:
-                                    if is_eng_word(pinyin):
+                                    pinyin = strip_accents(pinyin)
+                                    if pinyin.encode('utf-8').isalpha():
                                         pinyin = '[ENG]'
                                     else:
                                         raise ValueError('pinyin length not exceed 7')
-                            elif not is_pinyin(pinyin):
-                                pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
                         if w == 0:
@@ -252,7 +254,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BASE_BMES_Lexicon_PinY
             blank_padding,
             compress_seq
         )
-        self.hidden_size = self.token_size
+        self.hidden_size = 200
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
         """
@@ -263,6 +265,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BASE_BMES_Lexicon_PinY
             (B, H), representations for sentences
         """
         token_seqs_embed = self.token_embedding(seqs_token_ids)
+        token_seqs_embed = F.dropout(self.token_embedding(seqs_token_ids), 0.5)
         if self.compress_seq:
             token_seqs_length = att_token_mask.sum(dim=-1).detach().cpu()
             token_seqs_embed_packed = pack_padded_sequence(token_seqs_embed, token_seqs_length, batch_first=True)
@@ -275,6 +278,7 @@ class BASE_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BASE_BMES_Lexicon_PinY
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = self.bmes_lexicon_pinyin2token(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
+        #cat_embed = torch.cat([bmes_one_hot_embed, F.dropout(torch.cat([seqs_lexicon_embed, seqs_pinyin_embed], dim=-1), 0.5)], dim=-1)
         cat_embed_att_output, _ = dot_product_attention(token_seqs_hidden, cat_embed, att_lexicon_mask)
         inputs_embed = torch.add(token_seqs_hidden, cat_embed_att_output) # (B, L, EMBED)
 

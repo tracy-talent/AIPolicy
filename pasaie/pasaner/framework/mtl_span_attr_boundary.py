@@ -60,6 +60,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.is_bert_encoder = True
         else:
             self.is_bert_encoder = False
+        self.lr = lr
         self.max_epoch = max_epoch
         self.metric = metric
         self.tagscheme = tagscheme
@@ -296,7 +297,14 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 train_state['early_stopping_step'] = 0
             
             train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
+    
 
+    def lr_decay(self, epoch): # refer from lattice-lstm
+        lr = self.lr * ((1 - 0.05) ** epoch)
+        print(f'Learning rate is setted as {lr}')
+        for param_group in self.optimizer.param_groups:
+            param_group['lr'] = lr
+            
 
     def train_model(self):
         train_state = self.make_train_state()
@@ -315,6 +323,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
+            if not self.is_bert_encoder: # lr decay only for no bert
+                self.lr_decay(epoch)
             train_state['epoch_index'] = epoch
             span_preds_kvpairs = []
             span_golds_kvpairs = []
@@ -372,12 +382,19 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
                     loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
                     loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
-                    loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                    if self.is_bert_encoder:
+                        loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                    else:
+                        #loss_span, loss_attr_start, loss_attr_end = loss_span.sum(), loss_attr_start.sum(), loss_attr_end.sum()
+                        loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
                     else:
-                        if torch.abs(loss_span) > 10:
-                            loss = (loss_attr_start + loss_attr_end) / 2
+                        if self.is_bert_encoder:
+                            if torch.abs(loss_span) > 10:
+                                loss = (loss_attr_start + loss_attr_end) / 2
+                            else:
+                                loss = (loss_span + loss_attr_start + loss_attr_end) / 3
                         else:
                             loss = (loss_span + loss_attr_start + loss_attr_end) / 3
                     loss.backward()
@@ -386,11 +403,11 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
                     loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, *args)
-                if loss.isnan() or torch.abs(loss) > 10:
-                    #continue
-                    is_loss_nan = True
-                    break
-                torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
+                if self.is_bert_encoder:
+                    if loss.isnan() or torch.abs(loss) > 10:
+                        is_loss_nan = True
+                        break
+                    torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
                     self.scheduler.step()
