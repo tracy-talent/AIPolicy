@@ -113,12 +113,13 @@ class BASE_Bigram_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         """
         seqs_unigram_embed = self.unigram_embedding(seqs_unigram_ids)
         seqs_gram_embed = torch.cat([seqs_unigram_embed, seqs_bigram_embed], dim=-1)
-        # seqs_gram_embed = F.dropout(seqs_gram_embed, 0.1)
+        seqs_gram_embed = F.dropout(seqs_gram_embed, 0.5)
         seqs_gram_hidden = self.transformer(seqs_gram_embed, seqs_gram_embed, seqs_gram_embed, mask=att_unigram_mask)
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
-        cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
+        # cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
+        cat_embed = F.dropout(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1), 0.5)
         cat_embed_att_output, _ = dot_product_attention_with_project(seqs_gram_hidden, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2gram)
         inputs_embed = torch.cat([seqs_gram_hidden, cat_embed_att_output], dim=-1)
 
@@ -284,12 +285,13 @@ class BASE_Bigram_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BASE_Bigram_BME
         """
         seqs_unigram_embed = self.unigram_embedding(seqs_unigram_ids)
         seqs_gram_embed = torch.cat([seqs_unigram_embed, seqs_bigram_embed], dim=-1)
-        # seqs_gram_embed = F.dropout(seqs_gram_embed, 0.1)
+        seqs_gram_embed = F.dropout(seqs_gram_embed, 0.5)
         seqs_gram_hidden = self.transformer(seqs_gram_embed, seqs_gram_embed, seqs_gram_embed, mask=att_unigram_mask)
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
-        cat_embed = self.bmes_lexicon_pinyin2gram(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
+        # cat_embed = self.bmes_lexicon_pinyin2gram(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
+        cat_embed = self.bmes_lexicon_pinyin2gram(F.dropout(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1), 0.5))
         cat_embed_att_output, _ = dot_product_attention(seqs_gram_hidden, cat_embed, att_lexicon_mask)
         inputs_embed = torch.add(seqs_gram_hidden, cat_embed_att_output)
 
