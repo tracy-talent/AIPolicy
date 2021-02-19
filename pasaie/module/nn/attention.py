@@ -29,7 +29,7 @@ def dot_product_attention_with_project(att_query, att_kv, att_mask, project_mat)
         return att_output, att_weight.data
 
 class MultiHeadedAttention(nn.Module):
-    def __init__(self, num_heads, d_model, dropout=0.1):
+    def __init__(self, d_input, num_heads, d_model, d_ffn, dropout_rate=0.1):
         "Take in model size and number of heads."
         super(MultiHeadedAttention, self).__init__()
         assert d_model % num_heads == 0
@@ -37,12 +37,17 @@ class MultiHeadedAttention(nn.Module):
         self.d_model = d_model
         self.num_heads = num_heads
         self.d_k = d_model // num_heads
-        self.wq = nn.Linear(d_model, d_model)
-        self.wk = nn.Linear(d_model, d_model)
-        self.wv = nn.Linear(d_model, d_model)
-        self.dense = nn.Linear(d_model, d_model)
+        self.wq = nn.Linear(d_input, d_model)
+        self.wk = nn.Linear(d_input, d_model)
+        self.wv = nn.Linear(d_input, d_model)
+        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_ffn),
+            nn.ReLU(),
+            nn.Linear(d_ffn, d_model),
+            nn.Dropout(p=dropout_rate)
+        )
+        self.ffn_layernorm = nn.LayerNorm(d_model)
         self.attention_weights = None
-        self.dropout = nn.Dropout(p=dropout)
 
 
     def split_heads(self, x, batch_size):
@@ -53,11 +58,11 @@ class MultiHeadedAttention(nn.Module):
             x (torch.tensor): tensor to be splited
             batch_size (int): batch size.
         """
-        x = x.view(batch_size, -1, self.num_heads, self.d_k)
+        x = x.contiguous().view(batch_size, -1, self.num_heads, self.d_k)
         return x.permute(0, 2, 1, 3)
 
 
-    def scaled_dot_product_attention(self, query, key, value, mask=None, dropout=None):
+    def scaled_dot_product_attention(self, query, key, value, mask=None):
         """"Compute 'Scaled Dot Product Attention' for MultiHeadedAttention"
 
         Args:
@@ -65,7 +70,6 @@ class MultiHeadedAttention(nn.Module):
             key (torch.Tensor): attention key, size(B, h, S, D).
             value (torch.Tensor): attention value, size(B, h, S, D)
             mask (torch.Tensor, optional): attention mask in transformer encoder. Defaults to None.
-            dropout (float, optional): dropout attention weight when dropout is not None. Defaults to None.
 
         Returns:
             attention_output (torch.Tensor): attention output matrix.
@@ -78,10 +82,14 @@ class MultiHeadedAttention(nn.Module):
             mask = mask[:, None, None, :] # (B, 1, 1, d_k)
             attention_score.masked_fill_(mask == 0, -1e9)
         attention_weight = F.softmax(attention_score, dim=-1)
-        if dropout is not None:
-            attention_weight = dropout(attention_weight)
         attention_output = torch.matmul(attention_weight, value)
         return attention_output, attention_weight
+
+
+    def point_wise_feed_forward_network(self, hidden_states):
+        ffn_output = self.ffn(hidden_states)
+        ffn_output = self.ffn_layernorm(hidden_states + ffn_output)
+        return ffn_output
 
 
     def forward(self, query, key, value, mask=None):
@@ -107,13 +115,15 @@ class MultiHeadedAttention(nn.Module):
         value = self.split_heads(value, batch_size)
 
         # 2) Apply attention on all the projected vectors in batch.
-        attention_output, self.attention_weight = self.scaled_dot_product_attention(query, key, value, mask=mask, dropout=self.dropout)
+        attention_output, self.attention_weight = self.scaled_dot_product_attention(query, key, value, mask=mask)
 
-        # 3) "Concat" using a view and apply a final linear.
+        # 3) "Concat" using a view.
         attention_output = attention_output.permute(0, 2, 1, 3).contiguous().view(batch_size, -1, self.d_model)
-        attention_output = self.dense(attention_output)
+        
+        # 4) Feed Forward Network
+        output = self.point_wise_feed_forward_network(attention_output)
 
-        return attention_output
+        return output
 
 
 

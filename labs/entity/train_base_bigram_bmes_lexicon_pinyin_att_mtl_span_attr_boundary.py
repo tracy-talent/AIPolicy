@@ -304,11 +304,11 @@ unigram2id, unigram_embedding = construct_embedding_from_numpy(word2id=corpus_un
 bigram2id, bigram_embedding = construct_embedding_from_numpy(word2id=corpus_bigram_vocab, word2vec=corpus_bigram2vec, finetune=True)
 # load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
-word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=True)
+word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)
 # load pinyin embedding and vocab
 if 'word' in args.pinyin_embedding_type:
     pinyin2id, pinyin2vec = load_wordvec(args.pinyin2vec_file, binary='.bin' in args.pinyin2vec_file)
-    pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=True)
+    pinyin2id, pinyin_embedding = construct_embedding_from_numpy(word2id=pinyin2id, word2vec=pinyin2vec, finetune=False)
 # load map from word to pinyin
 if 'char' in args.pinyin_embedding_type:
     pinyin_char2id = {'[PAD]': 0, '[UNK]': 1, '\'': 2}
