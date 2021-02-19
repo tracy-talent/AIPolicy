@@ -165,7 +165,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
+            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay, momentum=0 if self.is_bert_encoder 0.9)
         elif opt == 'adam':
             self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
         elif opt == 'adamw': # Optimizer for BERT
@@ -232,6 +232,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.warmup_step = warmup_step
         if warmup_step > 0:
             training_steps = len(self.train_loader) // batch_size * self.max_epoch
+            if not self.is_bert_encoder:
+                warmup_step = len(self.train_loader) // batch_size * 10
             # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
         else:
