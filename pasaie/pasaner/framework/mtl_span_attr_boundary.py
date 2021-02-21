@@ -165,7 +165,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             {'params': other_params, 'lr': lr}
         ]
         if opt == 'sgd':
-            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay, momentum=0 if self.is_bert_encoder 0.9)
+            self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay, momentum=0 if self.is_bert_encoder else 0.9)
         elif opt == 'adam':
             self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
         elif opt == 'adamw': # Optimizer for BERT
@@ -234,8 +234,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
             training_steps = len(self.train_loader) // batch_size * self.max_epoch
             if not self.is_bert_encoder:
                 warmup_step = len(self.train_loader) // batch_size * 10
-            # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
+            self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
+            #self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
         else:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                 mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
@@ -302,7 +302,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
     
 
     def lr_decay(self, epoch): # refer from lattice-lstm
-        lr = self.lr * ((1 - 0.05) ** epoch)
+        lr = self.lr * ((1 - 0.01) ** epoch)
         print(f'Learning rate is setted as {lr}')
         for param_group in self.optimizer.param_groups:
             param_group['lr'] = lr
@@ -325,8 +325,9 @@ class MTL_Span_Attr_Boundary(nn.Module):
         for epoch in range(self.max_epoch):
             self.train()
             self.logger.info("=== Epoch %d train ===" % epoch)
-            if not self.is_bert_encoder: # lr decay only for no bert
-                self.lr_decay(epoch)
+            #if not self.is_bert_encoder and 'adam' not in self.optimizer.__class__.__name__.lower(): # lr decay only for no bert
+            #if not self.is_bert_encoder:
+            #    self.lr_decay(epoch)
             train_state['epoch_index'] = epoch
             span_preds_kvpairs = []
             span_golds_kvpairs = []

@@ -1,12 +1,12 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
 dropout_rates=(0.3)
-lexicon_window_sizes=(9 8 7 6 5 4)
+lexicon_window_sizes=(9 4 8 7 6 5)
 python_command="
 python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --token2vec_file /home/liujian/NLP/corpus/embedding/chinese/lexicon/gigaword_chn.all.a2b.uni.11k.50d.bin \
     --word2pinyin_file /home/liujian/NLP/corpus/pinyin/word2pinyin_num5.txt \
-    --pinyin_embedding_type word_att_add \
+    --pinyin_embedding_type word_att_cat \
     --group_num 3 \
     --model_type ple \
     --dataset $1 \
@@ -33,10 +33,10 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
-    maxep=2000
+    maxep=100
 else
     maxlen=256
-    maxep=100
+    maxep=1000
 fi
 
 if [ $2 == sgns ]

@@ -193,7 +193,7 @@ def make_model_name():
     if args.span_use_crf:
         model_name += '_spancrf'
     #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
-    model_name += '_' + args.loss
+    model_name += '_' + args.optimizer + '_' + args.loss
     if 'dice' in args.loss:
         model_name += str(args.dice_alpha)
     if args.use_mtl_autoweighted_loss:
