@@ -385,19 +385,12 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
                     loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
                     loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
-                    if self.is_bert_encoder:
-                        loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
-                    else:
-                        #loss_span, loss_attr_start, loss_attr_end = loss_span.sum(), loss_attr_start.sum(), loss_attr_end.sum()
-                        loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                    loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
                     else:
-                        if self.is_bert_encoder:
-                            if torch.abs(loss_span) > 10:
-                                loss = (loss_attr_start + loss_attr_end) / 2
-                            else:
-                                loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                        if torch.abs(loss_span) > 10:
+                            loss = (loss_attr_start + loss_attr_end) / 2
                         else:
                             loss = (loss_span + loss_attr_start + loss_attr_end) / 3
                     loss.backward()
@@ -406,10 +399,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
                     loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, *args)
+                if loss.isnan() or torch.abs(loss) > 10:
+                    is_loss_nan = True
+                    break
                 if self.is_bert_encoder:
-                    if loss.isnan() or torch.abs(loss) > 10:
-                        is_loss_nan = True
-                        break
                     torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
