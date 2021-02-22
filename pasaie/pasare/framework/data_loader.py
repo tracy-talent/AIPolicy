@@ -63,7 +63,10 @@ class SentenceREDataset(data.Dataset):
         for index in range(len(self.corpus)):
             item = self.corpus[index]
             seq = list(self.tokenizer(item, **self.kwargs))
-            data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
+            if len(seq) >= 6:
+                data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq[:3] + seq[5:] # label, seq1, seq2, ...
+            else:
+                data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
             self.data.append(data_item)
 
     def __len__(self):
@@ -146,12 +149,10 @@ class SentenceWithDSPREDataset(SentenceREDataset):
                     ent_h_length = len(line['ent_h_path'])
                     ent_t_length = len(line['ent_t_path'])
                     if ent_h_length < self.max_dsp_path_length:
-                        while len(ent_h_path) < self.max_dsp_path_length:
-                            ent_h_path.append(0)
+                        ent_h_path.extend([0] * (self.max_dsp_path_length - len(ent_h_path)))
                     ent_h_path = ent_h_path[:self.max_dsp_path_length]
                     if ent_t_length < self.max_dsp_path_length:
-                        while len(ent_t_path) < self.max_dsp_path_length:
-                            ent_t_path.append(0)
+                        ent_t_path.extend([0] * (self.max_dsp_path_length - len(ent_t_path)))
                     ent_t_path = ent_t_path[:self.max_dsp_path_length]
                     ent_h_path = torch.tensor([ent_h_path]).long() + (1 if self.is_bert_encoder else 0)
                     ent_t_path = torch.tensor([ent_t_path]).long() + (1 if self.is_bert_encoder else 0)
@@ -163,27 +164,38 @@ class SentenceWithDSPREDataset(SentenceREDataset):
         for index in range(len(self.corpus)):
             item = self.corpus[index]
             seq = list(self.tokenizer(item, **self.kwargs))
-            data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
+            if len(seq) >= 6:
+                data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq[:3] + seq[5:] # label, seq1, seq2, ...
+            else:
+                data_item = [torch.tensor([self.rel2id[item['relation']]])] + seq  # label, seq1, seq2, ...
             if self.max_dsp_path_length > 0:
-                if len(seq) > 3:
-                    ent_h_pos = torch.min(seq[1], seq[2]).item()
-                    ent_t_pos = torch.max(seq[1], seq[2]).item()
+                if len(seq) >= 5:
+                    ent_h_pos_1 = torch.min(seq[1], seq[2]).item()
+                    ent_h_pos_2 = torch.min(seq[3], seq[4]).item()
+                    ent_t_pos_1 = torch.max(seq[1], seq[2]).item()
+                    ent_t_pos_2 = torch.max(seq[3], seq[4]).item()
                     for i in range(self.dsp_path[index][2].item()):
                         pos = self.dsp_path[index][0][0][i].item()
-                        pos_inc = 0
-                        if pos >= ent_h_pos:
-                            pos_inc += 1
-                        if pos + 1 >= ent_t_pos:
-                            pos_inc += 1
-                        self.dsp_path[index][0][0][i] = pos + pos_inc
+                        if pos >= ent_h_pos_1:
+                            pos += 1
+                        if pos >= ent_h_pos_2:
+                            pos += 1
+                        if pos >= ent_t_pos_1:
+                            pos += 1
+                        if pos >= ent_t_pos_2:
+                            pos += 1
+                        self.dsp_path[index][0][0][i] = pos
                     for i in range(self.dsp_path[index][3].item()):
                         pos = self.dsp_path[index][1][0][i].item()
-                        pos_inc = 0
-                        if pos >= ent_h_pos:
-                            pos_inc += 1
-                        if pos + 1 >= ent_t_pos:
-                            pos_inc += 1
-                        self.dsp_path[index][1][0][i] = pos + pos_inc
+                        if pos >= ent_h_pos_1:
+                            pos += 1
+                        if pos >= ent_h_pos_2:
+                            pos += 1
+                        if pos >= ent_t_pos_1:
+                            pos += 1
+                        if pos >= ent_t_pos_2:
+                            pos += 1
+                        self.dsp_path[index][1][0][i] = pos
                 data_item += self.dsp_path[index]
             self.data.append(data_item)
             if (index + 1) % 500 == 0:
@@ -194,6 +206,7 @@ class SentenceWithDSPREDataset(SentenceREDataset):
             max_ent_h_path_index = max(self.data[-1][-4][0]).squeeze().item()
             try:
                 if max_ent_h_path_index >= seq_len or max_ent_t_path_index >= seq_len:
+                    logging.info('DSP index exceeds sequence length')
                     raise IndexError('DSP index exceeds sequence length')
             except:
                 for i in range(len(self.data[-1][-3][0])):
@@ -241,6 +254,84 @@ def SentenceWithDSPRELoader(path, rel2id, tokenizer, batch_size, shuffle, drop_l
                                   collate_fn=partial(collate_fn, compress_seq),
                                   sampler=sampler)
     return data_loader
+
+
+
+class SentenceREDataset4XLNet(SentenceREDataset):
+    @classmethod
+    def collate_fn(cls, compress_seq, data):
+        seqs = list(zip(*data))
+        if compress_seq:
+            seqs_len = torch.cat(seqs[-1], dim=0).sum(dim=-1)
+            sorted_length_indices = seqs_len.argsort(descending=True) 
+            seqs_len = seqs_len[sorted_length_indices]
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+                if len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
+                    seqs[i] = torch.from_numpy(seqs[i].numpy()[:,::-1].copy())
+                    seqs[i] = torch.from_numpy(compress_sequence(seqs[i][sorted_length_indices], seqs_len).numpy()[:,::-1].copy())
+                else:
+                    seqs[i] = seqs[i][sorted_length_indices]
+        else:
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+        return seqs
+
+def SentenceRELoader4XLNet(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, 
+                    compress_seq=True, num_workers=8, collate_fn=SentenceREDataset4XLNet.collate_fn, sampler=None, **kwargs):
+    if sampler:
+        shuffle = False
+    dataset = SentenceREDataset4XLNet(path=path, rel2id=rel2id, tokenizer=tokenizer, **kwargs)
+    data_loader = data.DataLoader(dataset=dataset,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle,
+                                  drop_last=drop_last,
+                                  pin_memory=True,
+                                  num_workers=num_workers,
+                                  collate_fn=partial(collate_fn, compress_seq),
+                                  sampler=sampler)
+    return data_loader
+
+
+
+class SentenceWithDSPREDataset4XLNet(SentenceWithDSPREDataset):
+    @classmethod
+    def collate_fn(cls, compress_seq, data):
+        seqs = list(zip(*data))
+        if compress_seq:
+            seqs_len = torch.cat(seqs[-5], dim=0).sum(dim=-1)
+            sorted_length_indices = seqs_len.argsort(descending=True) 
+            seqs_len = seqs_len[sorted_length_indices]
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+                if i < len(seqs) - 4 and len(seqs[i].size()) > 1 and seqs[i].size(1) > 1:
+                    seqs[i] = torch.from_numpy(seqs[i].numpy()[:,::-1].copy())
+                    seqs[i] = torch.from_numpy(compress_sequence(seqs[i][sorted_length_indices], seqs_len).numpy()[:,::-1].copy())
+                else:
+                    seqs[i] = seqs[i][sorted_length_indices]
+        else:
+            for i in range(len(seqs)):
+                seqs[i] = torch.cat(seqs[i], dim=0)
+        return seqs
+
+def SentenceWithDSPRELoader4XLNet(path, rel2id, tokenizer, batch_size, shuffle, drop_last=False, compress_seq=True, 
+                            max_dsp_path_length=-1, dsp_file_path_suffix=None, dsp_tool='ddp', is_bert_encoder=True, 
+                            num_workers=0, collate_fn=SentenceWithDSPREDataset4XLNet.collate_fn, sampler=None, **kwargs):
+    if sampler:
+        shuffle = False
+    dataset = SentenceWithDSPREDataset4XLNet(path=path, rel2id=rel2id, tokenizer=tokenizer, 
+                                        max_dsp_path_length=max_dsp_path_length, dsp_file_path_suffix=dsp_file_path_suffix, 
+                                        dsp_tool=dsp_tool, is_bert_encoder=is_bert_encoder, **kwargs)
+    data_loader = data.DataLoader(dataset=dataset,
+                                  batch_size=batch_size,
+                                  shuffle=shuffle,
+                                  drop_last=drop_last,
+                                  pin_memory=True,
+                                  num_workers=num_workers,
+                                  collate_fn=partial(collate_fn, compress_seq),
+                                  sampler=sampler)
+    return data_loader
+
 
 
 class BagREDataset(data.Dataset):

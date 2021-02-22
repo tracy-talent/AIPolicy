@@ -7,7 +7,7 @@
 
 from ...metrics import Mean, BatchMetric
 from ...utils.adversarial import adversarial_perturbation
-from .data_loader import SentenceRELoader, SentenceWithDSPRELoader
+from .data_loader import SentenceRELoader, SentenceWithDSPRELoader, SentenceRELoader4XLNet, SentenceWithDSPRELoader4XLNet
 from .base_framework import BaseFramework
 
 import os
@@ -342,6 +342,201 @@ class SentenceWithDSPRE(SentenceRE):
             )
 
         super(SentenceWithDSPRE, self).__init__(
+            model=model,
+            train_path=None,
+            val_path=None,
+            test_path=None,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            neg_classes=neg_classes,
+            compress_seq=compress_seq,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            dice_alpha=dice_alpha,
+            metric=metric,
+            adv=adv,
+            loss=loss,
+            opt=opt,
+            sampler=sampler
+        )
+
+
+
+class SentenceRE4XLNet(SentenceRE):
+
+    def __init__(self,
+                 model,
+                 train_path,
+                 val_path,
+                 test_path,
+                 ckpt,
+                 logger,
+                 tb_logdir,
+                 neg_classes=[0],
+                 compress_seq=True,
+                 batch_size=32,
+                 max_epoch=100,
+                 lr=1e-3,
+                 bert_lr=2e-5,
+                 weight_decay=1e-5,
+                 early_stopping_step=3,
+                 warmup_step=300,
+                 max_grad_norm=5.0,
+                 dice_alpha=0.6,
+                 metric='micro_f1',
+                 adv='fgm',
+                 loss='ce',
+                 opt='sgd',
+                 sampler=None):
+
+        # Load data
+        if train_path != None:
+            self.train_loader = SentenceRELoader4XLNet(
+                train_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                shuffle=True,
+                compress_seq=compress_seq,
+                sampler=sampler
+            )
+
+        if val_path != None:
+            self.val_loader = SentenceRELoader4XLNet(
+                train_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                shuffle=True,
+                compress_seq=compress_seq,
+                sampler=sampler
+            )
+
+        if test_path != None:
+            self.test_loader = SentenceRELoader4XLNet(
+                train_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                shuffle=True,
+                compress_seq=compress_seq,
+                sampler=sampler
+            )
+
+        super(SentenceRE4XLNet, self).__init__(
+            model=model,
+            train_path=None,
+            val_path=None,
+            test_path=None,
+            ckpt=ckpt,
+            logger=logger,
+            tb_logdir=tb_logdir,
+            neg_classes=neg_classes,
+            compress_seq=compress_seq,
+            batch_size=batch_size,
+            max_epoch=max_epoch,
+            lr=lr,
+            bert_lr=bert_lr,
+            weight_decay=weight_decay,
+            early_stopping_step=early_stopping_step,
+            warmup_step=warmup_step,
+            max_grad_norm=max_grad_norm,
+            dice_alpha=dice_alpha,
+            metric=metric,
+            adv=adv,
+            loss=loss,
+            opt=opt,
+            sampler=sampler
+        )
+
+
+
+class SentenceWithDSPRE4XLNet(SentenceRE):
+
+    def __init__(self,
+                 model,
+                 train_path,
+                 val_path,
+                 test_path,
+                 ckpt,
+                 logger,
+                 tb_logdir,
+                 neg_classes=[0],
+                 compress_seq=True,
+                 max_dsp_path_length=-1,
+                 dsp_file_path_suffix=None,
+                 dsp_tool='ddp',
+                 batch_size=32,
+                 max_epoch=100,
+                 lr=1e-3,
+                 bert_lr=2e-5,
+                 weight_decay=1e-2,
+                 early_stopping_step=3,
+                 warmup_step=300,
+                 max_grad_norm=5.0,
+                 dice_alpha=0.6,
+                 metric='micro_f1',
+                 adv='fgm',
+                 loss='ce',
+                 opt='sgd',
+                 sampler=None):
+
+        # Load data
+        if train_path != None:
+            self.train_loader = SentenceWithDSPRELoader4XLNet(
+                train_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                shuffle=True,
+                drop_last=False,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                dsp_file_path_suffix=dsp_file_path_suffix,
+                dsp_tool=dsp_tool,
+                is_bert_encoder=False,
+                sampler=sampler,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )
+
+        if val_path != None:
+            self.val_loader = SentenceWithDSPRELoader4XLNet(
+                val_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                dsp_file_path_suffix=dsp_file_path_suffix,
+                dsp_tool=dsp_tool,
+                is_bert_encoder=False,
+                shuffle=False,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )
+
+        if test_path != None:
+            self.test_loader = SentenceWithDSPRELoader4XLNet(
+                test_path,
+                model.rel2id,
+                model.sentence_encoder.tokenize,
+                batch_size,
+                compress_seq=compress_seq,
+                max_dsp_path_length=max_dsp_path_length,
+                dsp_file_path_suffix=dsp_file_path_suffix,
+                dsp_tool=dsp_tool,
+                is_bert_encoder=False,
+                shuffle=False,
+                num_workers=0 if max_dsp_path_length < 0 else 8
+            )
+
+        super(SentenceWithDSPRE4XLNet, self).__init__(
             model=model,
             train_path=None,
             val_path=None,

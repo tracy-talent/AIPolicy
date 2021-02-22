@@ -47,6 +47,12 @@ class XLNetEncoder(nn.Module):
             (B, H), representations for sentences
         """
         seq_out, _ = self.xlnet(input_ids=seqs, attention_mask=att_mask, token_type_ids=token_type_ids)
+        seq_len = torch.sum(att_mask, dim=-1)
+        seq_out_copy = seq_out.clone()
+        for i in range(seq_len.size(0)):
+            seq_out[i, :seq_len[i]] = seq_out_copy[i, -seq_len[i]:]
+            seq_out[i, seq_len[i]:] = seq_out_copy[i, :-seq_len[i]]
+        seq_out_copy = seq_out_copy.detach().cpu()
         # if self.bert_name == 'xlnet':
             # seq_out = seq_out.permute(1, 0, 2)
         return seq_out

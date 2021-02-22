@@ -1,8 +1,8 @@
 """
- Author: liujian
- Date: 2020-12-17 22:14:32
- Last Modified by: liujian
- Last Modified time: 2020-12-17 22:14:32
+ Author: liujian 
+ Date: 2021-02-22 12:11:52 
+ Last Modified by: liujian 
+ Last Modified time: 2021-02-22 12:11:52 
 """
 
 # coding:utf-8
@@ -21,17 +21,14 @@ import argparse
 import configparser
 from ast import literal_eval
 
-
 parser = argparse.ArgumentParser()
-parser.add_argument('--pretrain_path', default='bert-base-uncased',
+parser.add_argument('--pretrain_path', default='xlnet-base-cased',
                     help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--language', default='en', choices=['en', 'zh'], 
                     help='laguage of bert available to')
-parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'], 
-        help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--encoder_type', default='entity', choices=['cls', 'entity', 'entity_context', 'entity_dsp', 'entity_context_dsp'],
+parser.add_argument('--encoder_type', default='entity', choices=['entity', 'entity_context'],
                     help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
@@ -39,22 +36,18 @@ parser.add_argument('--mask_entity', action='store_true',
                     help='Mask entity mentions')
 parser.add_argument('--use_attention4context', action='store_true',
                     help='whether use attention for DSP feature, otherwise use conv')
-parser.add_argument('--use_attention4dsp', action='store_true',
-                    help='whether use attention for DSP feature')
 parser.add_argument('--embed_entity_type', action='store_true',
                     help='Embed entity-type information in RE training process')
 parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
-        help='embedding adversarial perturbation')
+                    help='embedding adversarial perturbation')
 parser.add_argument('--loss', default='ce', choices=['ce', 'focal', 'dice', 'lsr'],
-        help='loss function')
+                    help='loss function')
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'acc', 'loss'],
                     help='Metric for picking up best checkpoint')
-parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp', 'stanza'],
-        help='DSP tool used')
 
 # Data
 parser.add_argument('--dataset', default='none',
-                    # choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'],
+                    choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'],
                     help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
                     help='Training data file')
@@ -64,12 +57,10 @@ parser.add_argument('--test_file', default='', type=str,
                     help='Test data file')
 parser.add_argument('--rel2id_file', default='', type=str,
                     help='Relation to ID file')
-parser.add_argument('--compress_seq', action='store_true',
-                    help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
-parser.add_argument('--dsp_preprocessed', action='store_true',
-                    help='whether have preprocessed dsp path of head anf tail entity to root')
 parser.add_argument('--neg_classes', default='', type=str,
                     help='list of negtive classes id')
+parser.add_argument('--compress_seq', action='store_true',
+                    help='whether use pack_padded_sequence to compress mask tokens of batch sequence')
 parser.add_argument('--use_sampler', action='store_true',
                     help='Use sampler')
 
@@ -91,13 +82,11 @@ parser.add_argument('--max_grad_norm', default=5.0, type=float,
 parser.add_argument('--weight_decay', default=1e-2, type=float,
                     help='Weight decay')
 parser.add_argument('--early_stopping_step', default=3, type=int,
-                    help='max times of worse metric allowed to avoid overfit, off when <=0')
+                    help='max times of worse metric allowed to avoid overfit, mutually exclusive with warmup_step, off when <=0')
 parser.add_argument('--warmup_step', default=0, type=int,
-                    help='warmup steps for learning rate scheduler')
-parser.add_argument('--max_length', default=256, type=int,
+                    help='warmup steps for learning rate scheduler, mutually exclusive with early_stopping_step')
+parser.add_argument('--max_length', default=128, type=int,
                     help='Maximum sentence length')
-parser.add_argument('--max_dsp_path_length', default=15, type=int,
-                    help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12, stanza:12}, suggest 15 for ddp/stanza, 10 for ltp
 parser.add_argument('--max_epoch', default=3, type=int,
                     help='Max number of training epochs')
 parser.add_argument('--random_seed', default=12345, type=int,
@@ -114,20 +103,11 @@ fix_seed(args.random_seed)
 
 # construct save path name
 def make_model_name():
-    model_name = args.bert_name + '_' + args.encoder_type
-    if args.embed_entity_type:
-        model_name += '_embed_entity'
-    model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
-    if args.use_attention4context:
-        model_name += '_attention_cat'
-    else:
-        model_name += '_maxpool'
-    model_name += '_' + args.loss
-    if 'dice' in args.loss:
-        model_name += str(args.dice_alpha)
+    model_name = 'xlnet' + '_' + args.encoder_type + '_' + args.loss
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
-    model_name += '_dpr' + str(args.dropout_rate)
+    if args.embed_entity_type:
+        model_name += '_embed_entity'
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -155,8 +135,8 @@ while os.path.exists(ckpt):
     ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
-    # if 'policy' not in args.dataset:
-    #     pasare.download(args.dataset, root_path=config['path']['input'])
+    if 'policy' not in args.dataset:
+        pasare.download(args.dataset, root_path=config['path']['input'])
     args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
     args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
     args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test.txt'.format(args.dataset))
@@ -185,46 +165,24 @@ rel2id = json.load(open(args.rel2id_file))
 tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file))
 
 # Define the sentence encoder
-if args.encoder_type == 'entity_dsp':
-    sentence_encoder = pasare.encoder.BERTEntityWithDSPEncoder(
-        pretrain_path=args.pretrain_path,
-        bert_name=args.bert_name,
+if args.encoder_type == 'entity':
+    sentence_encoder = pasare.encoder.XLNetEntityEncoder(
         max_length=args.max_length,
-        max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
-        dsp_tool=args.dsp_tool,
+        pretrain_path=args.pretrain_path,
         tag2id=tag2id,
-        use_attention4dsp=args.use_attention4dsp,
         mask_entity=args.mask_entity,
         blank_padding=True,
-        compress_seq=args.compress_seq,
         language=args.language
     )
-elif args.encoder_type == 'entity_context_dsp':
-    sentence_encoder = pasare.encoder.BERTEntityWithContextDSPEncoder(
-        pretrain_path=args.pretrain_path,
-        bert_name=args.bert_name,
+elif args.encoder_type == 'entity_context':
+    sentence_encoder = pasare.encoder.XLNetEntityWithContextEncoder(
         max_length=args.max_length,
-        max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
-        dsp_tool=args.dsp_tool,
+        pretrain_path=args.pretrain_path,
         tag2id=tag2id,
         use_attention4context=args.use_attention4context,
-        use_attention4dsp=args.use_attention4dsp,
         mask_entity=args.mask_entity,
         blank_padding=True,
-        compress_seq=args.compress_seq,
         language=args.language
-    )
-elif args.encoder_type == 'cls':
-    sentence_encoder = pasare.encoder.BERTWithDSPEncoder(
-        pretrain_path=args.pretrain_path,
-        bert_name=args.bert_name,
-        max_length=args.max_length,
-        max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
-        dsp_tool=args.dsp_tool,
-        use_attention=args.use_attention,
-        mask_entity=args.mask_entity,
-        blank_padding=True,
-        compress_seq=args.compress_seq
     )
 else:
     raise NotImplementedError
@@ -234,7 +192,8 @@ model = pasare.model.SoftmaxNN(
     sentence_encoder=sentence_encoder, 
     num_class=len(rel2id), 
     rel2id=rel2id, 
-    dropout_rate=args.dropout_rate)
+    dropout_rate=args.dropout_rate
+)
 
 # Define the whole training framework
 if args.neg_classes:
@@ -245,23 +204,7 @@ if args.use_sampler:
     sampler = get_relation_sampler(args.train_file, rel2id, 'WeightedRandomSampler')
 else:
     sampler = None
-if args.dsp_preprocessed:
-    if 'large-uncased-wwm' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'
-    elif 'large-uncased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_uncased_{args.dsp_tool}_dsp_path.txt'
-    elif 'uncased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_uncased_{args.dsp_tool}_dsp_path.txt'
-    elif 'large-cased-wwm' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_cased_wwm_{args.dsp_tool}_dsp_path.txt'
-    elif 'large-cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_cased_{args.dsp_tool}_dsp_path.txt'
-    elif 'cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_cased_{args.dsp_tool}_dsp_path.txt'
-    else:
-        dsp_file_path_suffix = f'_tail_bert_{args.dsp_tool}_dsp_path.txt'
-
-framework = pasare.framework.SentenceWithDSPRE(
+framework = pasare.framework.SentenceRE4XLNet(
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,
@@ -271,9 +214,6 @@ framework = pasare.framework.SentenceWithDSPRE(
     tb_logdir=tb_logdir,
     neg_classes=args.neg_classes,
     compress_seq=args.compress_seq,
-    max_dsp_path_length=args.max_dsp_path_length if args.dsp_preprocessed else -1,
-    dsp_file_path_suffix=dsp_file_path_suffix if args.dsp_preprocessed else None,
-    dsp_tool=args.dsp_tool,
     batch_size=args.batch_size,
     max_epoch=args.max_epoch,
     lr=args.lr,
@@ -303,7 +243,7 @@ if not args.only_test:
 # Test
 result = framework.eval_model(framework.test_loader)
 # Print the result
-logger.info('Test set best results:')
+logger.info('Test set results:')
 logger.info('Accuracy: {}'.format(result['acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))

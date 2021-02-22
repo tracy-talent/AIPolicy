@@ -135,6 +135,16 @@ class XLNet_CRF(BaseFramework):
                 inputs_seq, inputs_mask = data[1], data[-1]
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
+                logits_copy = logits.clone()
+                for i in range(logits.size(0)):
+                    logits[i, :inputs_seq_len[i]] = logits_copy[i, -inputs_seq_len[i]:]
+                    logits[i, inputs_seq_len[i]:] = logits_copy[i, :-inputs_seq_len[i]]
+                    outputs_seq[i, :inputs_seq_len[i]] = outputs_seq_copy[i, -inputs_seq_len[i]:]
+                    outputs_seq[i, inputs_seq_len[i]:] = negid
+                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i. -inputs_seq_len[i]:]
+                    inputs_mask[i, :inputs_seq_len[i]] = inputs_mask[i, -inputs_seq_len[i]:]
+                    inputs_mask[i, inputs_seq_len[i]:] = 0
+                logits_copy = logits_copy.detach().cpu()
 
                 # Optimize
                 if self.adv is None:
@@ -142,19 +152,12 @@ class XLNet_CRF(BaseFramework):
                         loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
                         loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                     else:
-                        loss = 0
-                        log_likelihood = []
-                        for i in range(bs):
-                            log_likelihood.append(self.model.crf(logits[i][-inputs_seq_len[i]:].unsqueeze(0), outputs_seq[i][-inputs_seq_len[i]:].unsqueeze(0), mask=inputs_mask[i][-inputs_seq_len[i]:].unsqueeze(0), reduction='none'))
-                            # loss += -log_likelihood[i] / inputs_seq_len[i]
-                        log_likelihood = torch.cat(log_likelihood, dim=0)
-                        # log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                        log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
                         loss = -log_likelihood / inputs_seq_len
-                        # loss /= bs
                     loss = loss.mean()
                     loss.backward()
                 else:
-                    loss = adversarial_perturbation_xlnet_ner(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *data[1:])
+                    loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
@@ -165,12 +168,9 @@ class XLNet_CRF(BaseFramework):
                 if self.model.crf is None:
                     preds_seq = logits.argmax(dim=-1) # B * S
                 else:
-                    preds_seq = []
-                    for i in range(bs):
-                        preds_seq.append(self.model.crf.decode(logits[i][-inputs_seq_len[i]:].unsqueeze(0), mask=inputs_mask[i][-inputs_seq_len[i]:].unsqueeze(0))[0]) # List[List[int]]
-                    for i, pred_seq in enumerate(preds_seq):
-                        preds_seq[i] = [negid] * (outputs_seq.size(1) - len(pred_seq))
-                        preds_seq[i].extend(pred_seq)
+                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
+                    for pred_seq in preds_seq:
+                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
 
                 # get token sequence
@@ -182,9 +182,9 @@ class XLNet_CRF(BaseFramework):
                 for i in range(bs):
                     seqlen = inputs_seq_len[i]
                     spos, tpos = 1, seqlen - 2
-                    pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][-seqlen:][spos:tpos]]
-                    gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][-seqlen:][spos:tpos]]
-                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][-seqlen:][spos:tpos]]
+                    pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][:seqlen][spos:tpos]]
+                    gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][:seqlen][spos:tpos]]
+                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
                     # print(char_seq)
                     # print(pred_seq_tag)
                     # print(gold_seq_tag)
@@ -297,17 +297,19 @@ class XLNet_CRF(BaseFramework):
                 inputs_seq, inputs_mask = data[1], data[-1]
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
+                for i in range(logits.size(0)):
+                    outputs_seq[i, :inputs_seq_len[i]] = outputs_seq_copy[i, -inputs_seq_len[i]:]
+                    outputs_seq[i, inputs_seq_len[i]:] = negid
+                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i. -inputs_seq_len[i]:]
+                    inputs_mask[i, :inputs_seq_len[i]] = inputs_mask[i, -inputs_seq_len[i]:]
+                    inputs_mask[i, inputs_seq_len[i]:] = 0
 
                 # loss
                 if self.model.crf is None:
                     loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
                     loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
-                    log_likelihood = []
-                    for i in range(bs):
-                        log_likelihood.append(self.model.crf(logits[i][-inputs_seq_len[i]:].unsqueeze(0), outputs_seq[i][-inputs_seq_len[i]:].unsqueeze(0), mask=inputs_mask[i][-inputs_seq_len[i]:].unsqueeze(0), reduction='none'))
-                    log_likelihood = torch.cat(log_likelihood, dim=0)
-                    # log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
                     loss = -log_likelihood / inputs_seq_len
                 loss = loss.sum().item()
 
@@ -315,12 +317,9 @@ class XLNet_CRF(BaseFramework):
                 if self.model.crf is None:
                     preds_seq = logits.argmax(-1) # B * S
                 else:
-                    preds_seq = []
-                    for i in range(bs):
-                        preds_seq.append(self.model.crf.decode(logits[i][-inputs_seq_len[i]:].unsqueeze(0), mask=inputs_mask[i][-inputs_seq_len[i]:].unsqueeze(0))[0]) # List[List[int]]
-                    for i, pred_seq in enumerate(preds_seq):
-                        preds_seq[i] = [negid] * (outputs_seq.size(1) - len(pred_seq))
-                        preds_seq[i].extend(pred_seq)
+                    preds_seq = self.model.crf.decode(logits, mask=inputs_mask) # List[List[int]]
+                    for pred_seq in preds_seq:
+                        pred_seq.extend([negid] * (outputs_seq.size(1) - len(pred_seq)))
                     preds_seq = torch.tensor(preds_seq).to(outputs_seq.device) # B * S
                 
                 # get token sequence
@@ -332,9 +331,9 @@ class XLNet_CRF(BaseFramework):
                 for i in range(bs):
                     seqlen = inputs_seq_len[i]
                     spos, tpos = 1, seqlen - 2
-                    pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][-seqlen:][spos:tpos]]
-                    gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][-seqlen:][spos:tpos]]
-                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][-seqlen:][spos:tpos]]
+                    pred_seq_tag = [self.model.id2tag[tid] for tid in preds_seq[i][:seqlen][spos:tpos]]
+                    gold_seq_tag = [self.model.id2tag[tid] for tid in outputs_seq[i][:seqlen][spos:tpos]]
+                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
                     
                     pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(pred_seq_tag, char_seq)
                     gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}')(gold_seq_tag, char_seq)
