@@ -15,7 +15,8 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 import torch.nn.functional as F
 
 from transformers import AutoModelForMaskedLM, AutoModelForCausalLM, AutoTokenizer, AutoModel
-from transformers import BertModel, AlbertModel, BertTokenizer
+from transformers import BertModel, RobertaModel, AlbertModel
+from transformers import BertTokenizer, RobertaTokenizer, AlbertTokenizer
 
 
 class BERTEncoder(nn.Module):
@@ -39,11 +40,19 @@ class BERTEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert_name = bert_name
         if 'albert' in bert_name:
-            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        if 'roberta' in bert_name:
-            self.bert = BertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+            if self.language == 'zh':
+                self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+            else:
+                self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+                self.tokenizer = AlbertTokenizer.from_pretrained(pretrain_path)
+        elif 'roberta' in bert_name:
+            if self.language == 'zh':
+                self.bert = BertModel.from_pretrained(pretrain_path) # clue, hfl
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue, hfl
+            else:
+                self.bert = RobertaModel.from_pretrained(pretrain_path) # clue, hfl
+                self.tokenizer = RobertaTokenizer.from_pretrained(pretrain_path) # clue, hfl
         elif 'bert' in bert_name:
             self.bert = BertModel.from_pretrained(pretrain_path)
             self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)

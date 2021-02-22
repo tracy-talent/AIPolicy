@@ -14,7 +14,7 @@ from typing import Optional, List, Dict
 from ltp import LTP
 from ddparser import DDParser
 import stanza
-from transformers import BertTokenizer, XLNetTokenizer
+from transformers import BertTokenizer, RobertaTokenizer, AlbertTokenizer, XLNetTokenizer
 
 
 class Base_Parse(object):
@@ -228,7 +228,15 @@ def construct_corpus_dsp_with_bert(corpus_path, pretrain_path=None, dsp_tool='dd
     if pretrain_path is not None and not os.path.exists(pretrain_path):
         raise FileNotFoundError(f'{pretrain_path} is not found, please give bert pretrain model path.')
     if pretrain_path is not None:
-        tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+        if 'roberta' in pretrain_path:
+            if language == 'en':
+                tokenizer = RobertaTokenizer.from_pretrained(pretrain_path)
+            else:
+                tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+            bert_name = 'roberta'
+        else:
+            tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+            bert_name = 'bert'
         num_added_tokens = tokenizer.add_tokens(['“', '”', '—'])
     files = ['train', 'val', 'test']
     if dsp_tool == 'stanza':
@@ -248,21 +256,25 @@ def construct_corpus_dsp_with_bert(corpus_path, pretrain_path=None, dsp_tool='dd
             continue
         if pretrain_path is not None:
             if 'multilingual' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_multilingual_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_multilingual_{dsp_tool}_dsp_path.txt'
             elif 'large-uncased-wwm' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_uncased_wwm_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_large_uncased_wwm_{dsp_tool}_dsp_path.txt'
             elif 'large-uncased' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_uncased_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_large_uncased_{dsp_tool}_dsp_path.txt'
+            elif 'base-uncased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_base_uncased_{dsp_tool}_dsp_path.txt'
             elif 'uncased' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_uncased_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_uncased_{dsp_tool}_dsp_path.txt'
             elif 'large-cased-wwm' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_cased_wwm_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_large_cased_wwm_{dsp_tool}_dsp_path.txt'
             elif 'large-cased' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_large_cased_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_large_cased_{dsp_tool}_dsp_path.txt'
+            elif 'base-cased' in pretrain_path:
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_base_cased_{dsp_tool}_dsp_path.txt'
             elif 'cased' in pretrain_path:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_cased_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_cased_{dsp_tool}_dsp_path.txt'
             else:
-                dsp_file_name = f'{corpus_name}_{fname}_tail_bert_{dsp_tool}_dsp_path.txt'
+                dsp_file_name = f'{corpus_name}_{fname}_tail_{bert_name}_{dsp_tool}_dsp_path.txt'
         else:
             dsp_file_name = f'{corpus_name}_{fname}_tail_{dsp_tool}_dsp_path.txt'
         with open(os.path.join(corpus_path, f'{corpus_name}_{fname}.txt'), 'r', encoding='utf-8') as rf, open(os.path.join(corpus_path, dsp_file_name), 'w', encoding='utf-8') as wf:
@@ -296,8 +308,12 @@ def construct_corpus_dsp_with_bert(corpus_path, pretrain_path=None, dsp_tool='dd
                         line['t']['pos'] = [pos2_1, pos2_2]
                         line['token'] = sent0 + ent0 + sent1 + ent1 + sent2
                         for j, t in enumerate(line['token']):
-                            if t.startswith('##'):
-                                line['token'][j] = t[2:]
+                            if bert_name == 'roberta' and language == 'en':
+                                if t.startswith('Ġ'):
+                                    line['token'][j] = t[1:]
+                            else:
+                                if t.startswith('##'):
+                                    line['token'][j] = t[2:]
                         seq_len = len(sent0) + len(ent0) + len(sent1) + len(ent1) + len(sent2)
                         max_seq_len = max(max_seq_len, seq_len)
                         min_seq_len = min(min_seq_len, seq_len)

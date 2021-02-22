@@ -29,12 +29,12 @@ class BERTEncoder(nn.Module):
         self.bert_name = bert_name
         if 'albert' in bert_name:
             self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        if 'roberta' in bert_name:
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+        elif 'roberta' in bert_name:
             # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
             # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
-            self.bert = BertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+            self.bert = BertModel.from_pretrained(pretrain_path) # clue, hfl
+            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue, hfl
         elif 'bert' in bert_name:
             # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
             self.bert = BertModel.from_pretrained(pretrain_path)

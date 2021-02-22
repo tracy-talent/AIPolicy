@@ -246,20 +246,26 @@ if args.use_sampler:
 else:
     sampler = None
 if args.dsp_preprocessed:
-    if 'large-uncased-wwm' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'
+    if 'multilingual' in pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_multilingual_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-uncased-wwm' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'
     elif 'large-uncased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_uncased_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'base-uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_base_uncased_{args.dsp_tool}_dsp_path.txt'
     elif 'uncased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_uncased_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_uncased_{args.dsp_tool}_dsp_path.txt'
     elif 'large-cased-wwm' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_cased_wwm_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_cased_wwm_{args.dsp_tool}_dsp_path.txt'
     elif 'large-cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_large_cased_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_cased_{args.dsp_tool}_dsp_path.txt'
+    elif 'base-cased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_base_cased_{args.dsp_tool}_dsp_path.txt'
     elif 'cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_bert_cased_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_cased_{args.dsp_tool}_dsp_path.txt'
     else:
-        dsp_file_path_suffix = f'_tail_bert_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_{args.dsp_tool}_dsp_path.txt'
 
 framework = pasare.framework.SentenceWithDSPRE(
     train_path=args.train_file if not args.only_test else None,
