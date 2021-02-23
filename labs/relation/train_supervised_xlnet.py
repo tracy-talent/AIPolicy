@@ -108,6 +108,10 @@ def make_model_name():
         model_name += '_' + args.adv
     if args.embed_entity_type:
         model_name += '_embed_entity'
+    if args.use_attention4context:
+        model_name += '_attention_context'
+    else:
+        model_name += '_conv_context'
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):

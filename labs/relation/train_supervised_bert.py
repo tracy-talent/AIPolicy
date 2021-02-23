@@ -110,6 +110,10 @@ def make_model_name():
         model_name += '_' + args.adv
     if args.embed_entity_type:
         model_name += '_embed_entity'
+    if args.use_attention4context:
+        model_name += '_attention_context'
+    else:
+        model_name += 'conv_context'
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -194,7 +198,8 @@ elif args.encoder_type == 'cls':
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
         mask_entity=args.mask_entity,
-        blank_padding=True
+        blank_padding=True,
+        language=args.language
     )
 elif args.encoder_type == 'rbert':
     sentence_encoder = pasare.encoder.RBERTEncoder(
@@ -202,7 +207,8 @@ elif args.encoder_type == 'rbert':
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
         mask_entity=args.mask_entity,
-        blank_padding=True
+        blank_padding=True,
+        language=args.language
     )
 else:
     raise NotImplementedError

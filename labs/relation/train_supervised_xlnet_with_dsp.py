@@ -117,9 +117,9 @@ def make_model_name():
         model_name += '_embed_entity'
     model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
     if args.use_attention4context:
-        model_name += '_attention_cat'
+        model_name += '_attention_context'
     else:
-        model_name += '_maxpool'
+        model_name += '_conv_context'
     model_name += '_' + args.loss
     if 'dice' in args.loss:
         model_name += str(args.dice_alpha)
@@ -194,6 +194,7 @@ if args.encoder_type == 'entity_dsp':
         blank_padding=True,
         mask_entity=args.mask_entity,
         compress_seq=args.compress_seq,
+        language=args.language
     )
 elif args.encoder_type == 'entity_context_dsp':
     sentence_encoder = pasare.encoder.XLNetEntityWithContextDSPEncoder(

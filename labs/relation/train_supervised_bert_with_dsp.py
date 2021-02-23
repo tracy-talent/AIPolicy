@@ -119,9 +119,9 @@ def make_model_name():
         model_name += '_embed_entity'
     model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
     if args.use_attention4context:
-        model_name += '_attention_cat'
+        model_name += '_attention_context'
     else:
-        model_name += '_maxpool'
+        model_name += '_conv_context'
     model_name += '_' + args.loss
     if 'dice' in args.loss:
         model_name += str(args.dice_alpha)
@@ -224,7 +224,8 @@ elif args.encoder_type == 'cls':
         use_attention=args.use_attention,
         mask_entity=args.mask_entity,
         blank_padding=True,
-        compress_seq=args.compress_seq
+        compress_seq=args.compress_seq,
+        language=args.language
     )
 else:
     raise NotImplementedError
@@ -246,7 +247,7 @@ if args.use_sampler:
 else:
     sampler = None
 if args.dsp_preprocessed:
-    if 'multilingual' in pretrain_path:
+    if 'multilingual' in args.pretrain_path:
         dsp_file_path_suffix = f'_tail_{args.bert_name}_multilingual_{args.dsp_tool}_dsp_path.txt'
     elif 'large-uncased-wwm' in args.pretrain_path:
         dsp_file_path_suffix = f'_tail_{args.bert_name}_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'

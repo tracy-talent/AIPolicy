@@ -44,15 +44,15 @@ class BERTEncoder(nn.Module):
                 self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
                 self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
             else:
-                self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+                self.bert = AlbertModel.from_pretrained(pretrain_path)
                 self.tokenizer = AlbertTokenizer.from_pretrained(pretrain_path)
         elif 'roberta' in bert_name:
             if self.language == 'zh':
                 self.bert = BertModel.from_pretrained(pretrain_path) # clue, hfl
                 self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue, hfl
             else:
-                self.bert = RobertaModel.from_pretrained(pretrain_path) # clue, hfl
-                self.tokenizer = RobertaTokenizer.from_pretrained(pretrain_path) # clue, hfl
+                self.bert = RobertaModel.from_pretrained(pretrain_path)
+                self.tokenizer = RobertaTokenizer.from_pretrained(pretrain_path)
         elif 'bert' in bert_name:
             self.bert = BertModel.from_pretrained(pretrain_path)
             self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
@@ -317,13 +317,19 @@ class BERTEntityEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert_name = bert_name
         if 'albert' in bert_name:
-            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        if 'roberta' in bert_name:
-            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
-            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
-            self.bert = BertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+            if self.language == 'zh':
+                self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+            else:
+                self.bert = AlbertModel.from_pretrained(pretrain_path)
+                self.tokenizer = AlbertTokenizer.from_pretrained(pretrain_path)
+        elif 'roberta' in bert_name:
+            if self.language == 'zh':
+                self.bert = BertModel.from_pretrained(pretrain_path) # clue, hfl
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue, hfl
+            else:
+                self.bert = RobertaModel.from_pretrained(pretrain_path)
+                self.tokenizer = RobertaTokenizer.from_pretrained(pretrain_path)
         elif 'bert' in bert_name:
             # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
             self.bert = BertModel.from_pretrained(pretrain_path)

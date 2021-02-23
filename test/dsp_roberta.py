@@ -16,8 +16,8 @@ if __name__ == '__main__':
     # print(nlp.parse(sent))
     # pretrain_path = '/home/liujian/NLP/corpus/transformers/hfl-chinese-roberta-base-wwm-ext' # zh
     # pretrain_path = '/home/liujian/NLP/corpus/transformers/hfl-chinese-roberta-large-wwm-ext' # zh
-    pretrain_path = '/home/liujian/NLP/corpus/transformers/roberta-base-cased' # en
-    # pretrain_path = '/home/liujian/NLP/corpus/transformers/roberta-large-cased' # en
+    # pretrain_path = '/home/liujian/NLP/corpus/transformers/roberta-base-cased' # en
+    pretrain_path = '/home/liujian/NLP/corpus/transformers/roberta-large-cased' # en
     semeval_path = os.path.abspath('../input/benchmark/relation/semeval')
     #nyt10_path = os.path.abspath('../input/benchmark/relation/nyt10')
     #wiki80_path = os.path.abspath('../input/benchmark/relation/wiki80')
