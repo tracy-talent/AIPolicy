@@ -87,6 +87,8 @@ parser.add_argument('--dice_alpha', default=0.6, type=float,
         help='alpha of dice loss')
 parser.add_argument('--batch_size', default=64, type=int,
         help='Batch size')
+parser.add_argument('--token_size', default=160, type=int,
+        help='token embedding size')
 parser.add_argument('--crf_lr', default=1e-3, type=float,
         help='CRF Learning rate')
 parser.add_argument('--lr', default=1e-3, type=float,
@@ -261,7 +263,6 @@ for arg in vars(args):
 span2id = load_vocab(args.span2id_file)
 attr2id = load_vocab(args.attr2id_file)
 # load token embedding and vocab
-token2id, token2vec = load_wordvec(args.token2vec_file, binary='.bin' in args.token2vec_file)
 corpus_vocab = {}
 for datafile in [args.train_file, args.val_file, args.test_file]:
     with open(datafile, 'r', encoding='utf-8') as f:
@@ -269,16 +270,8 @@ for datafile in [args.train_file, args.val_file, args.test_file]:
             line = line.strip().split()
             if len(line) > 0 and line[0] not in corpus_vocab:
                 corpus_vocab[line[0]] = len(corpus_vocab)
-corpus2vec = np.empty((len(corpus_vocab), token2vec.shape[-1]))
-scale = np.sqrt(3.0 / token2vec.shape[-1])
-for token, idx in corpus_vocab.items():
-    if token in token2id:
-        corpus2vec[idx] = token2vec[token2id[token]]
-    elif token.lower() in token2id:
-        corpus2vec[idx] = token2vec[token2id[token.lower()]]
-    else:
-        corpus2vec[idx] = np.random.uniform(-scale, scale, token2vec.shape[-1])
-token2id, token_embedding = construct_embedding_from_numpy(word2id=corpus_vocab, word2vec=corpus2vec, finetune=True)
+token2vec = torch.nn.Embedding(len(corpus_vocab), args.token_size).weight.detach().numpy()
+token2id, token_embedding = construct_embedding_from_numpy(word2id=corpus_vocab, word2vec=token2vec, finetune=True)
 # load word embedding and vocab
 word2id, word2vec = load_wordvec(args.word2vec_file, binary='.bin' in args.word2vec_file)
 word2id, word_embedding = construct_embedding_from_numpy(word2id=word2id, word2vec=word2vec, finetune=False)

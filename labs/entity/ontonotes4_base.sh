@@ -13,9 +13,7 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
-    --span_use_lstm \
     --span_use_crf \
-    --attr_use_lstm \
     --batch_size 10 \
     --crf_lr 1e-3 \
     --lr 1e-3 \
@@ -25,7 +23,7 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --warmup_step 5 \
     --max_pinyin_char_length 7 \
     --pinyin_char_embedding_size 50 \
-    --optimizer sgd \
+    --optimizer adam \
     --loss ce \
     --metric micro_f1
 "
@@ -36,7 +34,7 @@ then
     maxep=150
 else
     maxlen=256
-    maxep=2000
+    maxep=500
 fi
 
 if [ $2 == sgns ]

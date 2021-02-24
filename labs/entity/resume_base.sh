@@ -16,6 +16,7 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --span_use_lstm \
     --span_use_crf \
     --attr_use_lstm \
+    --token_size 160 \
     --batch_size 10 \
     --crf_lr 1e-3 \
     --lr 1e-3 \
@@ -33,7 +34,7 @@ python train_base_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
 if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
-    maxep=2000
+    maxep=1000
 else
     maxlen=256
     maxep=100

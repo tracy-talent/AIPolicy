@@ -28,6 +28,8 @@ def dot_product_attention_with_project(att_query, att_kv, att_mask, project_mat)
         att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
         return att_output, att_weight.data
 
+
+
 class MultiHeadedAttention(nn.Module):
     def __init__(self, d_input, num_heads, d_model, d_ffn, dropout_rate=0.1):
         "Take in model size and number of heads."
@@ -40,6 +42,9 @@ class MultiHeadedAttention(nn.Module):
         self.wq = nn.Linear(d_input, d_model)
         self.wk = nn.Linear(d_input, d_model)
         self.wv = nn.Linear(d_input, d_model)
+        self.dense = nn.Linear(d_model, d_model)
+        self.mha_dropout = nn.Dropout(p=dropout_rate)
+        self.mha_layernorm = nn.LayerNorm(d_model)
         self.ffn = nn.Sequential(
             nn.Linear(d_model, d_ffn),
             nn.ReLU(),
@@ -49,7 +54,7 @@ class MultiHeadedAttention(nn.Module):
         self.ffn_layernorm = nn.LayerNorm(d_model)
         self.attention_weights = None
 
-
+    
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
@@ -105,6 +110,7 @@ class MultiHeadedAttention(nn.Module):
             attention_outputs (torch.tensor): output of MultiHeadedAttention.
         """
         batch_size = query.size(0)
+        input_x = query
 
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query = self.wq(query)
@@ -119,7 +125,9 @@ class MultiHeadedAttention(nn.Module):
 
         # 3) "Concat" using a view.
         attention_output = attention_output.permute(0, 2, 1, 3).contiguous().view(batch_size, -1, self.d_model)
-        
+        attention_output = self.mha_dropout(self.dense(attention_output))
+        attention_output = self.mha_layernorm(attention_output + input_x)
+
         # 4) Feed Forward Network
         output = self.point_wise_feed_forward_network(attention_output)
 
