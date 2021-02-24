@@ -52,7 +52,7 @@ parser.add_argument('--dsp_tool', default='ddp', choices=['ltp', 'ddp', 'stanza'
 
 # Data
 parser.add_argument('--dataset', default='none',
-                    # choices=['none', 'semeval', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'],
+                    choices=['none', 'semeval', 'kbp37', 'wiki80', 'tacred', 'policy', 'nyt10', 'test-policy'],
                     help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
                     help='Training data file')
@@ -153,8 +153,6 @@ while os.path.exists(ckpt):
     ckpt = re.sub('\d+\.pth\.tar', f'{ckpt_cnt}.pth.tar', ckpt)
 
 if args.dataset != 'none':
-    # if 'policy' not in args.dataset:
-    #     pasare.download(args.dataset, root_path=config['path']['input'])
     args.train_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_train.txt'.format(args.dataset))
     args.val_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_val.txt'.format(args.dataset))
     args.test_file = os.path.join(config['path']['re_dataset'], args.dataset, '{}_test.txt'.format(args.dataset))
