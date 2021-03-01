@@ -258,11 +258,11 @@ class BERTWithDSPEncoder(BERTEncoder):
         ent_dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
         # ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
-        joint_feature = torch.cat([pooler_out, ent_dsp_hidden], dim=-1)
-        # joint_feature = torch.tanh(self.linear(joint_feature))
-        # joint_feature = self.linear(joint_feature)
+        rep_out = torch.cat([pooler_out, ent_dsp_hidden], dim=-1)
+        # rep_out = torch.tanh(self.linear(rep_out))
+        rep_out = self.linear(rep_out)
 
-        return joint_feature
+        return rep_out
 
     def tokenize(self, item):
         """
@@ -371,7 +371,7 @@ class BERTEntityEncoder(nn.Module):
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
         rep_out = torch.cat([head_hidden, tail_hidden], 1)  # (B, 3H)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
         return rep_out
 
     def tokenize(self, item):
@@ -547,7 +547,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
             context_hidden = F.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
         return rep_out
 
 
@@ -672,7 +672,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -827,7 +827,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 

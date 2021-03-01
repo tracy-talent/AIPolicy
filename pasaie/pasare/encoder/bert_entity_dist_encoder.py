@@ -61,7 +61,7 @@ class BERTEntityDistEncoder(BERTEntityEncoder):
         tail_hidden = torch.matmul(onehot_tail.unsqueeze(1), hidden).squeeze(1)  # (B, H)
 
         rep_out = torch.cat([head_hidden, tail_hidden], dim=-1)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -125,7 +125,7 @@ class BERTEntityDistWithPCNNEncoder(BERTEntityEncoder):
         pcnn_hidden = self.pool(hidden, att_mask)
 
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden], dim=-1)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -237,7 +237,7 @@ class BERTEntityDistWithDSPEncoder(BERTEntityWithDSPEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -347,6 +347,6 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out

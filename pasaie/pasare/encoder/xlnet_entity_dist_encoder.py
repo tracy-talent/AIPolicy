@@ -61,7 +61,7 @@ class XLNetEntityDistEncoder(XLNetEntityEncoder):
         tail_hidden = torch.matmul(onehot_tail.unsqueeze(1), hidden).squeeze(1)  # (B, H)
 
         rep_out = torch.cat([head_hidden, tail_hidden], dim=-1)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -129,7 +129,7 @@ class XLNetEntityDistWithPCNNEncoder(XLNetEntityEncoder):
         pcnn_hidden = self.pool(hidden, att_mask)
 
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden], dim=-1)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -177,7 +177,7 @@ class XLNetEntityDistWithDSPEncoder(XLNetEntityWithDSPEncoder):
                             bidirectional=False, 
                             batch_first=True)
         self.dsp_query = nn.Linear(emb_size, 1)
-        # self.linear = nn.Linear(self.hidden_size, self.hidden_size)
+        self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     
     def forward(self, seqs, pos1, pos2, token_type_ids, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
@@ -241,7 +241,7 @@ class XLNetEntityDistWithDSPEncoder(XLNetEntityWithDSPEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -356,8 +356,7 @@ class XLNetEntityDistWithPCNNDSPEncoder(XLNetEntityDistWithDSPEncoder):
 
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden, dsp_hidden], dim=-1)  # (B, 4H)
-        # rep_out = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
         # rep_out = torch.tanh(self.linear(rep_out))
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out

@@ -3,9 +3,9 @@
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 python_command="
 python train_supervised_bert.py \
-    --pretrain_path /home/mist/NLP/corpus/transformers/google-bert-large-uncased-wwm \
+    --pretrain_path /home/mist/NLP/corpus/transformers/roberta-large-cased \
     --language en \
-    --bert_name bert \
+    --bert_name roberta \
     --encoder_type $2 \
     --dataset $1 \
     --compress_seq \

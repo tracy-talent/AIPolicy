@@ -79,7 +79,7 @@ class XLNetEntityEncoder(nn.Module):
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
         rep_out = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
         return rep_out
 
 
@@ -274,7 +274,7 @@ class XLNetEntityWithContextEncoder(XLNetEntityEncoder):
             context_hidden = F.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
         return rep_out
 
 
@@ -402,7 +402,7 @@ class XLNetEntityWithDSPEncoder(XLNetEntityEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, dsp_hidden], dim=-1)  # (B, 2d)
         # rep_out = torch.tanh(self.linear(rep_out)) # (B, 4d)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out
 
@@ -560,6 +560,6 @@ class XLNetEntityWithContextDSPEncoder(XLNetEntityWithDSPEncoder):
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 5d)
         # rep_out = torch.tanh(self.linear(rep_out)) # (B. 5d)
-        # rep_out = self.linear(rep_out)
+        rep_out = self.linear(rep_out)
 
         return rep_out

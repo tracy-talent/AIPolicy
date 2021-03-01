@@ -31,7 +31,7 @@ parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', '
         help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--encoder_type', default='entity', choices=['cls', 'entity', 'entity_context', 'entity_dsp', 'entity_context_dsp'],
+parser.add_argument('--encoder_type', default='entity', choices=['dsp', 'entity_dsp', 'entity_context_dsp'],
                     help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
@@ -212,7 +212,7 @@ elif args.encoder_type == 'entity_context_dsp':
         compress_seq=args.compress_seq,
         language=args.language
     )
-elif args.encoder_type == 'cls':
+elif args.encoder_type == 'dsp':
     sentence_encoder = pasare.encoder.BERTWithDSPEncoder(
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
