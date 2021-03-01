@@ -2,7 +2,7 @@
 # $1: dataset, $2: GPU id
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 python_command="
-python train_supervised_bert_with_dsp.py \
+python train_supervised_bert_dist_with_dsp.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/google-bert-large-uncased-wwm \
     --language en \
     --bert_name bert \
@@ -10,11 +10,11 @@ python train_supervised_bert_with_dsp.py \
     --dataset $1 \
     --compress_seq \
     --dsp_preprocessed \
-    --use_attention4context \
     --use_attention4dsp \
     --adv none \
     --loss ce \
-    --batch_size 8 \
+    --position_size 50 \
+    --batch_size 12 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \

@@ -2,19 +2,18 @@
 # $1: dataset, $2: GPU id
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 python_command="
-python train_supervised_bert_with_dsp.py \
-    --pretrain_path /home/liujian/NLP/corpus/transformers/google-bert-large-uncased-wwm \
+python train_supervised_xlnet_dist_with_dsp.py \
+    --pretrain_path /home/liujian/NLP/corpus/transformers/xlnet-large-cased \
     --language en \
-    --bert_name bert \
     --encoder_type entity_dist_pcnn_dsp \
     --dataset $1 \
     --compress_seq \
     --dsp_preprocessed \
-    --use_attention4context \
     --use_attention4dsp \
     --adv none \
     --loss ce \
-    --batch_size 8 \
+    --position_size 50 \
+    --batch_size 12 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
@@ -28,7 +27,7 @@ python train_supervised_bert_with_dsp.py \
 
 if [ $1 == semeval ]
 then
-    maxlen=128
+    maxlen=150
     max_dsp_path_len=15
     negid=1
 elif [ $1 == kbp37 ]

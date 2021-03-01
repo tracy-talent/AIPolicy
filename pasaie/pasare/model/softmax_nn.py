@@ -51,6 +51,6 @@ class SoftmaxNN(SentenceRE):
         rep = self.sentence_encoder(*args) # (B, H)
         rep = self.drop(rep)
         logits = self.fc(rep) # (B, N)
-        if 'Entity-Origin(e1,e2)' in self.rel2id:
-            logits = self.layernorm(logits) # (B, N), for Semeval and Fewrel
+        # if 'Entity-Origin(e1,e2)' in self.rel2id:
+            # logits = self.layernorm(logits) # (B, N), for Semeval and Fewrel
         return logits

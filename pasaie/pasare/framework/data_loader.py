@@ -79,7 +79,7 @@ class SentenceREDataset(data.Dataset):
     def collate_fn(cls, compress_seq, data):
         seqs = list(zip(*data))
         if compress_seq:
-            seqs_len = torch.cat(seqs[-1], dim=0).sum(dim=-1) # (B)
+            seqs_len = (torch.cat(seqs[-1], dim=0) != 0).sum(dim=-1) # (B)
             sorted_length_indices = seqs_len.argsort(descending=True) 
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
@@ -178,22 +178,22 @@ class SentenceWithDSPREDataset(SentenceREDataset):
                         pos = self.dsp_path[index][0][0][i].item()
                         if pos >= ent_h_pos_1:
                             pos += 1
-                        if pos >= ent_h_pos_2:
+                        if pos >= ent_h_pos_2 - 1:
                             pos += 1
                         if pos >= ent_t_pos_1:
                             pos += 1
-                        if pos >= ent_t_pos_2:
+                        if pos >= ent_t_pos_2 - 1:
                             pos += 1
                         self.dsp_path[index][0][0][i] = pos
                     for i in range(self.dsp_path[index][3].item()):
                         pos = self.dsp_path[index][1][0][i].item()
                         if pos >= ent_h_pos_1:
                             pos += 1
-                        if pos >= ent_h_pos_2:
+                        if pos >= ent_h_pos_2 - 1:
                             pos += 1
                         if pos >= ent_t_pos_1:
                             pos += 1
-                        if pos >= ent_t_pos_2:
+                        if pos >= ent_t_pos_2 - 1:
                             pos += 1
                         self.dsp_path[index][1][0][i] = pos
                 data_item += self.dsp_path[index]
@@ -201,7 +201,7 @@ class SentenceWithDSPREDataset(SentenceREDataset):
             if (index + 1) % 500 == 0:
                 logging.info(f'parsed {index + 1} sentences for DSP path')
             # 序列长与依存路径索引校验
-            seq_len = self.data[-1][-5][0].sum().item()
+            seq_len = (self.data[-1][-5][0] != 0).sum().item()
             max_ent_t_path_index = max(self.data[-1][-3][0]).squeeze().item()
             max_ent_h_path_index = max(self.data[-1][-4][0]).squeeze().item()
             try:
@@ -221,7 +221,7 @@ class SentenceWithDSPREDataset(SentenceREDataset):
     def collate_fn(cls, compress_seq, data):
         seqs = list(zip(*data))
         if compress_seq:
-            seqs_len = torch.cat(seqs[-5], dim=0).sum(dim=-1) # (B)
+            seqs_len = (torch.cat(seqs[-5], dim=0) != 0).sum(dim=-1) # (B)
             sorted_length_indices = seqs_len.argsort(descending=True) 
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
@@ -262,7 +262,7 @@ class SentenceREDataset4XLNet(SentenceREDataset):
     def collate_fn(cls, compress_seq, data):
         seqs = list(zip(*data))
         if compress_seq:
-            seqs_len = torch.cat(seqs[-1], dim=0).sum(dim=-1)
+            seqs_len = (torch.cat(seqs[-1], dim=0) != 0).sum(dim=-1)
             sorted_length_indices = seqs_len.argsort(descending=True) 
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):
@@ -299,7 +299,7 @@ class SentenceWithDSPREDataset4XLNet(SentenceWithDSPREDataset):
     def collate_fn(cls, compress_seq, data):
         seqs = list(zip(*data))
         if compress_seq:
-            seqs_len = torch.cat(seqs[-5], dim=0).sum(dim=-1)
+            seqs_len = (torch.cat(seqs[-5], dim=0) != 0).sum(dim=-1)
             sorted_length_indices = seqs_len.argsort(descending=True) 
             seqs_len = seqs_len[sorted_length_indices]
             for i in range(len(seqs)):

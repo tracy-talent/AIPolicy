@@ -7,7 +7,7 @@ class PieceMaxPool(nn.Module):
     """
     Piecewise MaxPooling
     """
-    def __init__(self, kernel_size, piece_num=None):
+    def __init__(self, kernel_size=None, piece_num=None):
         """
         Args:
             kernel_size: kernel_size for CNN
@@ -20,7 +20,10 @@ class PieceMaxPool(nn.Module):
             self.mask_embedding.weight.data.copy_(torch.FloatTensor(np.concatenate([np.zeros((1, piece_num)), np.identity(piece_num)], axis=0)))
             self.mask_embedding.weight.requires_grad = False
             self._minus = -100
-        self.pool = nn.MaxPool1d(kernel_size)
+        if kernel_size is not None:
+            self.pool = nn.MaxPool1d(kernel_size)
+        else:
+            self.pool = None
 
     def forward(self, x, mask=None):
         """
@@ -31,14 +34,20 @@ class PieceMaxPool(nn.Module):
         """
         # Check size of tensors
         if mask is None or self.piece_num is None or self.piece_num == 1:
-            x = self.pool(x).squeeze(-1) # (B, I_EMBED, 1) -> (B, I_EMBED)
+            if self.pool is None:
+                x = F.max_pool1d(x, x.size(-1)).squeeze(-1) # (B, I_EMBED, L) -> (B, I_EMBED)
+            else:
+                x = self.pool(x).squeeze(-1) # (B, I_EMBED, L) -> (B, I_EMBED)
             return x
         else:
             B, I_EMBED, L = x.size()[:3]
             mask_embedded = 1 - self.mask_embedding(mask).transpose(1, 2).unsqueeze(2) # (B, L) -> (B, L, S) -> (B, S, L) -> (B, S, 1, L)
             x = x.unsqueeze(1) # (B, I_EMBED, L) -> (B, 1, I_EMBED, L)
             x = (x + self._minus * mask_embedded).contiguous().view([-1, I_EMBED, L]) # (B, S, I_EMBED, L) -> (B * S, I_EMBED, L)
-            x = self.pool(x).squeeze(-1) # (B * S, I_EMBED, 1) -> (B * S, I_EMBED)
+            if self.pool is None:
+                x = F.max_pool1d(x, x.size(-1)).squeeze(-1) # (B * S, I_EMBED, L) -> (B * S, I_EMBED)
+            else:
+                x = self.pool(x).squeeze(-1) # (B * S, I_EMBED, L) -> (B * S, I_EMBED)
             x = x.view([B, -1])  # (B, S * I_EMBED)
             return x
             # mask_embedded = 1 - self.mask_embedding(mask).transpose(1, 2) # (B, L) -> (B, L, S) -> (B, S, L)

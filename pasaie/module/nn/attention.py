@@ -28,6 +28,7 @@ def dot_product_attention_with_project(att_query, att_kv, att_mask, project_mat)
         att_output = torch.matmul(att_weight.unsqueeze(-2), att_kv).squeeze(-2)
         return att_output, att_weight.data
 
+
 class MultiHeadedAttention(nn.Module):
     def __init__(self, num_heads, d_model, dropout=0.1):
         "Take in model size and number of heads."

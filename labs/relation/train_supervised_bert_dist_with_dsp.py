@@ -1,8 +1,8 @@
 """
- Author: liujian 
- Date: 2021-02-22 12:12:01 
- Last Modified by: liujian 
- Last Modified time: 2021-02-22 12:12:01 
+ Author: liujian
+ Date: 2021-02-28 21:22:25
+ Last Modified by: liujian
+ Last Modified time: 2021-02-28 21:22:25
 """
 
 # coding:utf-8
@@ -23,20 +23,20 @@ from ast import literal_eval
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--pretrain_path', default='xlnet-base-cased',
+parser.add_argument('--pretrain_path', default='bert-base-uncased',
                     help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--language', default='en', choices=['en', 'zh'], 
                     help='laguage of bert available to')
+parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', 'albert'], 
+        help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--encoder_type', default='entity', choices=['entity_dsp', 'entity_context_dsp'],
+parser.add_argument('--encoder_type', default='entity', choices=['entity_dist_dsp', 'entity_dist_pcnn_dsp'],
                     help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
 parser.add_argument('--mask_entity', action='store_true',
                     help='Mask entity mentions')
-parser.add_argument('--use_attention4context', action='store_true',
-                    help='whether use attention for DSP feature, otherwise use conv')
 parser.add_argument('--use_attention4dsp', action='store_true',
                     help='whether use attention for DSP feature')
 parser.add_argument('--embed_entity_type', action='store_true',
@@ -94,6 +94,8 @@ parser.add_argument('--warmup_step', default=0, type=int,
                     help='warmup steps for learning rate scheduler')
 parser.add_argument('--max_length', default=256, type=int,
                     help='Maximum sentence length')
+parser.add_argument('--position_size', default=5, type=int,
+                    help='embedding size of position distance from tokens to entity left boundary')
 parser.add_argument('--max_dsp_path_length', default=15, type=int,
                     help='Maximum entity to root dsp path length') # true max length {ltp:9, ddp:12, stanza:12}, suggest 15 for ddp/stanza, 10 for ltp
 parser.add_argument('--max_epoch', default=3, type=int,
@@ -112,14 +114,10 @@ fix_seed(args.random_seed)
 
 # construct save path name
 def make_model_name():
-    model_name = 'xlnet' + '_' + args.encoder_type
+    model_name = args.bert_name + '_' + args.encoder_type
     if args.embed_entity_type:
         model_name += '_embed_entity'
     model_name += '_tail_' + args.dsp_tool + '_dsp'
-    if args.use_attention4context:
-        model_name += '_attention_context'
-    else:
-        model_name += '_conv_context'
     model_name += '_' + args.loss
     if 'dice' in args.loss:
         model_name += str(args.dice_alpha)
@@ -181,30 +179,33 @@ rel2id = json.load(open(args.rel2id_file))
 tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file))
 
 # Define the sentence encoder
-if args.encoder_type == 'entity_dsp':
-    sentence_encoder = pasare.encoder.XLNetEntityWithDSPEncoder(
+if args.encoder_type == 'entity_dist_dsp':
+    sentence_encoder = pasare.encoder.BERTEntityDistWithDSPEncoder(
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         max_length=args.max_length,
+        position_size=args.position_size,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
         dsp_tool=args.dsp_tool,
         tag2id=tag2id,
         use_attention4dsp=args.use_attention4dsp,
-        blank_padding=True,
         mask_entity=args.mask_entity,
+        blank_padding=True,
         compress_seq=args.compress_seq,
         language=args.language
     )
-elif args.encoder_type == 'entity_context_dsp':
-    sentence_encoder = pasare.encoder.XLNetEntityWithContextDSPEncoder(
+elif args.encoder_type == 'entity_dist_pcnn_dsp':
+    sentence_encoder = pasare.encoder.BERTEntityDistWithPCNNDSPEncoder(
         pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
         max_length=args.max_length,
+        position_size=args.position_size,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
         dsp_tool=args.dsp_tool,
         tag2id=tag2id,
-        use_attention4context=args.use_attention4context,
         use_attention4dsp=args.use_attention4dsp,
-        blank_padding=True,
         mask_entity=args.mask_entity,
+        blank_padding=True,
         compress_seq=args.compress_seq,
         language=args.language
     )
@@ -228,18 +229,28 @@ if args.use_sampler:
 else:
     sampler = None
 if args.dsp_preprocessed:
-    if 'large-cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_xlnet_large_cased_{args.dsp_tool}_dsp_path.txt'
+    if 'multilingual' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_multilingual_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-uncased-wwm' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_uncased_wwm_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'base-uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_base_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'uncased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_uncased_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-cased-wwm' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_cased_wwm_{args.dsp_tool}_dsp_path.txt'
+    elif 'large-cased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_large_cased_{args.dsp_tool}_dsp_path.txt'
     elif 'base-cased' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_xlnet_base_cased_{args.dsp_tool}_dsp_path.txt'
-    elif 'xlnet-large' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_xlnet_large_{args.dsp_tool}_dsp_path.txt'
-    elif 'xlnet-base' in args.pretrain_path:
-        dsp_file_path_suffix = f'_tail_xlnet_base_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_base_cased_{args.dsp_tool}_dsp_path.txt'
+    elif 'cased' in args.pretrain_path:
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_cased_{args.dsp_tool}_dsp_path.txt'
     else:
-        dsp_file_path_suffix = f'_tail_xlnet_{args.dsp_tool}_dsp_path.txt'
+        dsp_file_path_suffix = f'_tail_{args.bert_name}_{args.dsp_tool}_dsp_path.txt'
 
-framework = pasare.framework.SentenceWithDSPRE4XLNet(
+framework = pasare.framework.SentenceWithDSPRE(
     train_path=args.train_file if not args.only_test else None,
     val_path=args.val_file if not args.only_test else None,
     test_path=args.test_file,

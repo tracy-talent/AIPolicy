@@ -5,6 +5,7 @@ python_command="
 python train_supervised_bert.py \
     --pretrain_path /home/liujian/NLP/corpus/transformers/google-bert-large-uncased-wwm \
     --language en \
+    --bert_name bert \
     --encoder_type entity_context \
     --dataset $1 \
     --compress_seq \

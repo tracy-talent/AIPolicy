@@ -259,7 +259,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         # ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
         joint_feature = torch.cat([pooler_out, ent_dsp_hidden], dim=-1)
-        joint_feature = torch.tanh(self.linear(joint_feature))
+        # joint_feature = torch.tanh(self.linear(joint_feature))
         # joint_feature = self.linear(joint_feature)
 
         return joint_feature
@@ -371,7 +371,7 @@ class BERTEntityEncoder(nn.Module):
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
         rep_out = torch.cat([head_hidden, tail_hidden], 1)  # (B, 3H)
-        rep_out = self.linear(rep_out)
+        # rep_out = self.linear(rep_out)
         return rep_out
 
     def tokenize(self, item):
@@ -447,13 +447,13 @@ class BERTEntityEncoder(nn.Module):
         # get tokens index and entity position
         self.tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
         pos1_1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
-        pos1_2 = pos1_1 + len(ent0) - 1 if not rev else pos1_1 + len(ent1) - 1
+        pos1_2 = pos1_1 + len(ent0) if not rev else pos1_1 + len(ent1)
         pos2_1 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
-        pos2_2 = pos2_1 + len(ent1) - 1 if not rev else pos2_1 + len(ent0) - 1
+        pos2_2 = pos2_1 + len(ent1) if not rev else pos2_1 + len(ent0)
         pos1_1 = torch.tensor([[min(self.max_length - 1, pos1_1)]]).long()
-        pos1_2 = torch.tensor([[min(self.max_length - 1, pos1_2)]]).long()
+        pos1_2 = torch.tensor([[min(self.max_length, pos1_2)]]).long()
         pos2_1 = torch.tensor([[min(self.max_length - 1, pos2_1)]]).long()
-        pos2_2 = torch.tensor([[min(self.max_length - 1, pos2_2)]]).long()
+        pos2_2 = torch.tensor([[min(self.max_length, pos2_2)]]).long()
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(self.tokens)
         avai_len = len(indexed_tokens) # 序列实际长度
 
@@ -547,7 +547,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
             context_hidden = F.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
-        rep_out = self.linear(rep_out)
+        # rep_out = self.linear(rep_out)
         return rep_out
 
 
@@ -671,8 +671,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
 
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, dsp_hidden], dim=-1)  # (B, 4H)
-        # rep_out = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
-        rep_out = torch.tanh(self.linear(rep_out))
+        # rep_out = torch.tanh(self.linear(rep_out))
         # rep_out = self.linear(rep_out)
 
         return rep_out
@@ -704,21 +703,21 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             for i, pos in enumerate(ent_h_path):
                 if pos >= ent_h_pos_1:
                     pos += 1
-                if pos >= ent_h_pos_2:
+                if pos >= ent_h_pos_2 - 1:
                     pos += 1
                 if pos >= ent_t_pos_1:
                     pos += 1
-                if pos >= ent_t_pos_2:
+                if pos >= ent_t_pos_2 - 1:
                     pos += 1
                 ent_h_path[i] = pos
             for i, pos in enumerate(ent_t_path):
                 if pos >= ent_h_pos_1:
                     pos += 1
-                if pos >= ent_h_pos_2:
+                if pos >= ent_h_pos_2 - 1:
                     pos += 1
                 if pos >= ent_t_pos_1:
                     pos += 1
-                if pos >= ent_t_pos_2:
+                if pos >= ent_t_pos_2 - 1:
                     pos += 1
                 ent_t_path[i] = pos
             if self.blank_padding:
@@ -827,8 +826,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
 
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden, dsp_hidden], dim=-1)  # (B, 4H)
-        # rep_out = torch.cat([head_hidden, tail_hidden, pooler_output, dsp_hidden], dim=-1)  # (B, 4H)
-        rep_out = torch.tanh(self.linear(rep_out))
+        # rep_out = torch.tanh(self.linear(rep_out))
         # rep_out = self.linear(rep_out)
 
         return rep_out

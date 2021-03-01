@@ -410,7 +410,7 @@ class SentenceRE4XLNet(SentenceRE):
 
         if val_path != None:
             self.val_loader = SentenceRELoader4XLNet(
-                train_path,
+                val_path,
                 model.rel2id,
                 model.sentence_encoder.tokenize,
                 batch_size,
@@ -421,7 +421,7 @@ class SentenceRE4XLNet(SentenceRE):
 
         if test_path != None:
             self.test_loader = SentenceRELoader4XLNet(
-                train_path,
+                test_path,
                 model.rel2id,
                 model.sentence_encoder.tokenize,
                 batch_size,
