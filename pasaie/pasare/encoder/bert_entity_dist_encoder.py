@@ -44,11 +44,7 @@ class BERTEntityDistEncoder(BERTEntityEncoder):
         ent1_dist = torch.tensor(ent1_dist).to(seqs.device)
         ent2_dist = torch.tensor(ent2_dist).to(seqs.device)
 
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte()) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte())
-
+        hidden, _ = self.bert(seqs, attention_mask=(att_mask != 0).byte())
         hidden = torch.cat([hidden, 
                        self.pos1_embedding(ent1_dist), 
                        self.pos2_embedding(ent2_dist)], 2) # (B, L, H)
@@ -81,9 +77,9 @@ class BERTEntityDistWithPCNNEncoder(BERTEntityEncoder):
         self.pos1_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)
         self.pos2_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)                       
         emb_size = self.bert.config.hidden_size + position_size * 2
-        # assert bert_hidden_size // 3 == 0
-        self.hidden_size = emb_size * 5
-        self.conv = nn.Conv1d(emb_size, emb_size, 3, padding=1)
+        assert emb_size // 3 == 0
+        self.hidden_size = emb_size * 3
+        self.conv = nn.Conv1d(emb_size, emb_size // 3, 3)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
@@ -103,11 +99,7 @@ class BERTEntityDistWithPCNNEncoder(BERTEntityEncoder):
         ent1_dist = torch.tensor(ent1_dist).to(seqs.device)
         ent2_dist = torch.tensor(ent2_dist).to(seqs.device)
 
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte()) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte())
-
+        hidden, _ = self.bert(seqs, attention_mask=(att_mask != 0).byte())
         hidden = torch.cat([hidden, 
                        self.pos1_embedding(ent1_dist), 
                        self.pos2_embedding(ent2_dist)], dim=-1) # (B, L, H)
@@ -201,10 +193,7 @@ class BERTEntityDistWithDSPEncoder(BERTEntityWithDSPEncoder):
         ent1_dist = torch.tensor(ent1_dist).to(seqs.device)
         ent2_dist = torch.tensor(ent2_dist).to(seqs.device)
 
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte()) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte())
+        hidden, _ = self.bert(seqs, attention_mask=(att_mask != 0).byte())
         hidden = torch.cat([hidden, 
                        self.pos1_embedding(ent1_dist), 
                        self.pos2_embedding(ent2_dist)], 2) # (B, L, H)
@@ -231,7 +220,6 @@ class BERTEntityDistWithDSPEncoder(BERTEntityWithDSPEncoder):
                 ent_t_dsp_hidden[i][0] = ent_t_dsp_hidden[i][:ent_t_length[i]].max(dim=0)[0]
             ent_t_dsp_hidden = ent_t_dsp_hidden[:, 0] # (B, d)
         ## cat head and tail representation
-        # dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
         dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
         # gather all features
@@ -276,8 +264,9 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
                                                     compress_seq=compress_seq, 
                                                     language=language)
         emb_size = self.bert.config.hidden_size + position_size * 2
-        self.hidden_size = emb_size * 7
-        self.conv = nn.Conv1d(emb_size, emb_size, 3, padding=1)
+        assert emb_size // 3 == 0
+        self.hidden_size = emb_size * 5
+        self.conv = nn.Conv1d(emb_size, emb_size // 3, kernel_size=3)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     
@@ -306,10 +295,7 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
         ent1_dist = torch.tensor(ent1_dist).to(seqs.device)
         ent2_dist = torch.tensor(ent2_dist).to(seqs.device)
 
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte()) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=(att_mask != 0).byte())
+        hidden, _ = self.bert(seqs, attention_mask=(att_mask != 0).byte())
         hidden = torch.cat([hidden, 
                        self.pos1_embedding(ent1_dist), 
                        self.pos2_embedding(ent2_dist)], 2) # (B, L, H)
@@ -336,7 +322,6 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
                 ent_t_dsp_hidden[i][0] = ent_t_dsp_hidden[i][:ent_t_length[i]].max(dim=0)[0]
             ent_t_dsp_hidden = ent_t_dsp_hidden[:, 0] # (B, d)
         ## cat head and tail representation
-        # dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
         dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
         # get pcnn hidden

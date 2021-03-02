@@ -80,9 +80,9 @@ class XLNetEntityDistWithPCNNEncoder(XLNetEntityEncoder):
         self.pos1_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)
         self.pos2_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)
         emb_size = self.xlnet.config.hidden_size + position_size * 2
-        # assert emb_size // 3 == 0
-        self.hidden_size = emb_size * 5
-        self.conv = nn.Conv1d(emb_size, emb_size, 3, padding=1)
+        assert emb_size // 3 == 0
+        self.hidden_size = emb_size * 3
+        self.conv = nn.Conv1d(emb_size, emb_size // 3, 3)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
@@ -280,8 +280,9 @@ class XLNetEntityDistWithPCNNDSPEncoder(XLNetEntityDistWithDSPEncoder):
                                                     compress_seq=compress_seq, 
                                                     language=language)
         emb_size = self.xlnet.config.hidden_size + position_size * 2
-        self.hidden_size = emb_size * 7
-        self.conv = nn.Conv1d(emb_size, emb_size, 3, padding=1)
+        assert emb_size // 3 == 0
+        self.hidden_size = emb_size * 5
+        self.conv = nn.Conv1d(emb_size, emb_size // 3, 3)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     

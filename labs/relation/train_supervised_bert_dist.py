@@ -167,10 +167,10 @@ tag2id = None if not args.embed_entity_type else json.load(open(args.tag2id_file
 # Define the sentence encoder
 if args.encoder_type == 'entity_dist':
     sentence_encoder = pasare.encoder.BERTEntityDistEncoder(
-        max_length=args.max_length,
-        position_size=args.position_size,
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
+        max_length=args.max_length,
+        position_size=args.position_size,
         tag2id=tag2id,
         mask_entity=args.mask_entity,
         blank_padding=True,
@@ -178,10 +178,10 @@ if args.encoder_type == 'entity_dist':
     )
 elif args.encoder_type == 'entity_dist_pcnn':
     sentence_encoder = pasare.encoder.BERTEntityDistWithPCNNEncoder(
-        max_length=args.max_length,
-        position_size=args.position_size,
         pretrain_path=args.pretrain_path,
         bert_name=args.bert_name,
+        max_length=args.max_length,
+        position_size=args.position_size,
         tag2id=tag2id,
         mask_entity=args.mask_entity,
         blank_padding=True,
@@ -250,5 +250,5 @@ logger.info('Test set results:')
 logger.info('Accuracy: {}'.format(result['acc']))
 logger.info('Micro precision: {}'.format(result['micro_p']))
 logger.info('Micro recall: {}'.format(result['micro_r']))
-logger.info('(dpr{:.1f})Micro F1: {}'.format(args.dropout_rate, result['micro_f1']))
+logger.info('({}, {}, {}, dpr{:.1f})Micro F1: {}'.format(args.dataset, args.bert_name, args.encoder_type, args.dropout_rate, result['micro_f1']))
 logger.info('Category-P/R/F1: {}'.format(result['category-p/r/f1']))

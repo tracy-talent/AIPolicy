@@ -73,10 +73,7 @@ class BERTEncoder(nn.Module):
         Return:
             (B, H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            _, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            _, pooler_out = self.bert(seqs, attention_mask=att_mask)
+        _, pooler_out = self.bert(seqs, attention_mask=att_mask)
         return pooler_out
 
     def tokenize(self, item):
@@ -133,14 +130,18 @@ class BERTEncoder(nn.Module):
             ent1 = ['[unused3]'] + ent1 + ['[unused4]'] if not rev else ['[unused1]'] + ent1 + ['[unused2]']
 
         # get tokens index
-        tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
-        indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
+        if self.bert_name == 'roberta' and self.language == 'en':
+            padding_idx = self.tokenizer.convert_tokens_to_ids('<pad>')
+            self.tokens = ['<s>'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['</s>']
+        else:
+            padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
+            self.tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        indexed_tokens = self.tokenizer.convert_tokens_to_ids(self.tokens)
         avai_len = len(indexed_tokens)
 
         # Padding
         if self.blank_padding:
             if len(indexed_tokens) <= self.max_length:
-                padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
                 indexed_tokens.extend([padding_idx] * (self.max_length - len(indexed_tokens)))
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
@@ -190,7 +191,7 @@ class BERTWithDSPEncoder(BERTEncoder):
             else:
                 raise NotImplementedError(f'{dsp_tool} DSP tool is not implemented')
         bert_hidden_size = self.bert.config.hidden_size
-        self.hidden_size = self.bert.config.hidden_size * 2
+        self.hidden_size = self.bert.config.hidden_size * 3
 
         self.bilstm = nn.LSTM(input_size=bert_hidden_size, 
                             hidden_size=bert_hidden_size, 
@@ -236,10 +237,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         Return:
             (B, H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
+        hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
         # dsp encode, get dsp hidden
         ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)
         ent_t_dsp_hidden = self.dsp_encode(hidden, ent_t_path, ent_t_length) # (B, S, d)
@@ -255,8 +253,8 @@ class BERTWithDSPEncoder(BERTEncoder):
                 ent_t_dsp_hidden[i][0] = ent_t_dsp_hidden[i][:ent_t_length[i]].max(dim=0)[0]
             ent_t_dsp_hidden = ent_t_dsp_hidden[:, 0] # (B, d)
         ## cat head and tail representation
-        ent_dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
-        # ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
+        # ent_dsp_hidden = torch.add(ent_h_dsp_hidden, ent_t_dsp_hidden) # (B, d)
+        ent_dsp_hidden = torch.cat([ent_h_dsp_hidden, ent_t_dsp_hidden], dim=-1) # (B, 2d)
 
         rep_out = torch.cat([pooler_out, ent_dsp_hidden], dim=-1)
         # rep_out = torch.tanh(self.linear(rep_out))
@@ -274,17 +272,22 @@ class BERTWithDSPEncoder(BERTEncoder):
         ret_items = super(BERTWithDSPEncoder, self).tokenize(item)
         if self.parser is not None:
             # shortest dependency path
-            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'])
+            for i, t in enumerate(self.tokens[1:-1]):
+                if self.bert_name == 'roberta' and self.language == 'en':
+                    if t.startswith('Ġ'):
+                        line['token'][i + 1] = t[1:]
+                else:
+                    if t.startswith('##'):
+                        line['token'][i + 1] = t[2:]
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.tokens[1:-1])
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:
-                if ent_h_length <= self.max_dsp_path_length:
-                    while len(ent_h_path) < self.max_dsp_path_length:
-                        ent_h_path.append(-1)
+                if ent_h_length < self.max_dsp_path_length:
+                    ent_h_path.extend([-1] * (self.max_dsp_path_length - ent_h_length))
                 ent_h_path = ent_h_path[:self.max_dsp_path_length]
-                if ent_t_length <= self.max_dsp_path_length:
-                    while len(ent_t_path) < self.max_dsp_path_length:
-                        ent_t_path.append(-1)
+                if ent_t_length < self.max_dsp_path_length:
+                    ent_t_path.extend([-1] * (self.max_dsp_path_length - ent_t_length))
                 ent_t_path = ent_t_path[:self.max_dsp_path_length]
             ent_h_path = torch.tensor([ent_h_path]).long() + 1
             ent_t_path = torch,tensor([ent_t_path]).long() + 1
@@ -358,11 +361,7 @@ class BERTEntityEncoder(nn.Module):
         Returns:
             (B, 2H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            # hidden = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
-            hidden, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            hidden, _ = self.bert(seqs, attention_mask=att_mask)
+        hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -445,7 +444,12 @@ class BERTEntityEncoder(nn.Module):
                 ent1 = ['[unused5]'] + ent1 + ['[unused6]'] if not rev else ['[unused3]'] + ent1 + ['[unused4]']
 
         # get tokens index and entity position
-        self.tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        if self.bert_name == 'roberta' and self.language == 'en':
+            padding_idx = self.tokenizer.convert_tokens_to_ids('<pad>')
+            self.tokens = ['<s>'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['</s>']
+        else:
+            padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
+            self.tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
         pos1_1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
         pos1_2 = pos1_1 + len(ent0) if not rev else pos1_1 + len(ent1)
         pos2_1 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
@@ -460,7 +464,6 @@ class BERTEntityEncoder(nn.Module):
         # Padding
         if self.blank_padding:
             if len(indexed_tokens) <= self.max_length:
-                padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
                 indexed_tokens.extend([padding_idx] * (self.max_length - len(indexed_tokens)))
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
@@ -503,7 +506,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(3, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
 
@@ -527,11 +530,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         Returns:
             (B, 2H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            # hidden = self.bert(seqs, attention_mask=att_mask)[1][1] # hfl roberta
-            hidden, _ = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            hidden, _ = self.bert(seqs, attention_mask=att_mask)
+        hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -544,7 +543,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
             context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
-            context_hidden = F.relu(F.max_pool1d(context_conv, 
+            context_hidden = torch.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
         rep_out = self.linear(rep_out)
@@ -639,10 +638,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         Returns:
             (B, 2H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
+        hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -691,8 +687,12 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             ent_t_pos_2 = torch.max(ret_items[3], ret_items[4]).item()
             # shortest dependency path
             for i, t in enumerate(self.tokens[1:-1]):
-                if t.startswith('##'):
-                    self.tokens[i + 1] = t[2:]
+                if self.bert_name == 'roberta' and self.language == 'en':
+                    if t.startswith('Ġ'):
+                        line['token'][i + 1] = t[1:]
+                else:
+                    if t.startswith('##'):
+                        line['token'][i + 1] = t[2:]
             ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.tokens[1:-1])
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
@@ -774,7 +774,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(3, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
 
     def forward(self, seqs, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
@@ -786,10 +786,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         Returns:
             (B, 2H), representations for sentences
         """
-        if 'roberta' in self.bert_name:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask) # clue-roberta
-        else:
-            hidden, pooler_out = self.bert(seqs, attention_mask=att_mask)
+        hidden, _ = self.bert(seqs, attention_mask=att_mask)
         # Get entity start hidden state
         onehot_head = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
         onehot_tail = torch.zeros(hidden.size()[:2]).float().to(hidden.device)  # (B, L)
@@ -803,7 +800,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
             context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
-            context_hidden = F.relu(F.max_pool1d(context_conv, 
+            context_hidden = torch.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
 
         # dsp encode, get dsp hidden
@@ -855,15 +852,20 @@ class RBERTEncoder(nn.Module):
         logging.info('Loading BERT pre-trained checkpoint.')
         self.bert_name = bert_name
         if 'albert' in bert_name:
-            self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
-        if 'roberta' in bert_name:
-            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True) # hfl
-            # self.tokenizer = AutoTokenizer.from_pretrained(pretrain_path) # hfl
-            self.bert = BertModel.from_pretrained(pretrain_path) # clue
-            self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue
+            if self.language == 'zh':
+                self.bert = AlbertModel.from_pretrained(pretrain_path) # clue
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
+            else:
+                self.bert = AlbertModel.from_pretrained(pretrain_path)
+                self.tokenizer = AlbertTokenizer.from_pretrained(pretrain_path)
+        elif 'roberta' in bert_name:
+            if self.language == 'zh':
+                self.bert = BertModel.from_pretrained(pretrain_path) # clue, hfl
+                self.tokenizer = BertTokenizer.from_pretrained(pretrain_path) # clue, hfl
+            else:
+                self.bert = RobertaModel.from_pretrained(pretrain_path)
+                self.tokenizer = RobertaTokenizer.from_pretrained(pretrain_path)
         elif 'bert' in bert_name:
-            # self.bert = AutoModelForMaskedLM.from_pretrained(pretrain_path, output_hidden_states=True)
             self.bert = BertModel.from_pretrained(pretrain_path)
             self.tokenizer = BertTokenizer.from_pretrained(pretrain_path)
         else:
@@ -975,28 +977,28 @@ class RBERTEncoder(nn.Module):
                 ent0 = ['[unused3]'] + ent0 + ['[unused4]'] if not rev else ['[unused5]'] + ent0 + ['[unused6]']
                 ent1 = ['[unused5]'] + ent1 + ['[unused6]'] if not rev else ['[unused3]'] + ent1 + ['[unused4]']
 
-        tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
+        if self.bert_name == 'roberta' and self.language == 'en':
+            padding_idx = self.tokenizer.convert_tokens_to_ids('<pad>')
+            tokens = ['<s>'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['</s>']
+        else:
+            padding_idx = self.tokenizer.convert_tokens_to_ids('[PAD]')
+            tokens = ['[CLS]'] + sent0 + ent0 + sent1 + ent1 + sent2 + ['[SEP]']
         ent1_pos1 = 1 + len(sent0) if not rev else 1 + len(sent0 + ent0 + sent1)
-        ent1_pos2 = 1 + len(sent0) + len(ent0) if not rev else 1 + len(sent0 + ent0 + sent1 + ent1)
+        ent1_pos2 = ent1_pos1 + len(ent0) if not rev else ent1_pos1 + len(ent1)
         ent2_pos1 = 1 + len(sent0 + ent0 + sent1) if not rev else 1 + len(sent0)
-        ent2_pos2 = 1 + len(sent0 + ent0 + sent1 + ent1) if not rev else 1 + len(sent0 + ent0)
-        ent1_pos1 = min(self.max_length - 1, ent1_pos1)
-        ent2_pos1 = min(self.max_length - 1, ent2_pos1)
-
+        ent2_pos2 = ent2_pos1 + len(ent1) if not rev else ent2_pos1 + len(ent0)
+        ent1_pos1 = torch.tensor([[min(self.max_length - 1, ent1_pos1)]]).long()
+        ent1_pos2 = torch.tensor([[min(self.max_length, ent1_pos2)]]).long()
+        ent2_pos1 = torch.tensor([[min(self.max_length - 1, ent2_pos1)]]).long()
+        ent2_pos2 = torch.tensor([[min(self.max_length, ent2_pos2)]]).long()
         indexed_tokens = self.tokenizer.convert_tokens_to_ids(tokens)
         avai_len = len(indexed_tokens) # 序列实际长度
-
-        # Position
-        ent1_pos1 = torch.tensor([[ent1_pos1]]).long()
-        ent1_pos2 = torch.tensor([[ent1_pos2]]).long()
-        ent2_pos1 = torch.tensor([[ent2_pos1]]).long()
-        ent2_pos2 = torch.tensor([[ent2_pos2]]).long()
 
         # Padding
         if self.blank_padding:
             if len(indexed_tokens) <= self.max_length:
                 while len(indexed_tokens) < self.max_length:
-                    indexed_tokens.append(0)  # 0 is id for [PAD]
+                    indexed_tokens.append(padding_idx)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]
@@ -1006,9 +1008,9 @@ class RBERTEncoder(nn.Module):
         att_mask = torch.zeros(indexed_tokens.size()).long()  # (1, L)
         att_mask[0, :avai_len] = 1
         ent1_span = torch.zeros(indexed_tokens.size())
-        ent1_span[0, ent1_pos1:ent1_pos2+1] = 1
+        ent1_span[0, ent1_pos1:ent1_pos2] = 1
         ent2_span = torch.zeros(indexed_tokens.size())
-        ent2_span[0, ent2_pos1:ent2_pos2+1] = 1
+        ent2_span[0, ent2_pos1:ent2_pos2] = 1
         
 
         return indexed_tokens, ent1_span, ent2_span, att_mask

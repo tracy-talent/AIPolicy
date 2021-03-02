@@ -12,7 +12,7 @@ python train_supervised_bert_dist.py \
     --compress_seq \
     --adv none \
     --loss ce \
-    --position_size 10 \
+    --position_size 12 \
     --batch_size 32 \
     --lr 2e-5 \
     --bert_lr 2e-5 \
