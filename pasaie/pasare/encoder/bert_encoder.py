@@ -213,7 +213,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         if self.compress_seq:
             sorted_length_indices = dsp_path_length.argsort(descending=True) # (B,)
             unsorted_length_indices = sorted_length_indices.argsort(descending=False) # (B,)
-            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices], batch_first=True)
+            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices].detach.cpu(), batch_first=True)
             dsp_hidden_packed, _ = self.bilstm(dsp_rep_packed)
             dsp_hidden, _ = pad_packed_sequence(dsp_hidden_packed, batch_first=True) # (B, S, d)
             dsp_hidden = dsp_hidden[unsorted_length_indices] # (B, S, d)
@@ -370,7 +370,7 @@ class BERTEntityEncoder(nn.Module):
         onehot_tail = onehot_tail.scatter_(1, pos2, 1)
         head_hidden = (onehot_head.unsqueeze(2) * hidden).sum(1)  # (B, H)
         tail_hidden = (onehot_tail.unsqueeze(2) * hidden).sum(1)  # (B, H)
-        rep_out = torch.cat([head_hidden, tail_hidden], 1)  # (B, 3H)
+        rep_out = torch.cat([head_hidden, tail_hidden], 1)  # (B, 2H)
         rep_out = self.linear(rep_out)
         return rep_out
 
@@ -613,7 +613,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         if self.compress_seq:
             sorted_length_indices = dsp_path_length.argsort(descending=True) # (B,)
             unsorted_length_indices = sorted_length_indices.argsort(descending=False) # (B,)
-            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices], batch_first=True)
+            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices].detach().cpu(), batch_first=True)
             dsp_hidden_packed, _ = self.bilstm(dsp_rep_packed)
             dsp_hidden, _ = pad_packed_sequence(dsp_hidden_packed, batch_first=True) # (B, S, d)
             dsp_hidden = dsp_hidden[unsorted_length_indices] # (B, S, d)

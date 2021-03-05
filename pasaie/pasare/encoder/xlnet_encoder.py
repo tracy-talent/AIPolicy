@@ -339,7 +339,7 @@ class XLNetEntityWithDSPEncoder(XLNetEntityEncoder):
         if self.compress_seq:
             sorted_length_indices = dsp_path_length.argsort(descending=True) # (B,)
             unsorted_length_indices = sorted_length_indices.argsort(descending=False) # (B,)
-            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices], batch_first=True)
+            dsp_rep_packed = pack_padded_sequence(dsp_rep[sorted_length_indices], dsp_path_length[sorted_length_indices].detach().cpu(), batch_first=True)
             dsp_hidden_packed, _ = self.bilstm(dsp_rep_packed)
             dsp_hidden, _ = pad_packed_sequence(dsp_hidden_packed, batch_first=True) # (B, S, d)
             dsp_hidden = dsp_hidden[unsorted_length_indices] # (B, S, d), restore batch sequence

@@ -1,7 +1,7 @@
 #!/bin/bash
 # $1: dataset, $2: encoder_type[entity_dist_dsp, entity_dist_pcnn_dsp], $3: GPU id
-dropout_rates=(0.1 0.2 0.3 0.4 0.5)
-#dropout_rates=(0.1)
+#dropout_rates=(0.1 0.2 0.3 0.4 0.5)
+dropout_rates=(0.1 0.5)
 python_command="
 python train_supervised_bert_dist_with_dsp.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/roberta-large-cased \
@@ -16,7 +16,7 @@ python train_supervised_bert_dist_with_dsp.py \
     --loss ce \
     --position_size 10 \
     --batch_size 32 \
-    --lr 2e-5 \
+    --lr 1e-3 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
@@ -42,6 +42,7 @@ fi
 for dpr in ${dropout_rates[*]}
 do  
     echo "Run dataset $1: dpr=$dpr"
+    PYTHONIOENCODING=utf8 \
     CUDA_VISIBLE_DEVICES=$3 \
     $python_command \
     --max_length $maxlen \

@@ -77,9 +77,11 @@ class BERTEntityDistWithPCNNEncoder(BERTEntityEncoder):
         self.pos1_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)
         self.pos2_embedding = nn.Embedding(2 * max_length, self.position_size, padding_idx=0)                       
         emb_size = self.bert.config.hidden_size + position_size * 2
-        assert emb_size // 3 == 0
-        self.hidden_size = emb_size * 3
-        self.conv = nn.Conv1d(emb_size, emb_size // 3, 3)
+        #assert emb_size % 3 == 0
+        #self.hidden_size = emb_size * 3
+        #self.conv = nn.Conv1d(emb_size, emb_size // 3, kernel_size=3, padding=1)
+        self.hidden_size = emb_size * 5
+        self.conv = nn.Conv1d(emb_size, emb_size, kernel_size=3, padding=1)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
@@ -113,8 +115,8 @@ class BERTEntityDistWithPCNNEncoder(BERTEntityEncoder):
 
         # get pcnn hidden
         hidden = hidden.transpose(1, 2) # (B, H, L)
-        pcnn_hidden = torch.relu(self.conv(hidden)) # (B, H, L)
-        pcnn_hidden = self.pool(hidden, att_mask)
+        pcnn_hidden = self.conv(hidden) # (B, H, L)
+        pcnn_hidden = torch.relu(self.pool(pcnn_hidden, att_mask))
 
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden], dim=-1)
         rep_out = self.linear(rep_out)
@@ -264,9 +266,11 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
                                                     compress_seq=compress_seq, 
                                                     language=language)
         emb_size = self.bert.config.hidden_size + position_size * 2
-        assert emb_size // 3 == 0
-        self.hidden_size = emb_size * 5
-        self.conv = nn.Conv1d(emb_size, emb_size // 3, kernel_size=3)
+        #assert emb_size % 3 == 0
+        #self.hidden_size = emb_size * 5
+        #self.conv = nn.Conv1d(emb_size, emb_size // 3, kernel_size=3, padding=1)
+        self.hidden_size = emb_size * 7
+        self.conv = nn.Conv1d(emb_size, emb_size, kernel_size=3, padding=1)
         self.pool = PieceMaxPool(piece_num=3)
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     
@@ -326,8 +330,8 @@ class BERTEntityDistWithPCNNDSPEncoder(BERTEntityDistWithDSPEncoder):
 
         # get pcnn hidden
         hidden = hidden.transpose(1, 2) # (B, H, L)
-        pcnn_hidden = torch.relu(self.conv(hidden)) # (B, H, L)
-        pcnn_hidden = self.pool(hidden, att_mask)
+        pcnn_hidden = self.conv(hidden) # (B, H, L)
+        pcnn_hidden = torch.relu(self.pool(pcnn_hidden, att_mask))
 
         # gather all features
         rep_out = torch.cat([head_hidden, tail_hidden, pcnn_hidden, dsp_hidden], dim=-1)  # (B, 4H)
