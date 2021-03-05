@@ -122,6 +122,7 @@ class BERTEncoder(nn.Module):
             # ent1 = sentence[pos_max[0]:pos_max[1]]
             # sent2 = sentence[pos_max[1]:]
 
+        self.bert_tokens = sent0 + ent0 + sent1 + ent1 + sent2
         if self.mask_entity:
             ent0 = ['[unused5]'] if not rev else ['[unused6]']
             ent1 = ['[unused6]'] if not rev else ['[unused5]']
@@ -157,7 +158,7 @@ class BERTEncoder(nn.Module):
 
 
 class BERTWithDSPEncoder(BERTEncoder):
-    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', use_attention=True, blank_padding=True, mask_entity=False, compress_seq=False, language='en'):
+    def __init__(self, pretrain_path, bert_name='bert', max_length=256, max_dsp_path_length=15, dsp_tool='ddp', use_attention4dsp=True, blank_padding=True, mask_entity=False, compress_seq=False, language='en'):
         """
         Args:
             pretrain_path (str): path of pretrain model
@@ -165,7 +166,7 @@ class BERTWithDSPEncoder(BERTEncoder):
             max_length (int, optional): max_length of sequence. Defaults to 256.
             max_dsp_path_length (int, optional): 15 for ddp/stanza(true_max_len=12), 10 for ltp(true_max_len=9). Defaults to 15.
             dsp_tool (str, optional): DSP tool used: ltp, ddp or stanza. Defaults to 'ddp'.
-            use_attention (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.
+            use_attention4dsp (bool, optional): whether use attention for dsp path feature, otherwise use maxpool. Defaults to True.
             blank_padding (bool, optional): whether pad sequence to the same length. Defaults to True.
             mask_entity (bool, optional): whether do mask for entity. Defaults to False.
             compress_seq (bool, optional): whether compress sequence. Defaults to False.
@@ -201,7 +202,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         self.compress_seq = compress_seq
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
         # attention
-        self.use_attention = use_attention
+        self.use_attention4dsp = use_attention4dsp
         # self.attention_map = nn.Linear(bert_hidden_size, bert_hidden_size)
         self.query = nn.Linear(bert_hidden_size, 1)
 
@@ -242,7 +243,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         ent_h_dsp_hidden = self.dsp_encode(hidden, ent_h_path, ent_h_length) # (B, S, d)
         ent_t_dsp_hidden = self.dsp_encode(hidden, ent_t_path, ent_t_length) # (B, S, d)
         # use attention or max pool to gather sequence hidden state
-        if self.use_attention:
+        if self.use_attention4dsp:
             ent_h_dsp_hidden = self.attention(ent_h_dsp_hidden, ent_h_length) # (B, d)
             ent_t_dsp_hidden = self.attention(ent_t_dsp_hidden, ent_t_length) # (B, d)
         else:
@@ -272,14 +273,14 @@ class BERTWithDSPEncoder(BERTEncoder):
         ret_items = super(BERTWithDSPEncoder, self).tokenize(item)
         if self.parser is not None:
             # shortest dependency path
-            for i, t in enumerate(self.tokens[1:-1]):
+            for i, t in enumerate(self.bert_tokens):
                 if self.bert_name == 'roberta' and self.language == 'en':
                     if t.startswith('Ġ'):
-                        line['token'][i + 1] = t[1:]
+                        self.bert_tokens[i] = t[1:]
                 else:
                     if t.startswith('##'):
-                        line['token'][i + 1] = t[2:]
-            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.tokens[1:-1])
+                        self.bert_tokens[i] = t[2:]
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.bert_tokens)
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:
@@ -418,7 +419,8 @@ class BERTEntityEncoder(nn.Module):
             # sent1 = sentence[pos_min[1]:pos_max[0]]
             # ent1 = sentence[pos_max[0]:pos_max[1]]
             # sent2 = sentence[pos_max[1]:]
-
+        
+        self.bert_tokens = sent0 + ent0 + sent1 + ent1 + sent2
         if self.mask_entity:
             ent0 = ['[unused1]'] if not rev else ['[unused2]']
             ent1 = ['[unused2]'] if not rev else ['[unused1]']
@@ -686,14 +688,14 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
             ent_t_pos_1 = torch.max(ret_items[1], ret_items[2]).item()
             ent_t_pos_2 = torch.max(ret_items[3], ret_items[4]).item()
             # shortest dependency path
-            for i, t in enumerate(self.tokens[1:-1]):
+            for i, t in enumerate(self.bert_tokens):
                 if self.bert_name == 'roberta' and self.language == 'en':
                     if t.startswith('Ġ'):
-                        line['token'][i + 1] = t[1:]
+                        self.bert_tokens[i] = t[1:]
                 else:
                     if t.startswith('##'):
-                        line['token'][i + 1] = t[2:]
-            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.tokens[1:-1])
+                        self.bert_tokens[i] = t[2:]
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.bert_tokens)
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:
@@ -701,6 +703,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
                 ent_t_path = ent_t_path[:self.max_dsp_path_length]
             # move parsed token pos if entity type embedded
             for i, pos in enumerate(ent_h_path):
+                pos += 1 # consider [CLS]
                 if pos >= ent_h_pos_1:
                     pos += 1
                 if pos >= ent_h_pos_2 - 1:
@@ -711,6 +714,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
                     pos += 1
                 ent_h_path[i] = pos
             for i, pos in enumerate(ent_t_path):
+                pos += 1 # consider [CLS]
                 if pos >= ent_h_pos_1:
                     pos += 1
                 if pos >= ent_h_pos_2 - 1:

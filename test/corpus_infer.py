@@ -44,8 +44,8 @@ class CorpusInference(object):
                                        'policy_bmoes/bert_lstm_mrc_dice_autoweighted_fgm_micro_f1_0',
                                        'policy_bmoes/multi_bert_dice_fgm0',
                                        'policy_bmoes/single_bert_dice_fgm0']
-        self.relation_model_path_list = ['test-policy/bert_entity_dice_fgm_ltp_dsp_attention_cat_micro_f1_0',
-                                         'test-policy/bert_entity_dice_fgm_ddp_dsp_attention_cat_micro_f1_0']
+        self.relation_model_path_list = ['test-policy/bert_entity_context_dsp_tail_bert_ddp_dsp_attention_context_dice_fgm_dpr0.5_micro_f1_0',
+                                         'test-policy/bert_entity_context_dsp_tail_bert_ltp_dsp_attention_context_dice_fgm_dpr0.5_micro_f1_0']
         self.sentence_importance_path_list = ['sentence_importance_judgement/base_textcnn_ce_fgm1']
         self.test_file = '../input/benchmark/testdata/hc_test_corpus.txt'
         with open('../input/benchmark/relation/test-policy/permitted_entity_pair.txt', 'r', encoding='utf-8') as f:

@@ -118,9 +118,9 @@ def make_model_name():
     if args.embed_entity_type:
         model_name += '_embed_entity'
     model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
-    if args.use_attention4context:
+    if args.硕士4context:
         model_name += '_attention_context'
-    else:
+    elif 'context' in args.encoder_type:
         model_name += '_conv_context'
     model_name += '_' + args.loss
     if 'dice' in args.loss:
@@ -219,7 +219,7 @@ elif args.encoder_type == 'dsp':
         max_length=args.max_length,
         max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
         dsp_tool=args.dsp_tool,
-        use_attention=args.use_attention,
+        use_attention4dsp=args.use_attention4dsp,
         mask_entity=args.mask_entity,
         blank_padding=True,
         compress_seq=args.compress_seq,

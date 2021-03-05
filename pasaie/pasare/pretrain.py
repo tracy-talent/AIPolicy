@@ -138,13 +138,16 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
                 dsp_tool = 'stanza'
             else:
                 raise NotImplementedError(f'DSP tool used in model_name:{model_name} is not implemented')
-            if 'bert_entity' in model_name:
+            if 'bert_entity_context_dsp' in model_name:
+                sentence_encoder = encoder.BERTEntityWithContextDSPEncoder(
+                    pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, compress_seq=False, use_attention4context=('attention_context' in model_name), use_attention4dsp=True, mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
+            elif 'bert_entity_dsp' in model_name:
                 sentence_encoder = encoder.BERTEntityWithDSPEncoder(
-                    pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, compress_seq=False, use_attention=('attention' in model_name), mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
+                    pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, compress_seq=False, use_attention4dsp=True, mask_entity=False, blank_padding=False, tag2id=tag2id if 'embed' in model_name else None)
             else:
                 sentence_encoder = encoder.BERTWithDSPEncoder(
                     pretrain_path=pretrain_path, bert_name=bert_name, max_length=256, max_dsp_path_length=max_dsp_path_length, dsp_tool=dsp_tool, 
-                    compress_seq=False, use_attention=('attention' in model_name), mask_entity=False, blank_padding=False
+                    compress_seq=False, use_attention4dsp=True, mask_entity=False, blank_padding=False
                 )
         elif 'bert_entity' in model_name:
             sentence_encoder = encoder.BERTEntityEncoder(
@@ -154,6 +157,10 @@ def get_model(model_name, pretrain_path=config['plm']['hfl-chinese-bert-wwm-ext'
             sentence_encoder = encoder.BERTEncoder(
                 pretrain_path=pretrain_path, bert_name='bert', max_length=256, mask_entity=False, blank_padding=False)
         relation_model = model.SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+        # state_dict = torch.load(ckpt, map_location='cpu')
+        # state_dict['model'].pop('sentence_encoder.conv.weight')
+        # state_dict['model'].pop('sentence_encoder.conv.bias')
+        # torch.save(state_dict, ckpt)
         relation_model.load_state_dict(torch.load(ckpt, map_location='cpu')['model'])
         relation_model.eval()
         return relation_model

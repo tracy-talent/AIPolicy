@@ -21,8 +21,8 @@ class TestInference(unittest.TestCase):
                                        'policy_bmoes/bert_lstm_mrc_dice_fgm_micro_f1_0',
                                        'policy_bmoes/multi_bert_dice_fgm0',
                                        'policy_bmoes/single_bert_dice_fgm0']
-        self.relation_model_path_list = ['test-policy/bert_entity_dice_fgm_ddp_dsp_attention_cat_micro_f1_0',
-                                         'test-policy/bert_entity_dice_fgm_ltp_dsp_attention_cat_micro_f1_0']
+        self.relation_model_path_list = ['test-policy/bert_entity_context_dsp_tail_bert_ddp_dsp_attention_context_dice_fgm_dpr0.5_micro_f1_0',
+                                         'test-policy/bert_entity_context_dsp_tail_bert_ltp_dsp_attention_context_dice_fgm_dpr0.5_micro_f1_0']
         self.sentence_importance_path_list = ['sentence_importance_judgement/base_textcnn_ce_fgm1']
 
     def test_policy_bmoes_bert_crf(self):
@@ -34,7 +34,7 @@ class TestInference(unittest.TestCase):
         sentence_importance_path = self.sentence_importance_path_list[0]
         entity_model = pasaie.pasaner.get_model(entity_model_path)
         relation_model = pasaie.pasare.get_model(relation_model_path)
-        sentence_importance_model = pasaie.pasaap.get_model(model_path=sentence_importance_path)
+        # sentence_importance_model = pasaie.pasaap.get_model(model_path=sentence_importance_path)
         while True:
             if six.PY3:
                 text = input().encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
@@ -49,7 +49,9 @@ class TestInference(unittest.TestCase):
             print(entities)
             relations = set()
             for i in range(len(entities)):
-                for j in range(i + 1, len(entities)):
+                for j in range(len(entities)):
+                    if i == j:
+                        continue
                     item = {'token': tokens, 'h': {'pos': entities[i][0], 'entity': entities[i][1]},
                             't': {'pos': entities[j][0], 'entity': entities[j][1]}}
                     relation_type, score = relation_model.infer(item)

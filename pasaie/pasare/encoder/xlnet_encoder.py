@@ -136,6 +136,7 @@ class XLNetEntityEncoder(nn.Module):
             self.check_underline(ent1)
             self.check_underline(sent2)
 
+        self.xlnet_tokens = sent0 + ent0 + sent1 + ent1 + sent2
         if self.mask_entity:
             ent0 = ['[unused1]'] if not rev else ['[unused2]']
             ent1 = ['[unused2]'] if not rev else ['[unused1]']
@@ -420,10 +421,10 @@ class XLNetEntityWithDSPEncoder(XLNetEntityEncoder):
             ent_t_pos_1 = torch.max(ret_items[1], ret_items[2]).item()
             ent_t_pos_2 = torch.max(ret_items[3], ret_items[4]).item()
             # shortest dependency path
-            for i, t in enumerate(self.tokens[:-2]):
+            for i, t in enumerate(self.xlnet_tokens):
                 if t.startswith('▁'):
-                    self.tokens[i] = t[1:]
-            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.tokens[:-2])
+                    self.xlnet_tokens[i] = t[1:]
+            ent_h_path, ent_t_path = self.parser.parse(self.sentence, item['h'], item['t'], self.xlnet_tokens)
             ent_h_length = len(ent_h_path)
             ent_t_length = len(ent_t_path)
             if self.blank_padding:

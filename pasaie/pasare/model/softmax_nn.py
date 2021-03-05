@@ -31,6 +31,8 @@ class SoftmaxNN(SentenceRE):
         self.eval()
         with torch.no_grad():
             seqs = list(self.sentence_encoder.tokenize(item))
+            if len(seqs) >= 6:
+                seqs = seqs[:3] + seqs[5:]
             # if list(self.sentence_encoder.parameters())[0].device.type.startswith('cuda'):
             #     for i in range(len(seqs)):
             #         seqs[i] = seqs[i].cuda()

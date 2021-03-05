@@ -141,7 +141,7 @@ class XLNet_CRF(BaseFramework):
                     logits[i, inputs_seq_len[i]:] = logits_copy[i, :-inputs_seq_len[i]]
                     outputs_seq[i, :inputs_seq_len[i]] = outputs_seq_copy[i, -inputs_seq_len[i]:]
                     outputs_seq[i, inputs_seq_len[i]:] = negid
-                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i. -inputs_seq_len[i]:]
+                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i, -inputs_seq_len[i]:]
                     inputs_mask[i, :inputs_seq_len[i]] = inputs_mask[i, -inputs_seq_len[i]:]
                     inputs_mask[i, inputs_seq_len[i]:] = 0
                 logits_copy = logits_copy.detach().cpu()
@@ -300,7 +300,7 @@ class XLNet_CRF(BaseFramework):
                 for i in range(logits.size(0)):
                     outputs_seq[i, :inputs_seq_len[i]] = outputs_seq_copy[i, -inputs_seq_len[i]:]
                     outputs_seq[i, inputs_seq_len[i]:] = negid
-                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i. -inputs_seq_len[i]:]
+                    inputs_seq[i, :inputs_seq_len[i]] = inputs_seq_len[i, -inputs_seq_len[i]:]
                     inputs_mask[i, :inputs_seq_len[i]] = inputs_mask[i, -inputs_seq_len[i]:]
                     inputs_mask[i, inputs_seq_len[i]:] = 0
 
