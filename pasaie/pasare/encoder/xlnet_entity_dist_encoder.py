@@ -443,7 +443,7 @@ class XLNetEntityDistWithContextEncoder(XLNetEntityWithContextEncoder):
         else:
             context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = torch.relu(F.max_pool1d(context_conv, 
-                                context_conv.size(2))) # (B, d), maxpool->relu is more efficient than relu->maxpool
+                                context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
 
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], dim=-1)
         rep_out = self.linear(rep_out)

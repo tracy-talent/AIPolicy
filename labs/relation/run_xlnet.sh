@@ -17,7 +17,6 @@ python train_supervised_xlnet.py \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
-    --max_epoch 10 \
     --metric micro_f1 \
     --optimizer adam 
 "
@@ -26,10 +25,12 @@ if [ $1 == semeval ]
 then
     maxlen=150
     negid=1
+    ep=10
 elif [ $1 == kbp37 ]
 then
-    maxlen=200
+    maxlen=256
     negid=10
+    ep=5
 fi
 
 for dpr in ${dropout_rates[*]}
@@ -40,5 +41,6 @@ do
     $python_command \
     --neg_classes \[$negid\] \
     --max_length $maxlen \
+    --max_epoch $ep \
     --dropout_rate $dpr
 done

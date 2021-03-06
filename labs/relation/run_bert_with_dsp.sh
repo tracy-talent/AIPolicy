@@ -20,7 +20,6 @@ python train_supervised_bert_with_dsp.py \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
-    --max_epoch 10 \
     --metric micro_f1 \
     --dsp_tool stanza \
     --optimizer adam 
@@ -31,11 +30,13 @@ then
     maxlen=128
     max_dsp_path_len=15
     negid=1
+    ep=10
 elif [ $1 == kbp37 ]
 then
-    maxlen=200
+    maxlen=256
     max_dsp_path_len=22
     negid=10
+    ep=5
 fi
 
 for dpr in ${dropout_rates[*]}
@@ -47,5 +48,6 @@ do
     --max_length $maxlen \
     --max_dsp_path_length $max_dsp_path_len \
     --neg_classes \[$negid\] \
+    --max_epoch $ep \
     --dropout_rate $dpr
 done
