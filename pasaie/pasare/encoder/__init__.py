@@ -10,6 +10,8 @@ from .bert_encoder import BERTEntityEncoder, BERTEntityWithContextEncoder, BERTE
 from .xlnet_encoder import XLNetEntityEncoder, XLNetEntityWithContextEncoder, XLNetEntityWithDSPEncoder, XLNetEntityWithContextDSPEncoder
 from .bert_entity_dist_encoder import BERTEntityDistEncoder, BERTEntityDistWithPCNNEncoder, BERTEntityDistWithDSPEncoder, BERTEntityDistWithPCNNDSPEncoder
 from .xlnet_entity_dist_encoder import XLNetEntityDistEncoder, XLNetEntityDistWithPCNNEncoder, XLNetEntityDistWithDSPEncoder, XLNetEntityDistWithPCNNDSPEncoder
+from .bert_entity_dist_encoder import BERTEntityDistWithContextEncoder, BERTEntityDistWithContextDSPEncoder
+from .xlnet_entity_dist_encoder import XLNetEntityDistWithContextEncoder, XLNetEntityDistWithContextDSPEncoder
 
 __all__ = [
     'CNNEncoder',

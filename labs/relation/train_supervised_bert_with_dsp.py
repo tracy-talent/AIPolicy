@@ -118,7 +118,7 @@ def make_model_name():
     if args.embed_entity_type:
         model_name += '_embed_entity'
     model_name += '_tail_bert_' + args.dsp_tool + '_dsp'
-    if args.硕士4context:
+    if args.use_attention4context:
         model_name += '_attention_context'
     elif 'context' in args.encoder_type:
         model_name += '_conv_context'

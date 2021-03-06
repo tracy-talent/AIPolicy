@@ -61,7 +61,7 @@ def extract_score_from_logs(log_dir, save_path=None):
     table_list = display_results(dataset_scores)
     if save_path:
         save_as_excel(dataset_scores, save_path=save_path)
-        # print('\n'.join(table_list))
+        print('\n'.join(table_list))
     else:
         print('\n'.join(table_list))
 
@@ -304,5 +304,5 @@ class Colored(object):
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
-    extract_score_from_logs('/home/mist/github/AIPolicy/output/entity/logs',
-                            save_path='./example.xls')
+    extract_score_from_logs('/home/mist/github/AIPolicy/output/relation/logs',
+                            save_path='./relation.xls')

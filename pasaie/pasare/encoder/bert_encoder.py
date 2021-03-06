@@ -508,7 +508,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(3, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
 
@@ -778,7 +778,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(3, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
 
     def forward(self, seqs, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """

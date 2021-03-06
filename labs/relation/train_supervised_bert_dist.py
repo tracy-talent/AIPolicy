@@ -30,12 +30,14 @@ parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', '
                     help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--encoder_type', default='entity', choices=['entity_dist', 'entity_dist_pcnn'],
+parser.add_argument('--encoder_type', default='entity', choices=['entity_dist', 'entity_dist_pcnn', 'entity_dist_context'],
                     help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
 parser.add_argument('--mask_entity', action='store_true',
                     help='Mask entity mentions')
+parser.add_argument('--use_attention4context', action='store_true',
+                    help='whether use attention for DSP feature, otherwise use conv')
 parser.add_argument('--embed_entity_type', action='store_true',
                     help='Embed entity-type information in RE training process')
 parser.add_argument('--adv', default='', choices=['fgm', 'pgd', 'flb', 'none'],
@@ -110,6 +112,10 @@ def make_model_name():
         model_name += '_' + args.adv
     if args.embed_entity_type:
         model_name += '_embed_entity'
+    if args.use_attention4context:
+        model_name += '_attention_context'
+    elif 'context' in args.encoder_type:
+        model_name += '_conv_context'
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
@@ -183,6 +189,18 @@ elif args.encoder_type == 'entity_dist_pcnn':
         max_length=args.max_length,
         position_size=args.position_size,
         tag2id=tag2id,
+        mask_entity=args.mask_entity,
+        blank_padding=True,
+        language=args.language
+    )
+elif args.encoder_type == 'entity_dist_context':
+    sentence_encoder = pasare.encoder.BERTEntityDistWithContextEncoder(
+        pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
+        max_length=args.max_length,
+        position_size=args.position_size,
+        tag2id=tag2id,
+        use_attention4context=args.use_attention4context,
         mask_entity=args.mask_entity,
         blank_padding=True,
         language=args.language

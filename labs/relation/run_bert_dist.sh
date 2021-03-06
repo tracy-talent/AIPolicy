@@ -3,7 +3,7 @@
 #dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 dropout_rates=(0.1 0.5)
 python_command="
-python train_supervised_bert_dist.py \
+python -u train_supervised_bert_dist.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/bert-large-uncased-wwm \
     --language en \
     --bert_name bert \

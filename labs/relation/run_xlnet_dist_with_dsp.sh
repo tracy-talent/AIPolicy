@@ -3,7 +3,7 @@
 #dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 dropout_rates=(0.1 0.5)
 python_command="
-python train_supervised_xlnet_dist_with_dsp.py \
+python -u train_supervised_xlnet_dist_with_dsp.py \
     --pretrain_path /home/mist/NLP/corpus/transformers/xlnet-large-cased \
     --language en \
     --encoder_type $2 \
@@ -15,12 +15,12 @@ python train_supervised_xlnet_dist_with_dsp.py \
     --loss ce \
     --position_size 10 \
     --batch_size 32 \
-    --lr 1e-3 \
+    --lr 2e-3 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
     --early_stopping_step 0 \
     --warmup_step 0 \
-    --max_epoch 10 \
+    --max_epoch 15 \
     --metric micro_f1 \
     --dsp_tool stanza \
     --optimizer adam 
