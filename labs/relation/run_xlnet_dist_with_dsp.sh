@@ -15,12 +15,12 @@ python -u train_supervised_xlnet_dist_with_dsp.py \
     --loss ce \
     --position_size 10 \
     --batch_size 32 \
-    --lr 2e-3 \
+    --lr 1e-3 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
-    --early_stopping_step 0 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
-    --max_epoch 15 \
+    --max_epoch 10 \
     --metric micro_f1 \
     --dsp_tool stanza \
     --optimizer adam 

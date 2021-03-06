@@ -402,7 +402,7 @@ class XLNetEntityDistWithContextEncoder(XLNetEntityWithContextEncoder):
         if use_attention4context:
             self.context_query = nn.Linear(emb_size, 1)
         else:
-            self.conv = nn.Conv2d(1, emb_size, kernel_size=(5, emb_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(emb_size, emb_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     
 
@@ -441,9 +441,9 @@ class XLNetEntityDistWithContextEncoder(XLNetEntityWithContextEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, (att_mask != 0).sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = torch.relu(F.max_pool1d(context_conv, 
-                                context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
+                                context_conv.size(2))) # (B, d), maxpool->relu is more efficient than relu->maxpool
 
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], dim=-1)
         rep_out = self.linear(rep_out)
@@ -472,7 +472,7 @@ class XLNetEntityDistWithContextDSPEncoder(XLNetEntityDistWithDSPEncoder):
         if use_attention4context:
             self.context_query = nn.Linear(emb_size, 1)
         else:
-            self.conv = nn.Conv2d(1, emb_size, kernel_size=(5, emb_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(emb_size, emb_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
     
 
@@ -539,7 +539,7 @@ class XLNetEntityDistWithContextDSPEncoder(XLNetEntityDistWithDSPEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, (att_mask != 0).sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = torch.relu(F.max_pool1d(context_conv, 
                                 context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         # gather all features

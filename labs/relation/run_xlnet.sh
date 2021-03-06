@@ -35,6 +35,7 @@ fi
 for dpr in ${dropout_rates[*]}
 do  
     echo "Run dataset $1: dpr=$dpr"
+    PYTHONIOENCODING=utf8 \
     CUDA_VISIBLE_DEVICES=$3 \
     $python_command \
     --neg_classes \[$negid\] \

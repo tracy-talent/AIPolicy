@@ -228,7 +228,7 @@ class XLNetEntityWithContextEncoder(XLNetEntityEncoder):
         if use_attention4context:
             self.context_query = nn.Linear(xlnet_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, xlnet_hidden_size, kernel_size=(5, xlnet_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(xlnet_hidden_size, xlnet_hidden_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
 
@@ -271,7 +271,7 @@ class XLNetEntityWithContextEncoder(XLNetEntityEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = F.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
@@ -505,7 +505,7 @@ class XLNetEntityWithContextDSPEncoder(XLNetEntityWithDSPEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(xlnet_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, xlnet_hidden_size, kernel_size=(5, xlnet_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(xlnet_hidden_size, xlnet_hidden_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
 
     def forward(self, seqs, pos1, pos2, token_type_ids, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
@@ -536,7 +536,7 @@ class XLNetEntityWithContextDSPEncoder(XLNetEntityWithDSPEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = F.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
 

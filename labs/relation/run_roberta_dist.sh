@@ -17,7 +17,7 @@ python train_supervised_bert_dist.py \
     --lr 1e-3 \
     --bert_lr 2e-5 \
     --weight_decay 0 \
-    --early_stopping_step 0 \
+    --early_stopping_step 3 \
     --warmup_step 0 \
     --max_epoch 10 \
     --metric micro_f1 \

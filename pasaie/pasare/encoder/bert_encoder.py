@@ -508,7 +508,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(bert_hidden_size, bert_hidden_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
         self.linear = nn.Linear(self.hidden_size, self.hidden_size)
 
 
@@ -544,7 +544,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = torch.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
         rep_out = torch.cat([head_hidden, tail_hidden, context_hidden], 1)  # (B, 3H)
@@ -778,7 +778,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         if self.use_attention4context:
             self.context_query = nn.Linear(bert_hidden_size, 1)
         else:
-            self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+            self.conv = nn.Conv1d(bert_hidden_size, bert_hidden_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
 
     def forward(self, seqs, pos1, pos2, att_mask, ent_h_path, ent_t_path, ent_h_length, ent_t_length):
         """
@@ -803,7 +803,7 @@ class BERTEntityWithContextDSPEncoder(BERTEntityWithDSPEncoder):
         if self.use_attention4context:
             context_hidden = self.attention(self.context_query, hidden, att_mask.sum(dim=-1)) # (B, d)
         else:
-            context_conv = self.conv(hidden.unsqueeze(1)).squeeze(3) # (B, d, S)
+            context_conv = self.conv(hidden.permute(0, 2, 1)) # (B, d, S)
             context_hidden = torch.relu(F.max_pool1d(context_conv, 
                                     context_conv.size(2)).squeeze(2)) # (B, d), maxpool->relu is more efficient than relu->maxpool
 
@@ -881,7 +881,7 @@ class RBERTEncoder(nn.Module):
 
         bert_hidden_size = self.bert.config.hidden_size
         self.hidden_size = bert_hidden_size * 3
-        # self.conv = nn.Conv2d(1, bert_hidden_size, kernel_size=(5, bert_hidden_size))  # add a convolution layer to extract the global information of sentence
+        # self.conv = nn.Conv1d(bert_hidden_size, bert_hidden_size, kernel_size=5)  # add a convolution layer to extract the global information of sentence
         self.w_ent = nn.Linear(bert_hidden_size, bert_hidden_size)
         self.w_cls = nn.Linear(bert_hidden_size, bert_hidden_size)
         # for type boarder

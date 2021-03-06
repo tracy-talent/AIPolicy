@@ -3,7 +3,7 @@
 dropout_rates=(0.1 0.2 0.3 0.4 0.5)
 python_command="
 python train_supervised_bert.py \
-    --pretrain_path /home/mist/NLP/corpus/transformers/google-bert-large-uncased-wwm \
+    --pretrain_path /home/mist/NLP/corpus/transformers/bert-large-uncased-wwm \
     --language en \
     --bert_name bert \
     --encoder_type $2 \
@@ -36,6 +36,7 @@ fi
 for dpr in ${dropout_rates[*]}
 do  
     echo "Run dataset $1: dpr=$dpr"
+    PYTHONIOENCODING=utf8 \
     CUDA_VISIBLE_DEVICES=$3 \
     $python_command \
     --max_length $maxlen \
