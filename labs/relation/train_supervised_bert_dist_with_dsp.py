@@ -31,7 +31,7 @@ parser.add_argument('--bert_name', default='bert', choices=['bert', 'roberta', '
         help='bert series model name')
 parser.add_argument('--ckpt', default='',
                     help='Checkpoint name')
-parser.add_argument('--encoder_type', default='entity', choices=['entity_dist_dsp', 'entity_dist_pcnn_dsp', 'entity_dist_context_dsp'],
+parser.add_argument('--encoder_type', default='entity', choices=['entity_dist_dsp', 'entity_dist_pcnn_dsp', 'entity_dist_context_dsp', 'entpool_dist_dsp'],
                     help='Sentence representation model type')
 parser.add_argument('--only_test', action='store_true',
                     help='Only run test')
@@ -226,6 +226,21 @@ elif args.encoder_type == 'entity_dist_context_dsp':
         tag2id=tag2id,
         use_attention4dsp=args.use_attention4dsp,
         use_attention4context=args.use_attention4context,
+        mask_entity=args.mask_entity,
+        blank_padding=True,
+        compress_seq=args.compress_seq,
+        language=args.language
+    )
+elif args.encoder_type == 'entpool_dist_dsp':
+    sentence_encoder = pasare.encoder.BERTEntPoolDistWithDSPEncoder(
+        pretrain_path=args.pretrain_path,
+        bert_name=args.bert_name,
+        max_length=args.max_length,
+        position_size=args.position_size,
+        max_dsp_path_length=args.max_dsp_path_length if not args.dsp_preprocessed else -1,
+        dsp_tool=args.dsp_tool,
+        tag2id=tag2id,
+        use_attention4dsp=args.use_attention4dsp,
         mask_entity=args.mask_entity,
         blank_padding=True,
         compress_seq=args.compress_seq,
