@@ -52,7 +52,9 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 loss='ce',
                 adv='fgm',
                 mtl_autoweighted_loss=True,
-                dice_alpha=0.6):
+                dice_alpha=0.6,
+                span_loss_weight=None
+                 ):
 
         super(MTL_Span_Attr_Boundary, self).__init__()
         encoder_name = model.sequence_encoder.__class__.__name__.lower()
@@ -65,6 +67,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.tagscheme = tagscheme
         self.max_grad_norm = max_grad_norm
         self.early_stopping_step = early_stopping_step
+        self.span_loss_weight = span_loss_weight
         if word_embedding is not None and word_embedding.weight.requires_grad:
             self.word_embedding = nn.Embedding(*word_embedding.weight.size())
             self.word_embedding.weight.data.copy_(word_embedding.weight.data)
@@ -385,7 +388,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     retain_graph = False
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
-                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, *args)
+                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, span_loss_weight=self.span_loss_weight, *args)
                 if loss.isnan() or torch.abs(loss) > 10:
                     #continue
                     is_loss_nan = True

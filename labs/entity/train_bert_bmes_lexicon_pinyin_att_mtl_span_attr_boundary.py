@@ -125,6 +125,7 @@ parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
         help='embedding size of pinyin character')
+parser.add_argument('--span_loss_weight', default=-1, type=float)   # -1 表示不使用
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
@@ -457,6 +458,8 @@ if 'together' in args.model_type:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary_Together
 else:
     framework_class = pasaner.framework.MTL_Span_Attr_Boundary
+if args.span_loss_weight < 0:
+    args.span_loss_weight = None
 framework = framework_class(
     model=model,
     word_embedding=word_embedding,
@@ -482,6 +485,7 @@ framework = framework_class(
     adv=args.adv,
     dice_alpha=args.dice_alpha,
     metric=args.metric,
+    span_loss_weight=args.span_loss_weight
 )
 
 # Load pretrained model

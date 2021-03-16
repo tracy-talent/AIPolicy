@@ -17,7 +17,7 @@ test_set_regex = 'Test set results'
 pinyin_vec_regex = '--pinyin2vec_file\s.*\\(.*)\.vec'
 
 
-def extract_score_from_logs(log_dir, save_path=None):
+def extract_score_from_logs(log_dir, save_path=None, target_dataset="all"):
     dataset_dirs = [_dir for _dir in os.listdir(log_dir)
                     if os.path.isdir(os.path.join(log_dir, _dir))]
 
@@ -41,15 +41,14 @@ def extract_score_from_logs(log_dir, save_path=None):
                         target_scores['wz'].append(float(wz))
                         for score_name, score in score_dict.items():
                             target_scores[score_name].append(float(score))
-            
-            # 对同一参数目录下的所有log文件取均值
+
+            # 对同一参数目录下的所有log文件取均值，factor只是为了表示为%
             tmp_dict = {}
             for score_name, score_list in target_scores.items():
                 if score_name in target_score_strings:
-                    factor = 100
-                else:
-                    factor = 1
-                tmp_dict[score_name] = round(np.mean(score_list) * factor, ndigits=2)
+                    score_list = [s * 100 for s in score_list]
+                tmp_dict[score_name] = round(np.mean(score_list), ndigits=2)
+
             if len(tmp_dict) > 0:
                 if pinyin_vec is None:
                     pinyin_vec = 'char'
@@ -58,7 +57,7 @@ def extract_score_from_logs(log_dir, save_path=None):
                 param_dict[subdir] = tmp_dict
         dataset_scores[dataset] = param_dict
 
-    table_list = display_results(dataset_scores)
+    table_list = display_results(dataset_scores, target_dataset)
     if save_path:
         save_as_excel(dataset_scores, save_path=save_path)
         print('\n'.join(table_list))
@@ -84,7 +83,11 @@ def extract_target_scores(log_path):
             if is_finish_test:
                 for match_str in target_score_strings:
                     if re.match(f'.*{match_str}', line):
-                        score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.\d+)', line)[0]
+                        try:
+                            score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.\d+)', line)[0]
+
+                        except:
+                            score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.?\d*)', line)[0]   # 匹配无小数点的数字
 
                 if re.match(f'.*{dpr_regex}', line):
                     dpr = re.findall(dpr_regex, line)[0]
@@ -141,10 +144,11 @@ def resolve_data(param_dict):
     return ret_list
 
 
-def display_results(res_dict):
+def display_results(res_dict, target_dataset):
     table_list = []
     for dataset, param_dict in res_dict.items():
-
+        if target_dataset != 'all' and target_dataset not in dataset:
+            continue
         table = PrettyTable(['params', 'Precision', 'Recall', 'F1'])
         rows = resolve_data(param_dict)
         for row in rows:
@@ -304,5 +308,6 @@ class Colored(object):
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
-    extract_score_from_logs('/home/mist/github/AIPolicy/output/relation/logs',
-                            save_path='./relation.xls')
+    extract_score_from_logs('../output/entity/logs',
+                            save_path='./entity.xls',
+                            target_dataset='all')

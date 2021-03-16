@@ -440,7 +440,7 @@ def adversarial_perturbation_span_attr_mtl(adv, model, criterion, autoweighted_l
 
 
 def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autoweighted_loss=None, K=3, rand_init_mag=0.,
-                                      span_labels=None, attr_start_labels=None, attr_end_labels=None, retain_graph=False, *args):
+                                      span_labels=None, attr_start_labels=None, attr_end_labels=None, retain_graph=False, *args, **kwargs):
     """adversarial perturbation process
 
     Args:
@@ -480,7 +480,11 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
             if torch.abs(loss_span) > 10:
                 loss = (loss_attr_start + loss_attr_end) / 2
             else:
-                loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                span_loss_weight = kwargs['span_loss_weight']
+                if span_loss_weight is None:
+                    loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                else:
+                    loss = loss_span * span_loss_weight + (loss_attr_start + loss_attr_end) * (1 - span_loss_weight) / 2
         return loss
     
     loss_adv = adversarial_step(adv, model, K, get_loss, retain_graph)
