@@ -252,7 +252,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(Base_BILSTM_CRF_Span_Attr):
         self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
         self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size * 2, len(attr2id))
 
-    def dot_product_attention(self, attention_kv, attention_query):
+    def dot_product_attention(self, attention_kv, attention_query, att_mask):
         """dot product attention for attr_hidden_state to attend span_hidden_state.
 
         Args:
@@ -264,6 +264,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(Base_BILSTM_CRF_Span_Attr):
             attention_weight (torch.Tensor): attention weight matrix, size(B, S, S).
         """
         attention_score = torch.matmul(attention_query, attention_kv.transpose(1, 2))
+        attention_score.masked_fill_(att_mask.unsqueeze(1) == 0, -1e9)
         attention_weight = F.softmax(attention_score, dim=-1)
         attention_output = torch.matmul(attention_weight, attention_kv)
         return attention_output, attention_weight
@@ -271,7 +272,7 @@ class BILSTM_CRF_Span_Attr_Boundary_Attention(Base_BILSTM_CRF_Span_Attr):
     def forward(self, *args):
         span_seqs_hiddens, attr_seqs_hiddens = super(BILSTM_CRF_Span_Attr_Boundary_Attention, self).forward(*args)
         # dot product attention
-        span_attention_output = self.dot_product_attention(span_seqs_hiddens, attr_seqs_hiddens)[0]
+        span_attention_output = self.dot_product_attention(span_seqs_hiddens, attr_seqs_hiddens, args[-1])[0]
         # additive attention
         # span_attention_output = self.attention(span_seqs_hiddens, attr_seqs_hiddens)[0]
         attr_attention_output = torch.tanh(self.mlp_span2attr(span_attention_output))
