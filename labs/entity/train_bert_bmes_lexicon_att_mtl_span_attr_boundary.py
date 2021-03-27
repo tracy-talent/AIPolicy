@@ -415,10 +415,15 @@ framework = framework_class(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0 and args.only_test:
-   logger.info('load checkpoint')
-   framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
-   print(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
+if (ckpt_cnt > 0 and args.only_test) or (args.ckpt and args.only_test):
+    if args.ckpt:
+        load_model_path = args.ckpt
+    else:
+        load_model_path = re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)
+    ckpt = load_model_path
+    framework.load_model(load_model_path)
+    logger.info('load checkpoint')
+    logger.info(load_model_path)
 
 # Train the model
 if not args.only_test:
@@ -427,9 +432,9 @@ if not args.only_test:
 
 # Test
 if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{args.dataset}_case_study_without_pinyin.txt')
+    result = framework.eval_model(framework.val_loader, f'{args.dataset}_case_study_without_pinyin_{ckpt.split(".pth.tar")[0][-1]}.txt')
 else:
-    result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_without_pinyin.txt')
+    result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_without_pinyin_{ckpt.split(".pth.tar")[0][-1]}.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))
