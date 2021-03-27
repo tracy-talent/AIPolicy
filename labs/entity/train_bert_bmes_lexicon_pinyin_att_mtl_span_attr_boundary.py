@@ -30,7 +30,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat'], help='model type')
+parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat', 'base'], help='model type')
 parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_cat', 'word_att_add', 'char_att_cat', 'char_att_add'],  help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -57,7 +57,7 @@ parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'span_acc', 'attr_start_acc', 'attr_end_acc', 'loss'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'], 
+parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4', 'none'],
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -175,7 +175,7 @@ def make_model_name():
     elif args.model_type == 'plecat':
         model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat_bert'
     else:
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_bert'
+        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_base_bert'
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
@@ -253,7 +253,7 @@ if args.dataset != 'none':
         args.val_file = args.test_file
 else:
     if not (os.path.exists(args.train_file) and os.path.exists(args.val_file) and os.path.exists(args.test_file) and os.path.exists(args.span2id_file) and os.path.exists(args.attr2id_file)):
-        raise Exception('--train_file, --val_file, --test_file and --rel2id_file are not specified or files do not exist. Or specify --dataset')
+        raise Exception('--train_file, --val_file, --test_file and --span2id_file and --attr2id_file are not specified or files do not exist. Or specify --dataset')
 
 logger.info('Arguments:')
 for arg in vars(args):
@@ -489,11 +489,14 @@ framework = framework_class(
 )
 
 # Load pretrained model
-if ckpt_cnt > 0 and args.only_test:
-   logger.info('load checkpoint')
-   logger.info(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
-   framework.load_model(re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt))
-#    logger.info(re.sub('\d+\.pth\.tar', f'test_3.pth.tar', ckpt)) # resume
+if (ckpt_cnt > 0 and args.only_test) or (args.ckpt and args.only_test):
+    if args.ckpt:
+        load_model_path = args.ckpt
+    else:
+        load_model_path = re.sub('\d+\.pth\.tar', f'{ckpt_cnt-1}.pth.tar', ckpt)
+    framework.load_model(load_model_path)
+    logger.info('load checkpoint')
+    logger.info(load_model_path)
 #    framework.load_model(re.sub('\d+\.pth\.tar', f'test_3.pth.tar', ckpt)) # resume
 
 # Train the model
@@ -503,9 +506,9 @@ if not args.only_test:
 
 # Test
 if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{args.dataset}_{lexicon_name}_case_study_full.txt')
+    result = framework.eval_model(framework.val_loader, f'{args.dataset}_{lexicon_name}_{args.model_type}_case_study{ckpt_cnt}.txt')
 else:
-    result = framework.eval_model(framework.test_loader, f'{args.dataset}_{lexicon_name}_case_study_full.txt')
+    result = framework.eval_model(framework.test_loader, f'{args.dataset}_{lexicon_name}_{args.model_type}_case_study{ckpt_cnt}.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

@@ -47,6 +47,8 @@ def extract_score_from_logs(log_dir, save_path=None, target_dataset="all"):
             for score_name, score_list in target_scores.items():
                 if score_name in target_score_strings:
                     score_list = [s * 100 for s in score_list]
+                if score_name == 'Micro F1' and target_dataset in dataset:
+                    print(subdir, '\n', score_list)
                 tmp_dict[score_name] = round(np.mean(score_list), ndigits=2)
 
             if len(tmp_dict) > 0:
@@ -309,5 +311,6 @@ if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
     extract_score_from_logs('../output/entity/logs',
-                            save_path='./entity.xls',
+                            save_path=None,
                             target_dataset='all')
+dd
