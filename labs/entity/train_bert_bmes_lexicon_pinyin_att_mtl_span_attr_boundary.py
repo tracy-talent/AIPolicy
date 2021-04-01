@@ -133,8 +133,9 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset == 'weibo' and args.model_type != 'plerand':
+if args.dataset in ['weibo', 'none'] and args.model_type != 'plerand':
     fix_seed(args.random_seed)
+    print("Use random_sed: {}".format(args.random_seed))
 if args.only_test:
     args.compress_seq = False
 
@@ -156,6 +157,8 @@ else:
 # construct save path name
 def make_dataset_name():
     dataset_name = args.dataset + '_' + args.tagscheme
+    if 'none' in args.dataset:
+        dataset_name += f'_ne' if '.ne.' in args.train_file else f'_nm'
     return dataset_name
 def make_model_name():
     if args.model_type == 'startprior':
