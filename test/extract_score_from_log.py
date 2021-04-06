@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import re
 import xlwt
@@ -6,6 +8,10 @@ from collections import defaultdict
 import numpy as np
 from prettytable import PrettyTable
 from colorama import init, Fore, Back, Style
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import MultipleLocator
+import datetime
+
 init(autoreset=False)
 
 # 以下字符串出现顺序需要与log文件中一致，否则会因匹配优先级出错
@@ -89,7 +95,7 @@ def extract_target_scores(log_path):
                             score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.\d+)', line)[0]
 
                         except:
-                            score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.?\d*)', line)[0]   # 匹配无小数点的数字
+                            score_dict[match_str] = re.findall(f'{match_str}:\s(\d+\.?\d*)', line)[0]  # 匹配无小数点的数字
 
                 if re.match(f'.*{dpr_regex}', line):
                     dpr = re.findall(dpr_regex, line)[0]
@@ -123,7 +129,7 @@ def resolve_data(param_dict):
     precision_max = max(precision_list)
     recall_max = max(recall_list)
     f1_max = max(f1_list)
-    
+
     for param_name, score_dict in param_dict.items():
         if score_dict['pinyin_vec'] is None:
             continue
@@ -155,7 +161,7 @@ def display_results(res_dict, target_dataset):
         rows = resolve_data(param_dict)
         for row in rows:
             table.add_row(row)
-        table_string = '='*100 + '\n' + dataset + '\n' + table.get_string()
+        table_string = '=' * 100 + '\n' + dataset + '\n' + table.get_string()
         table_list.append(table_string)
     return table_list
 
@@ -163,7 +169,7 @@ def display_results(res_dict, target_dataset):
 def init_xlwt_style():
     font = xlwt.Font()
     font.name = 'Times New Roman'
-    font.height = 20 * 11   # 字体大小，11为字号，20为衡量单位
+    font.height = 20 * 11  # 字体大小，11为字号，20为衡量单位
     font.bold = False
 
     borders = xlwt.Borders()
@@ -188,12 +194,12 @@ def init_xlwt_style():
     return style0
 
 
-def set_font(font_name="Times New Roman", color=0, height=20*14, bold=False):
+def set_font(font_name="Times New Roman", color=0, height=20 * 14, bold=False):
     font = xlwt.Font()  # 为样式创建字体
-    font.name = font_name     # 字体类型：比如宋体、仿宋也可以是汉仪瘦金书繁
-    font.colour_index = color     # 设置字体颜色
-    font.height = height     # 字体大小
-    font.bold = bold     # 粗体
+    font.name = font_name  # 字体类型：比如宋体、仿宋也可以是汉仪瘦金书繁
+    font.colour_index = color  # 设置字体颜色
+    font.height = height  # 字体大小
+    font.bold = bold  # 粗体
     return font
 
 
@@ -205,7 +211,7 @@ def set_column_width(sheet):
 
 
 def set_style(font_name="Times New Roman",
-              height=20*14,
+              height=20 * 14,
               color=0,
               borders_tags=None,
               bold=False):
@@ -228,7 +234,7 @@ def set_style(font_name="Times New Roman",
 
 
 def write_sheet_head(sheet, dataset, cur_row, hl_color=0x0a):
-    sheet.write(cur_row, 0, dataset, set_style(color=hl_color, height=20*16, bold=False))
+    sheet.write(cur_row, 0, dataset, set_style(color=hl_color, height=20 * 16, bold=False))
     column_list = ['Params', 'Precision', 'Recall', 'F1']
     for ith, v in enumerate(column_list):
         sheet.write(cur_row + 1, ith, v, set_style(borders_tags=[2, 2, 2, 2], bold=True))
@@ -266,7 +272,8 @@ def write_sheet_content(sheet, param_dict, cur_row, hl_color=0x0A):
             bottom_tag = 2 if ith + 1 == len(param_dict) else 0
 
             simple_params = parse_params_dir(param_name, score_dict['pinyin_vec'])
-            params_seg = [(simple_params, set_font()), (f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})", set_font(color=hl_color))]
+            params_seg = [(simple_params, set_font()),
+                          (f"(dpr={score_dict['dpr']},wz={int(score_dict['wz'])})", set_font(color=hl_color))]
             sheet.write(cur_row, 0, params_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
             sheet.write_rich_text(cur_row, 1, p_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
             sheet.write_rich_text(cur_row, 2, r_seg, set_style(borders_tags=[2, 2, 0, bottom_tag]))
@@ -307,10 +314,124 @@ class Colored(object):
         return Fore.LIGHTBLUE_EX + s + Fore.RESET
 
 
+# log_dir是某个数据集的log目录
+def extract_prf1_from_dir(log_dir):
+    dataset = log_dir.replace('\\', '/').split('/')[-1].split('_')[0]
+    result_dict = {}
+    hyper_suffix = ""
+
+    for subdir in os.listdir(log_dir):
+        subdir_path = os.path.join(log_dir, subdir)
+        hyper_param = re.findall('(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+        hyper_suffix = '_'.join(hyper_param)
+        if os.path.isdir(subdir_path):
+            avg_best_test, avg_select_test = [], []
+            for file in os.listdir(subdir_path):
+                if not file.endswith('.log'):  # 只读取log文件
+                    continue
+                filepath = os.path.join(subdir_path, file)
+                train_scores, val_scores, test_scores = [], [], []
+                train_flag, val_flag, test_flag = False, False, False
+                text = open(filepath, 'r', encoding='utf8').readlines()
+                for line in text:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if re.match(r'^.*=== Epoch \d+ train ===', line):
+                        train_flag, val_flag, test_flag = True, False, False
+                        train_scores.append((0, 0, 0))
+                    elif re.match(r'^.*=== Epoch \d+ val ===', line):
+                        train_flag, val_flag, test_flag = False, True, False
+                        val_scores.append((0, 0, 0))
+                    elif re.match(r'^.*=== Epoch \d+ test ===', line):
+                        train_flag, val_flag, test_flag = False, False, True
+                        test_scores.append((0, 0, 0))
+                    else:
+                        try:
+                            if train_flag and re.match('^.*Training.*Epoches:', line):
+                                prf1 = re.findall('micro_p:\s+(\d+\.\d+), micro_r:\s+(\d+\.\d+), micro_f1:\s+(\d+\.\d+)', line)[0]
+                                prf1 = tuple(map(lambda x: round(float(x)*100, 2), prf1))
+                                train_scores[-1] = prf1
+                            elif val_flag and re.match('^.*Evaluation result', line):
+                                prf1 = re.findall('.micro_p.:\s+(\d+\.\d+), .micro_r.:\s+(\d+\.\d+), .micro_f1.:\s+(\d+\.\d+)', line)[0]
+                                prf1 = tuple(map(lambda x: round(float(x)*100, 2) , prf1))
+                                val_scores[-1] = prf1
+                            elif test_flag and re.match('^.*Test result', line):
+                                prf1 = re.findall('.micro_p.:\s+(\d+\.\d+), .micro_r.:\s+(\d+\.\d+), .micro_f1.:\s+(\d+\.\d+)', line)[0]
+                                prf1 = tuple(map(lambda x: round(float(x)*100, 2), prf1))
+                                test_scores[-1] = prf1
+                        except Exception as e:
+                            print(e)
+
+                score_dic = {'Precison': (list(zip(*test_scores))[0], list(zip(*val_scores))[0], list(zip(*train_scores))[0]),
+                             'Recall': (list(zip(*test_scores))[1], list(zip(*val_scores))[1], list(zip(*train_scores))[1]),
+                             'F1': (list(zip(*test_scores))[2], list(zip(*val_scores))[2], list(zip(*train_scores))[2])}
+                avg_best_test.append(max(score_dic['F1'][0]))
+                avg_select_test.append(score_dic['F1'][0][np.argmax(score_dic['F1'][1])])
+
+                title = f'{dataset}_{"_".join(hyper_param)}'
+                for k, v in score_dic.items():
+                    test_list, val_list, train_list = v
+                    plot_score_curve(title, k, test_list, val_list)
+            result_dict[f'{dataset}_{"_".join(hyper_param)}'] = {'best_test': round(np.mean(avg_best_test), 2),
+                                                                 'dev_select_test': round(np.mean(avg_select_test), 2)}
+    json.dump(result_dict, open(f'./prf1_png/{dataset}_{hyper_suffix}.json', 'w', encoding='utf8'), ensure_ascii=False, indent=2)
+    return result_dict
+
+
+def plot_score_curve(title, y_label, test_score_list, dev_score_list=None, train_score_list=None):
+    test_score_list = list(test_score_list)
+    dev_score_list = list(dev_score_list) if dev_score_list else []
+    train_score_list = list(train_score_list) if train_score_list else []
+
+    plt.figure(figsize=(16, 12), dpi=160)
+    font1 = {'family': 'Times New Roman',
+             'weight': 'normal',
+             'size': 20}
+
+    font2 = {'family': 'Times New Roman',
+             'weight': 'normal',
+             'size': 30}
+    x = list(range(1, len(test_score_list) + 1))
+    # 设置x轴和y轴间隔
+    x_major_locator = MultipleLocator(1)
+    ax = plt.gca()
+    ax.xaxis.set_major_locator(x_major_locator)
+    y_major_locator = MultipleLocator(0.5)
+    ax.yaxis.set_major_locator(y_major_locator)
+
+    plt.plot(x, test_score_list, color='r', label='test', linestyle='-', marker='o')
+    for i in range(len(test_score_list)):
+        plt.text(x[i], test_score_list[i] + 0.1, '%.02f' % test_score_list[i], ha='center', fontsize=10)
+    if dev_score_list:
+        plt.plot(x, dev_score_list, color='b', label='dev', linestyle='-', marker='^')
+        for i in range(len(dev_score_list)):
+            plt.text(x[i], dev_score_list[i] + 0.1, '%.02f' % dev_score_list[i], ha='center', fontsize=10)
+    if train_score_list:
+        plt.plot(x, train_score_list, color='y', label='train', linestyle='-', marker='*')
+
+    ymin, ymax = math.floor(min(test_score_list + dev_score_list + train_score_list)), math.ceil(
+        max(test_score_list + dev_score_list + train_score_list))
+    plt.ylim((ymin, ymax))
+    plt.ylabel(y_label, fontdict=font1)
+    plt.xlabel('Epochs', fontdict=font1)
+    plt.title(title, fontdict=font1)
+    plt.legend(loc='upper left', labels=['test', 'dev', 'train'], prop=font2)
+
+    target_dir = f'./prf1_png/{title}'
+    os.makedirs(target_dir, exist_ok=True)
+    cnt = 1
+    png_path = f'{target_dir}/{y_label}_{cnt}.png'
+    while os.path.exists(png_path):
+        cnt += 1
+        png_path = f'{target_dir}/{y_label}_{cnt}.png'
+    plt.savefig(png_path)
+
+
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
     extract_score_from_logs('../output/entity/logs',
                             save_path=None,
-                            target_dataset='all')
-dd
+                            target_dataset='none')
+    # extract_prf1_from_dir(log_dir=r'C:\Users\90584\Desktop\entity_2021-04-06\resume_bmes')
