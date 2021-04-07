@@ -10,6 +10,7 @@ from prettytable import PrettyTable
 from colorama import init, Fore, Back, Style
 from matplotlib import pyplot as plt
 from matplotlib.pyplot import MultipleLocator
+import shutil
 import datetime
 
 init(autoreset=False)
@@ -314,16 +315,19 @@ class Colored(object):
         return Fore.LIGHTBLUE_EX + s + Fore.RESET
 
 
-# log_dir是某个数据集的log目录
-def extract_prf1_from_dir(log_dir):
+# log_dir是某个数据集的log目录的绝对路径
+def extract_prf1_from_logdir(log_dir):
     dataset = log_dir.replace('\\', '/').split('/')[-1].split('_')[0]
     result_dict = {}
-    hyper_suffix = ""
+    output_dir = os.path.join(log_dir, 'prf1_png').replace('\\', '/')
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    subdirs = os.listdir(log_dir)
+    os.makedirs(output_dir, exist_ok=True)
 
-    for subdir in os.listdir(log_dir):
+    for subdir in subdirs:
         subdir_path = os.path.join(log_dir, subdir)
         hyper_param = re.findall('(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
-        hyper_suffix = '_'.join(hyper_param)
         if os.path.isdir(subdir_path):
             avg_best_test, avg_select_test = [], []
             for file in os.listdir(subdir_path):
@@ -361,25 +365,29 @@ def extract_prf1_from_dir(log_dir):
                                 prf1 = tuple(map(lambda x: round(float(x)*100, 2), prf1))
                                 test_scores[-1] = prf1
                         except Exception as e:
-                            print(e)
+                            print(f"train_val_test:{train_flag}:{val_flag}:{test_flag}: {e}")
+                try:
+                    if 'msra' in dataset:
+                        test_scores = val_scores.copy()
+                    score_dic = {'Precison': (list(zip(*test_scores))[0], list(zip(*val_scores))[0], list(zip(*train_scores))[0]),
+                                 'Recall': (list(zip(*test_scores))[1], list(zip(*val_scores))[1], list(zip(*train_scores))[1]),
+                                 'F1': (list(zip(*test_scores))[2], list(zip(*val_scores))[2], list(zip(*train_scores))[2])}
+                    avg_best_test.append(max(score_dic['F1'][0]))
+                    avg_select_test.append(score_dic['F1'][0][np.argmax(score_dic['F1'][1])])
 
-                score_dic = {'Precison': (list(zip(*test_scores))[0], list(zip(*val_scores))[0], list(zip(*train_scores))[0]),
-                             'Recall': (list(zip(*test_scores))[1], list(zip(*val_scores))[1], list(zip(*train_scores))[1]),
-                             'F1': (list(zip(*test_scores))[2], list(zip(*val_scores))[2], list(zip(*train_scores))[2])}
-                avg_best_test.append(max(score_dic['F1'][0]))
-                avg_select_test.append(score_dic['F1'][0][np.argmax(score_dic['F1'][1])])
-
-                title = f'{dataset}_{"_".join(hyper_param)}'
-                for k, v in score_dic.items():
-                    test_list, val_list, train_list = v
-                    plot_score_curve(title, k, test_list, val_list)
+                    title = f'{dataset}_{"_".join(hyper_param)}'
+                    for k, v in score_dic.items():
+                        test_list, val_list, train_list = v
+                        plot_score_curve(output_dir, title, k, test_list, val_list)
+                except Exception as e:
+                    print(f"{dataset}_{''.join(hyper_param)}_{file}: {e}")
             result_dict[f'{dataset}_{"_".join(hyper_param)}'] = {'best_test': round(np.mean(avg_best_test), 2),
                                                                  'dev_select_test': round(np.mean(avg_select_test), 2)}
-    json.dump(result_dict, open(f'./prf1_png/{dataset}_{hyper_suffix}.json', 'w', encoding='utf8'), ensure_ascii=False, indent=2)
+    json.dump(result_dict, open(f'{output_dir}/{dataset}.json', 'w', encoding='utf8'), ensure_ascii=False, indent=2)
     return result_dict
 
 
-def plot_score_curve(title, y_label, test_score_list, dev_score_list=None, train_score_list=None):
+def plot_score_curve(output_dir, title, y_label, test_score_list, dev_score_list=None, train_score_list=None):
     test_score_list = list(test_score_list)
     dev_score_list = list(dev_score_list) if dev_score_list else []
     train_score_list = list(train_score_list) if train_score_list else []
@@ -418,7 +426,7 @@ def plot_score_curve(title, y_label, test_score_list, dev_score_list=None, train
     plt.title(title, fontdict=font1)
     plt.legend(loc='upper left', labels=['test', 'dev', 'train'], prop=font2)
 
-    target_dir = f'./prf1_png/{title}'
+    target_dir = f'{output_dir}/{title}'
     os.makedirs(target_dir, exist_ok=True)
     cnt = 1
     png_path = f'{target_dir}/{y_label}_{cnt}.png'
@@ -434,4 +442,6 @@ if __name__ == '__main__':
     extract_score_from_logs('../output/entity/logs',
                             save_path=None,
                             target_dataset='none')
-    # extract_prf1_from_dir(log_dir=r'C:\Users\90584\Desktop\entity_2021-04-06\resume_bmes')
+
+
+    # extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\AIPolicy\output\entity\logs\ontonotes4_bmoes')
