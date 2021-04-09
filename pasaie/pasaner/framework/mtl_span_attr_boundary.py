@@ -21,39 +21,86 @@ import torch
 from torch import nn, optim
 from torch.utils.tensorboard import SummaryWriter
 from transformers import AdamW, get_linear_schedule_with_warmup, get_cosine_schedule_with_warmup
+from fastNLP import cache_results
+
+
+@cache_results(_cache_fp=f'cache/msra_dataloader', _refresh=False)
+def get_loaders(model, train_path, val_path, test_path, batch_size, compress_seq):
+    preload = True
+    # if 'char' in encoder_name and 'bmes' in encoder_name and ('ontonotes4' in train_path or 'msra' in train_path):
+    #     preload = False
+    # Load Data
+    if train_path != None:
+        train_loader = SpanAttrBoundaryNERDataLoader(
+            path=train_path,
+            span2id=model.span2id,
+            attr2id=model.attr2id,
+            tokenizer=model.sequence_encoder.tokenize,
+            batch_size=batch_size,
+            shuffle=True,
+            compress_seq=compress_seq,
+            preload=preload
+        )
+
+    if val_path != None:
+        val_loader = SpanAttrBoundaryNERDataLoader(
+            path=val_path,
+            span2id=model.span2id,
+            attr2id=model.attr2id,
+            tokenizer=model.sequence_encoder.tokenize,
+            batch_size=batch_size,
+            shuffle=False,
+            compress_seq=compress_seq,
+            preload=preload
+        )
+
+    if test_path != None:
+        test_loader = SpanAttrBoundaryNERDataLoader(
+            path=test_path,
+            span2id=model.span2id,
+            attr2id=model.attr2id,
+            tokenizer=model.sequence_encoder.tokenize,
+            batch_size=batch_size,
+            shuffle=False,
+            compress_seq=compress_seq,
+            preload=preload
+        )
+    else:
+        test_loader = val_loader
+    return train_loader, val_loader, test_loader
 
 
 class MTL_Span_Attr_Boundary(nn.Module):
     """model(adaptive) + multitask learning by entity span and entity attr"""
-    
-    def __init__(self, 
-                model, 
-                train_path, 
-                val_path, 
-                test_path, 
-                ckpt, 
-                logger, 
-                tb_logdir,
-                word_embedding=None,
-                bigram_embedding=None, 
-                compress_seq=True,
-                tagscheme='bmoes',
-                batch_size=32, 
-                max_epoch=100,
-                crf_lr=1e-3,
-                lr=1e-3,
-                bert_lr=3e-5,
-                weight_decay=1e-2,
-                early_stopping_step=3,
-                warmup_step=300,
-                max_grad_norm=5.0,
-                metric='micro_f1',
-                opt='sgd',
-                loss='ce',
-                adv='fgm',
-                mtl_autoweighted_loss=True,
-                dice_alpha=0.6,
-                span_loss_weight=None
+
+    def __init__(self,
+                 model,
+                 train_path,
+                 val_path,
+                 test_path,
+                 ckpt,
+                 logger,
+                 tb_logdir,
+                 word_embedding=None,
+                 bigram_embedding=None,
+                 compress_seq=True,
+                 tagscheme='bmoes',
+                 batch_size=32,
+                 max_epoch=100,
+                 crf_lr=1e-3,
+                 lr=1e-3,
+                 bert_lr=3e-5,
+                 weight_decay=1e-2,
+                 early_stopping_step=3,
+                 warmup_step=300,
+                 max_grad_norm=5.0,
+                 metric='micro_f1',
+                 opt='sgd',
+                 loss='ce',
+                 adv='fgm',
+                 mtl_autoweighted_loss=True,
+                 dice_alpha=0.6,
+                 span_loss_weight=None
                  ):
 
         super(MTL_Span_Attr_Boundary, self).__init__()
@@ -82,47 +129,16 @@ class MTL_Span_Attr_Boundary(nn.Module):
             del bigram_embedding
         else:
             self.bigram_embedding = bigram_embedding
-        
-        preload = True
-        # if 'char' in encoder_name and 'bmes' in encoder_name and ('ontonotes4' in train_path or 'msra' in train_path):
-        #     preload = False
-        # Load Data
-        if train_path != None:
-            self.train_loader = SpanAttrBoundaryNERDataLoader(
-                path=train_path,
-                span2id=model.span2id,
-                attr2id=model.attr2id,
-                tokenizer=model.sequence_encoder.tokenize,
-                batch_size=batch_size,
-                shuffle=True,
-                compress_seq=compress_seq,
-                preload=preload
-            )
 
-        if val_path != None:
-            self.val_loader = SpanAttrBoundaryNERDataLoader(
-                path=val_path,
-                span2id=model.span2id,
-                attr2id=model.attr2id,
-                tokenizer=model.sequence_encoder.tokenize,
-                batch_size=batch_size,
-                shuffle=False,
-                compress_seq=compress_seq,
-                preload=preload
-            )
-        
-        if test_path != None:
-            self.test_loader = SpanAttrBoundaryNERDataLoader(
-                path=test_path,
-                span2id=model.span2id,
-                attr2id=model.attr2id,
-                tokenizer=model.sequence_encoder.tokenize,
-                batch_size=batch_size,
-                shuffle=False,
-                compress_seq=compress_seq,
-                preload=preload
-            )
-
+        for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4']:
+            if dataset_name in train_path.lower():
+                dataset = dataset_name
+                break
+        self.train_loader, self.val_loader, self.test_loader = get_loaders(model, train_path, val_path, test_path,
+                                                                           batch_size, compress_seq,
+                                                                           _cache_fp=f"cache/{dataset}_dataloader",
+                                                                           _refresh=False
+                                                                           )
         # Model
         self.model = model
         self.parallel_model = nn.DataParallel(model)
@@ -130,7 +146,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
         if loss == 'ce':
             self.criterion = nn.CrossEntropyLoss(reduction='none')
         elif loss == 'wce':
-            self.criterion = nn.CrossEntropyLoss(weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None, reduction='none')
+            self.criterion = nn.CrossEntropyLoss(
+                weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None, reduction='none')
         elif loss == 'focal':
             self.criterion = FocalLoss(gamma=2., reduction='none')
         elif loss == 'dice':
@@ -147,7 +164,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         self.lr = lr
         self.bert_lr = bert_lr
         crf_params = [p for n, p in self.named_parameters() if 'crf' in n]
-        crf_params_id = list(map(id, crf_params)) # make crf_params lr=1e-2
+        crf_params_id = list(map(id, crf_params))  # make crf_params lr=1e-2
         pretrained_params_id = []
         if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
             embedding_params = self.word_embedding.parameters()
@@ -159,7 +176,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
             encoder_params = self.parallel_model.module.sequence_encoder.parameters()
             pretrained_params_id.extend(list(map(id, encoder_params)))
         pretrained_params = list(filter(lambda p: id(p) in pretrained_params_id, self.parameters()))
-        other_params = list(filter(lambda p: id(p) not in pretrained_params_id and id(p) not in crf_params_id, self.parameters()))
+        other_params = list(
+            filter(lambda p: id(p) not in pretrained_params_id and id(p) not in crf_params_id, self.parameters()))
         other_params_id = list(map(id, other_params))
         grouped_params = [
             {'params': pretrained_params, 'lr': bert_lr},
@@ -169,38 +187,41 @@ class MTL_Span_Attr_Boundary(nn.Module):
         if opt == 'sgd':
             self.optimizer = optim.SGD(grouped_params, weight_decay=weight_decay)
         elif opt == 'adam':
-            self.optimizer = optim.Adam(grouped_params) # adam weight_decay is not reasonable
-        elif opt == 'adamw': # Optimizer for BERT
+            self.optimizer = optim.Adam(grouped_params)  # adam weight_decay is not reasonable
+        elif opt == 'adamw':  # Optimizer for BERT
             params = list(self.named_parameters())
             no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
             adamw_grouped_params = [
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
+                    'params': [p for n, p in params if
+                               not any(nd in n for nd in no_decay) and id(p) in pretrained_params_id],
                     'weight_decay': weight_decay,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
+                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in crf_params_id],
                     'weight_decay': weight_decay,
                     'lr': 1e-3,
                 },
                 {
-                    'params': [p for n, p in params if not any(nd in n for nd in no_decay) and id(p) in other_params_id], 
+                    'params': [p for n, p in params if
+                               not any(nd in n for nd in no_decay) and id(p) in other_params_id],
                     'weight_decay': weight_decay,
                     'lr': lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in pretrained_params_id], 
+                    'params': [p for n, p in params if
+                               any(nd in n for nd in no_decay) and id(p) in pretrained_params_id],
                     'weight_decay': 0.0,
                     'lr': bert_lr,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in crf_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in crf_params_id],
                     'weight_decay': 0.0,
                     'lr': 1e-3,
                 },
                 {
-                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in other_params_id], 
+                    'params': [p for n, p in params if any(nd in n for nd in no_decay) and id(p) in other_params_id],
                     'weight_decay': 0.0,
                     'lr': lr,
                 }
@@ -227,7 +248,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             #         'lr': lr,
             #     }
             # ]
-            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True) # original: correct_bias=False
+            self.optimizer = AdamW(adamw_grouped_params, correct_bias=True)  # original: correct_bias=False
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
@@ -235,11 +256,14 @@ class MTL_Span_Attr_Boundary(nn.Module):
         if warmup_step > 0:
             training_steps = len(self.train_loader) // batch_size * self.max_epoch
             # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
+            self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step,
+                                                             num_training_steps=training_steps)
         else:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
-                                                                mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
-                                                                patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
+                                                                  mode='min' if 'loss' in self.metric else 'max',
+                                                                  factor=0.8,
+                                                                  patience=1,
+                                                                  min_lr=5e-6)  # mode='min' for loss, 'max' for acc/p/r/f1
             # self.scheduler = None
         # Adversarial
         if adv == 'fgm':
@@ -253,8 +277,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
         # Cuda
         word_embedding = self.word_embedding
         bigram_embedding = self.bigram_embedding
-        del self.word_embedding # avoid embedding to cuda
-        del self.bigram_embedding # avoid embedding to cuda
+        del self.word_embedding  # avoid embedding to cuda
+        del self.bigram_embedding  # avoid embedding to cuda
         if torch.cuda.is_available():
             self.cuda()
         self.word_embedding = word_embedding
@@ -266,17 +290,15 @@ class MTL_Span_Attr_Boundary(nn.Module):
         # tensorboard writer
         self.writer = SummaryWriter(tb_logdir, filename_suffix=datetime.datetime.now().strftime("%y-%m-%d-%H-%M-%S"))
 
-
     def make_train_state(self):
         return {'stop_early': False,
                 'early_stopping_step': 0,
                 'early_stopping_best_val': 1e8 if 'loss' in self.metric else 0,
                 'epoch_index': 0,
-                'train_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
-                'val_metrics': [], # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
+                'train_metrics': [],  # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
+                'val_metrics': [],  # exp: [{'loss':0, 'acc':0, 'micro_p':0, 'micro_r':0, 'micro_f1':0}]
                 }
-    
-    
+
     def update_train_state(self, train_state):
         if 'loss' in self.metric:
             cmp_op = operator.lt
@@ -297,9 +319,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     train_state['early_stopping_best_val'] = metric_v1
                     self.logger.info("Best ckpt and saved.")
                 train_state['early_stopping_step'] = 0
-            
-            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
 
+            train_state['stop_early'] = train_state['early_stopping_step'] >= self.early_stopping_step
 
     def train_model(self):
         train_state = self.make_train_state()
@@ -366,15 +387,17 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 # loss and optimizer
                 if self.adv is None:
                     if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                     else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                        loss_span = -log_likelihood / inputs_seq_len # B
-                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start) # B * S
-                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
-                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
-                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
+                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                             reduction='none')  # B
+                        loss_span = -log_likelihood / inputs_seq_len  # B
+                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
+                                                     outputs_seq_attr_start)  # B * S
+                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
                     loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
@@ -388,11 +411,17 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     retain_graph = False
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
-                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, retain_graph, span_loss_weight=self.span_loss_weight, *args)
-                if loss.isnan() or torch.abs(loss) > 10:
-                    #continue
+                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model,
+                                                                           self.criterion, self.autoweighted_loss, 3,
+                                                                           0., outputs_seq_span, outputs_seq_attr_start,
+                                                                           outputs_seq_attr_end, retain_graph,
+                                                                           span_loss_weight=self.span_loss_weight,
+                                                                           *args)
+                if loss.isnan():
+                    # continue
                     is_loss_nan = True
                     break
+
                 torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
                 if self.warmup_step > 0:
@@ -401,14 +430,14 @@ class MTL_Span_Attr_Boundary(nn.Module):
 
                 # prediction/decode
                 if self.model.crf_span is None:
-                    preds_seq_span = logits_span.argmax(dim=-1) # B * S
+                    preds_seq_span = logits_span.argmax(dim=-1)  # B * S
                 else:
-                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
+                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask)  # List[List[int]]
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
-                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-                preds_seq_attr_start = logits_attr_start.argmax(dim=-1) # B * S
-                preds_seq_attr_end = logits_attr_end.argmax(dim=-1) # B * S
+                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device)  # B * S
+                preds_seq_attr_start = logits_attr_start.argmax(dim=-1)  # B * S
+                preds_seq_attr_end = logits_attr_end.argmax(dim=-1)  # B * S
 
                 # get token sequence
                 preds_seq_span = preds_seq_span.detach().cpu().numpy()
@@ -427,16 +456,23 @@ class MTL_Span_Attr_Boundary(nn.Module):
                         spos, tpos = 0, seqlen
                     pred_seq_span_tag = [self.model.id2span[sid] for sid in preds_seq_span[i][:seqlen][spos:tpos]]
                     gold_seq_span_tag = [self.model.id2span[sid] for sid in outputs_seq_span[i][:seqlen][spos:tpos]]
-                    pred_seq_attr_tag_start = [self.model.id2attr[aid] for aid in preds_seq_attr_start[i][:seqlen][spos:tpos]]
-                    gold_seq_attr_tag_start = [self.model.id2attr[aid] for aid in outputs_seq_attr_start[i][:seqlen][spos:tpos]]
-                    pred_seq_attr_tag_end = [self.model.id2attr[aid] for aid in preds_seq_attr_end[i][:seqlen][spos:tpos]]
-                    gold_seq_attr_tag_end = [self.model.id2attr[aid] for aid in outputs_seq_attr_end[i][:seqlen][spos:tpos]]
-                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
+                    pred_seq_attr_tag_start = [self.model.id2attr[aid] for aid in
+                                               preds_seq_attr_start[i][:seqlen][spos:tpos]]
+                    gold_seq_attr_tag_start = [self.model.id2attr[aid] for aid in
+                                               outputs_seq_attr_start[i][:seqlen][spos:tpos]]
+                    pred_seq_attr_tag_end = [self.model.id2attr[aid] for aid in
+                                             preds_seq_attr_end[i][:seqlen][spos:tpos]]
+                    gold_seq_attr_tag_end = [self.model.id2attr[aid] for aid in
+                                             outputs_seq_attr_end[i][:seqlen][spos:tpos]]
+                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in
+                                inputs_seq[i][:seqlen][spos:tpos]]
 
                     # pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
                     # gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
-                    pred_kvpairs = extract_kvpairs_by_start_end(pred_seq_attr_tag_start, pred_seq_attr_tag_end, char_seq, self.model.id2attr[attr_negid])
-                    gold_kvpairs = extract_kvpairs_by_start_end(gold_seq_attr_tag_start, gold_seq_attr_tag_end, char_seq, self.model.id2attr[attr_negid])
+                    pred_kvpairs = extract_kvpairs_by_start_end(pred_seq_attr_tag_start, pred_seq_attr_tag_end,
+                                                                char_seq, self.model.id2attr[attr_negid])
+                    gold_kvpairs = extract_kvpairs_by_start_end(gold_seq_attr_tag_start, gold_seq_attr_tag_end,
+                                                                char_seq, self.model.id2attr[attr_negid])
                     preds_kvpairs.append(pred_kvpairs)
                     golds_kvpairs.append(gold_kvpairs)
 
@@ -465,8 +501,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                         if label in gold:
                             hits += 1
                 span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
-                attr_start_acc = ((outputs_seq_attr_start == preds_seq_attr_start) * (outputs_seq_attr_start != attr_negid) * inputs_mask).sum()
-                attr_end_acc = ((outputs_seq_attr_end == preds_seq_attr_end) * (outputs_seq_attr_end != attr_negid) * inputs_mask).sum()
+                attr_start_acc = ((outputs_seq_attr_start == preds_seq_attr_start) * (
+                        outputs_seq_attr_start != attr_negid) * inputs_mask).sum()
+                attr_end_acc = ((outputs_seq_attr_end == preds_seq_attr_end) * (
+                        outputs_seq_attr_end != attr_negid) * inputs_mask).sum()
 
                 # Log
                 avg_loss.update(loss.item() * bs, bs)
@@ -479,9 +517,11 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 rec.update(hits, r_sum)
                 global_step += 1
                 if global_step % log_steps == 0:
-                    span_micro_f1 = 2 * span_prec.avg * span_rec.avg / (span_prec.avg + span_rec.avg) if (span_prec.avg + span_rec.avg) > 0 else 0
+                    span_micro_f1 = 2 * span_prec.avg * span_rec.avg / (span_prec.avg + span_rec.avg) if (
+                                                                                                                 span_prec.avg + span_rec.avg) > 0 else 0
                     micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-                    self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, span_acc: {avg_span_acc.avg:.4f}, attr_start_acc: {avg_attr_start_acc.avg:.4f}, attr_end_acc: {avg_attr_end_acc.avg:.4f}, span_micro_p: {span_prec.avg:.4f}, span_micro_r: {span_rec.avg:.4f}, span_micro_f1: {span_micro_f1:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
+                    self.logger.info(
+                        f'Training...Epoches: {epoch}, steps: {global_step}, loss: {avg_loss.avg:.4f}, span_acc: {avg_span_acc.avg:.4f}, attr_start_acc: {avg_attr_start_acc.avg:.4f}, attr_end_acc: {avg_attr_end_acc.avg:.4f}, span_micro_p: {span_prec.avg:.4f}, span_micro_r: {span_rec.avg:.4f}, span_micro_f1: {span_micro_f1:.4f}, micro_p: {prec.avg:.4f}, micro_r: {rec.avg:.4f}, micro_f1: {micro_f1:.4f}')
 
                 # tensorboard training writer
                 if global_step % log_steps == 0:
@@ -500,18 +540,24 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 self.logger.info(f'loss has nan or loss > 10: {loss}')
                 break
             micro_f1 = 2 * prec.avg * rec.avg / (prec.avg + rec.avg) if (prec.avg + rec.avg) > 0 else 0
-            train_state['train_metrics'].append({'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_start_acc': avg_attr_start_acc.avg, 'attr_end_acc': avg_attr_end_acc.avg, 'span_micro_p': span_prec.avg, 'span_micro_r': span_rec.avg, 'span_micro_f1': span_micro_f1, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
+            train_state['train_metrics'].append(
+                {'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_start_acc': avg_attr_start_acc.avg,
+                 'attr_end_acc': avg_attr_end_acc.avg, 'span_micro_p': span_prec.avg, 'span_micro_r': span_rec.avg,
+                 'span_micro_f1': span_micro_f1, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
             result = self.eval_model(self.val_loader)
-            acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100), str(round(result['attr_end_acc'], 4) * 100))
+            acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100),
+                   str(round(result['attr_end_acc'], 4) * 100))
             p = (str(round(result['span_micro_p'], 4) * 100), str(round(result['micro_p'], 4) * 100))
             r = (str(round(result['span_micro_r'], 4) * 100), str(round(result['micro_r'], 4) * 100))
             f1 = (str(round(result['span_micro_f1'], 4) * 100), str(round(result['micro_f1'], 4) * 100))
-            self.logger.info(f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
+            self.logger.info(
+                f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
             self.logger.info(f'Evaluation result: {result}.')
-            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric],
+                                                                        train_state['early_stopping_best_val']))
             category_result = result.pop('category-p/r/f1')
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
@@ -521,7 +567,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.scheduler.step(train_state['val_metrics'][-1][self.metric])
                 if train_state['stop_early']:
                     break
-            
+
             # tensorboard val writer
             self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val span acc', result['span_acc'], epoch)
@@ -538,13 +584,16 @@ class MTL_Span_Attr_Boundary(nn.Module):
             if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
                 self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
-                acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100), str(round(result['attr_end_acc'], 4) * 100))
+                acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100),
+                       str(round(result['attr_end_acc'], 4) * 100))
                 p = (str(round(result['span_micro_p'], 4) * 100), str(round(result['micro_p'], 4) * 100))
                 r = (str(round(result['span_micro_r'], 4) * 100), str(round(result['micro_r'], 4) * 100))
                 f1 = (str(round(result['span_micro_f1'], 4) * 100), str(round(result['micro_f1'], 4) * 100))
-                self.logger.info(f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
+                self.logger.info(
+                    f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
                 self.logger.info('Test result: {}.'.format(result))
-                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                self.logger.info(
+                    'Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
                 if 'loss' in self.metric:
                     cmp_op = operator.lt
                 else:
@@ -553,11 +602,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
-            
+
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
             self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
-
 
     def eval_model(self, eval_loader, result_file=None):
         self.eval()
@@ -569,13 +617,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
         attr_negid = self.model.attr2id['null']
         span_eid = self.model.span2id['E']
         span_sid = self.model.span2id['S']
-        
+
         span_preds_kvpairs = []
         span_golds_kvpairs = []
         preds_kvpairs = []
         golds_kvpairs = []
         sentences = []
-        category_result = defaultdict(lambda: [0, 0, 0]) # gold, pred, correct
+        category_result = defaultdict(lambda: [0, 0, 0])  # gold, pred, correct
         avg_loss = Mean()
         avg_span_acc = Mean()
         avg_attr_start_acc = Mean()
@@ -616,15 +664,16 @@ class MTL_Span_Attr_Boundary(nn.Module):
 
                 # loss
                 if self.model.crf_span is None:
-                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                 else:
-                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                    loss_span = -log_likelihood / inputs_seq_len # B
-                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start) # B * S
-                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
-                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
-                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                         reduction='none')  # B
+                    loss_span = -log_likelihood / inputs_seq_len  # B
+                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start)  # B * S
+                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
                 loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                 if self.autoweighted_loss is not None:
                     loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
@@ -634,16 +683,16 @@ class MTL_Span_Attr_Boundary(nn.Module):
 
                 # prediction/decode
                 if self.model.crf_span is None:
-                    preds_seq_span = logits_span.argmax(dim=-1) # B
+                    preds_seq_span = logits_span.argmax(dim=-1)  # B
                 else:
-                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
+                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask)  # List[List[int]]
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
-                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-                preds_seq_attr_start = logits_attr_start.argmax(dim=-1) # B
+                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device)  # B * S
+                preds_seq_attr_start = logits_attr_start.argmax(dim=-1)  # B
                 if 'StartPrior' in self.model.__class__.__name__:
-                    _, _, logits_attr_end  = self.parallel_model(preds_seq_attr_start, *args)
-                preds_seq_attr_end = logits_attr_end.argmax(dim=-1) # B
+                    _, _, logits_attr_end = self.parallel_model(preds_seq_attr_start, *args)
+                preds_seq_attr_end = logits_attr_end.argmax(dim=-1)  # B
 
                 # get token sequence
                 preds_seq_span = preds_seq_span.detach().cpu().numpy()
@@ -662,17 +711,24 @@ class MTL_Span_Attr_Boundary(nn.Module):
                         spos, tpos = 0, seqlen
                     pred_seq_span_tag = [self.model.id2span[sid] for sid in preds_seq_span[i][:seqlen][spos:tpos]]
                     gold_seq_span_tag = [self.model.id2span[sid] for sid in outputs_seq_span[i][:seqlen][spos:tpos]]
-                    pred_seq_attr_tag_start = [self.model.id2attr[aid] for aid in preds_seq_attr_start[i][:seqlen][spos:tpos]]
-                    gold_seq_attr_tag_start = [self.model.id2attr[aid] for aid in outputs_seq_attr_start[i][:seqlen][spos:tpos]]
-                    pred_seq_attr_tag_end = [self.model.id2attr[aid] for aid in preds_seq_attr_end[i][:seqlen][spos:tpos]]
-                    gold_seq_attr_tag_end = [self.model.id2attr[aid] for aid in outputs_seq_attr_end[i][:seqlen][spos:tpos]]
-                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in inputs_seq[i][:seqlen][spos:tpos]]
+                    pred_seq_attr_tag_start = [self.model.id2attr[aid] for aid in
+                                               preds_seq_attr_start[i][:seqlen][spos:tpos]]
+                    gold_seq_attr_tag_start = [self.model.id2attr[aid] for aid in
+                                               outputs_seq_attr_start[i][:seqlen][spos:tpos]]
+                    pred_seq_attr_tag_end = [self.model.id2attr[aid] for aid in
+                                             preds_seq_attr_end[i][:seqlen][spos:tpos]]
+                    gold_seq_attr_tag_end = [self.model.id2attr[aid] for aid in
+                                             outputs_seq_attr_end[i][:seqlen][spos:tpos]]
+                    char_seq = [self.model.sequence_encoder.tokenizer.convert_ids_to_tokens(int(tid)) for tid in
+                                inputs_seq[i][:seqlen][spos:tpos]]
                     sentences.append(''.join(char_seq))
 
                     # pred_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(pred_seq_span_tag, char_seq, pred_seq_attr_tag)
                     # gold_kvpairs = eval(f'extract_kvpairs_in_{self.tagscheme}_by_endtag')(gold_seq_span_tag, char_seq, gold_seq_attr_tag)
-                    pred_kvpairs = extract_kvpairs_by_start_end(pred_seq_attr_tag_start, pred_seq_attr_tag_end, char_seq, self.model.id2attr[attr_negid])
-                    gold_kvpairs = extract_kvpairs_by_start_end(gold_seq_attr_tag_start, gold_seq_attr_tag_end, char_seq, self.model.id2attr[attr_negid])
+                    pred_kvpairs = extract_kvpairs_by_start_end(pred_seq_attr_tag_start, pred_seq_attr_tag_end,
+                                                                char_seq, self.model.id2attr[attr_negid])
+                    gold_kvpairs = extract_kvpairs_by_start_end(gold_seq_attr_tag_start, gold_seq_attr_tag_end,
+                                                                char_seq, self.model.id2attr[attr_negid])
                     preds_kvpairs.append(pred_kvpairs)
                     golds_kvpairs.append(gold_kvpairs)
 
@@ -706,8 +762,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                             hits += 1
                             category_result[triple[1]][2] += 1
                 span_acc = ((outputs_seq_span == preds_seq_span) * (outputs_seq_span != span_negid) * inputs_mask).sum()
-                attr_start_acc = ((outputs_seq_attr_start == preds_seq_attr_start) * (outputs_seq_attr_start != attr_negid) * inputs_mask).sum()
-                attr_end_acc = ((outputs_seq_attr_end == preds_seq_attr_end) * (outputs_seq_attr_end != attr_negid) * inputs_mask).sum()
+                attr_start_acc = ((outputs_seq_attr_start == preds_seq_attr_start) * (
+                        outputs_seq_attr_start != attr_negid) * inputs_mask).sum()
+                attr_end_acc = ((outputs_seq_attr_end == preds_seq_attr_end) * (
+                        outputs_seq_attr_end != attr_negid) * inputs_mask).sum()
                 avg_span_acc.update(span_acc, ((outputs_seq_span != span_negid) * inputs_mask).sum())
                 avg_attr_start_acc.update(attr_start_acc, ((outputs_seq_attr_start != attr_negid) * inputs_mask).sum())
                 avg_attr_end_acc.update(attr_end_acc, ((outputs_seq_attr_end != attr_negid) * inputs_mask).sum())
@@ -726,7 +784,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             with open(result_file, 'w', encoding='utf-8') as resf:
                 for sent, pred, gold in zip(sentences, preds_kvpairs, golds_kvpairs):
                     # words = self.model.sequence_encoder.tokenizer.tokenize(sent)
-                    resf.write(f'{sent}\n{pred}\n{gold}\n\n')
+                    resf.write(f'{sent}\n{gold}\n{pred}\n\n')
 
         for k, v in category_result.items():
             v_golden, v_pred, v_correct = v
@@ -740,23 +798,23 @@ class MTL_Span_Attr_Boundary(nn.Module):
         category_result = {k: v for k, v in sorted(category_result.items(), key=lambda x: x[1][2])}
         p, r, f1 = micro_p_r_f1_score(preds_kvpairs, golds_kvpairs)
         span_p, span_r, span_f1 = micro_p_r_f1_score(span_preds_kvpairs, span_golds_kvpairs)
-        result = {'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_start_acc': avg_attr_start_acc.avg, 'attr_end_acc': avg_attr_end_acc.avg, 'span_micro_p': span_p, 'span_micro_r': span_r, 'span_micro_f1': span_f1, 'micro_p': p, 'micro_r':r, 'micro_f1':f1, 'category-p/r/f1':category_result}
+        result = {'loss': avg_loss.avg, 'span_acc': avg_span_acc.avg, 'attr_start_acc': avg_attr_start_acc.avg,
+                  'attr_end_acc': avg_attr_end_acc.avg, 'span_micro_p': span_p, 'span_micro_r': span_r,
+                  'span_micro_f1': span_f1, 'micro_p': p, 'micro_r': r, 'micro_f1': f1,
+                  'category-p/r/f1': category_result}
         return result
-    
-    
+
     def load_model(self, ckpt):
         state_dict = torch.load(ckpt)
         self.model.load_state_dict(state_dict['model'])
         if self.autoweighted_loss is not None:
             self.autoweighted_loss.load_state_dict(state_dict['autoweighted_loss'])
 
-
     def save_model(self, ckpt):
         state_dict = {'model': self.model.state_dict()}
         if self.autoweighted_loss is not None:
             state_dict.update({'autoweighted_loss': self.autoweighted_loss.state_dict()})
         torch.save(state_dict, ckpt)
-
 
 
 class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
@@ -809,16 +867,18 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                 # loss and optimizer
                 if self.adv is None:
                     if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                     else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                        loss_span = -log_likelihood / inputs_seq_len # B
-                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start) # B * S
-                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
-                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
-                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
-                
+                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                             reduction='none')  # B
+                        loss_span = -log_likelihood / inputs_seq_len  # B
+                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
+                                                     outputs_seq_attr_start)  # B * S
+                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
+
                     loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                     if self.autoweighted_loss is not None:
                         loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
@@ -826,7 +886,10 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                         loss = (loss_span + loss_attr_start + loss_attr_end) / 3
                     loss.backward()
                 else:
-                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr_start, outputs_seq_attr_end, *data[3:])
+                    loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model,
+                                                                           self.criterion, self.autoweighted_loss, 3,
+                                                                           0., outputs_seq_span, outputs_seq_attr_start,
+                                                                           outputs_seq_attr_end, *data[3:])
                 if loss.isnan():
                     is_loss_nan = True
                     break
@@ -838,14 +901,14 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
 
                 # prediction/decode
                 if self.model.crf_span is None:
-                    preds_seq_span = logits_span.argmax(dim=-1) # B * S
+                    preds_seq_span = logits_span.argmax(dim=-1)  # B * S
                 else:
-                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
+                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask)  # List[List[int]]
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
-                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-                preds_seq_attr_start = logits_attr_start.argmax(dim=-1) # B * S
-                preds_seq_attr_end = logits_attr_end.argmax(dim=-1) # B * S
+                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device)  # B * S
+                preds_seq_attr_start = logits_attr_start.argmax(dim=-1)  # B * S
+                preds_seq_attr_end = logits_attr_end.argmax(dim=-1)  # B * S
 
                 # get token sequence
                 preds_seq_span = preds_seq_span.detach().cpu().numpy()
@@ -863,7 +926,8 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                     if not self.is_bert_encoder:
                         spos, tpos = 0, seqlen
                     # span metrics update
-                    span_batch_metric.update(preds_seq_span[i][:seqlen][spos:tpos], outputs_seq_span[i][:seqlen][spos:tpos])
+                    span_batch_metric.update(preds_seq_span[i][:seqlen][spos:tpos],
+                                             outputs_seq_span[i][:seqlen][spos:tpos])
 
                     # attr metrics update
                     ## get prediction of sequence
@@ -897,7 +961,6 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                                     gold_seq_attr_id[k] = attr_sid
                                 break
                     batch_metric.update(preds_seq_attr_id, gold_seq_attr_id)
-                    
 
                 # get metrics 
                 avg_loss.update(loss.item() * bs, bs)
@@ -914,7 +977,8 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                 # Log
                 global_step += 1
                 if global_step % log_steps == 0:
-                    self.logger.info(f'Training...Epoches: {epoch}, steps: {global_step}, loss: {cur_loss:.4f}, span_acc: {cur_span_acc:.4f}, span_micro_p: {cur_span_prec:.4f}, span_micro_r: {cur_span_rec:.4f}, span_micro_f1: {cur_span_f1:.4f}, micro_p: {cur_prec:.4f}, micro_r: {cur_rec:.4f}, micro_f1: {cur_f1:.4f}')
+                    self.logger.info(
+                        f'Training...Epoches: {epoch}, steps: {global_step}, loss: {cur_loss:.4f}, span_acc: {cur_span_acc:.4f}, span_micro_p: {cur_span_prec:.4f}, span_micro_r: {cur_span_rec:.4f}, span_micro_f1: {cur_span_f1:.4f}, micro_p: {cur_prec:.4f}, micro_r: {cur_rec:.4f}, micro_f1: {cur_f1:.4f}')
 
                 # tensorboard training writer
                 if global_step % log_steps == 0:
@@ -929,7 +993,10 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
             if is_loss_nan:
                 self.logger.info(f'loss has nan: {loss}')
                 break
-            train_state['train_metrics'].append({'loss': cur_loss, 'span_acc': cur_span_acc, 'acc': cur_acc, 'span_micro_p': cur_span_prec, 'span_micro_r': cur_span_rec, 'span_micro_f1': cur_span_f1, 'micro_p': cur_prec, 'micro_r': cur_rec, 'micro_f1': cur_f1})
+            train_state['train_metrics'].append(
+                {'loss': cur_loss, 'span_acc': cur_span_acc, 'acc': cur_acc, 'span_micro_p': cur_span_prec,
+                 'span_micro_r': cur_span_rec, 'span_micro_f1': cur_span_f1, 'micro_p': cur_prec, 'micro_r': cur_rec,
+                 'micro_f1': cur_f1})
 
             # Val 
             self.logger.info("=== Epoch %d val ===" % epoch)
@@ -938,9 +1005,11 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
             p = (str(round(result['span_micro_p'], 4) * 100), str(round(result['micro_p'], 4) * 100))
             r = (str(round(result['span_micro_r'], 4) * 100), str(round(result['micro_r'], 4) * 100))
             f1 = (str(round(result['span_micro_f1'], 4) * 100), str(round(result['micro_f1'], 4) * 100))
-            self.logger.info(f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
+            self.logger.info(
+                f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
             self.logger.info(f'Evaluation result: {result}.')
-            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric],
+                                                                        train_state['early_stopping_best_val']))
             category_result = result.pop('category-p/r/f1')
             train_state['val_metrics'].append(result)
             result['category-p/r/f1'] = category_result
@@ -950,7 +1019,7 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                     self.scheduler.step(train_state['val_metrics'][-1][self.metric])
                 if train_state['stop_early']:
                     break
-            
+
             # tensorboard val writer
             self.writer.add_scalar('val loss', result['loss'], epoch)
             self.writer.add_scalar('val span acc', result['span_acc'], epoch)
@@ -969,9 +1038,11 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                 p = (str(round(result['span_micro_p'], 4) * 100), str(round(result['micro_p'], 4) * 100))
                 r = (str(round(result['span_micro_r'], 4) * 100), str(round(result['micro_r'], 4) * 100))
                 f1 = (str(round(result['span_micro_f1'], 4) * 100), str(round(result['micro_f1'], 4) * 100))
-                self.logger.info(f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
+                self.logger.info(
+                    f"acc: ({' / '.join(acc)}), p: ({' / '.join(p)}), r: ({' / '.join(r)}), f1: ({' / '.join(f1)})")
                 self.logger.info('Test result: {}.'.format(result))
-                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                self.logger.info(
+                    'Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
                 if 'loss' in self.metric:
                     cmp_op = operator.lt
                 else:
@@ -980,11 +1051,10 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
-            
+
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
             self.logger.info("Best %s on test set: %f" % (self.metric, test_best_metric))
-
 
     def eval_model(self, eval_loader):
         self.eval()
@@ -999,7 +1069,7 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
         avg_loss = Mean()
         span_batch_metric = BatchMetric(num_classes=max(len(self.model.span2id), 2), ignore_classes=[span_negid])
         batch_metric = BatchMetric(num_classes=max(len(self.model.attr2id), 2), ignore_classes=[attr_negid])
-        
+
         with torch.no_grad():
             for ith, data in enumerate(eval_loader):
                 if torch.cuda.is_available():
@@ -1025,15 +1095,16 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
 
                 # loss
                 if self.model.crf_span is None:
-                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                 else:
-                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                    loss_span = -log_likelihood / inputs_seq_len # B
-                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start) # B * S
-                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len # B
-                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end) # B * S
-                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len # B
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                         reduction='none')  # B
+                    loss_span = -log_likelihood / inputs_seq_len  # B
+                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1), outputs_seq_attr_start)  # B * S
+                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
                 loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
                 if self.autoweighted_loss is not None:
                     loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
@@ -1043,16 +1114,16 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
 
                 # prediction/decode
                 if self.model.crf_span is None:
-                    preds_seq_span = logits_span.argmax(dim=-1) # B
+                    preds_seq_span = logits_span.argmax(dim=-1)  # B
                 else:
-                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask) # List[List[int]]
+                    preds_seq_span = self.model.crf_span.decode(logits_span, mask=inputs_mask)  # List[List[int]]
                     for pred_seq_span in preds_seq_span:
                         pred_seq_span.extend([span_negid] * (outputs_seq_span.size(1) - len(pred_seq_span)))
-                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device) # B * S
-                preds_seq_attr_start = logits_attr_start.argmax(dim=-1) # B
+                    preds_seq_span = torch.tensor(preds_seq_span).to(outputs_seq_span.device)  # B * S
+                preds_seq_attr_start = logits_attr_start.argmax(dim=-1)  # B
                 if 'StartPrior' in self.model.__class__.__name__:
-                    _, _, logits_attr_end  = self.parallel_model(preds_seq_attr_start, *args)
-                preds_seq_attr_end = logits_attr_end.argmax(dim=-1) # B
+                    _, _, logits_attr_end = self.parallel_model(preds_seq_attr_start, *args)
+                preds_seq_attr_end = logits_attr_end.argmax(dim=-1)  # B
 
                 # get token sequence
                 preds_seq_span = preds_seq_span.detach().cpu().numpy()
@@ -1070,7 +1141,8 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                     if not self.is_bert_encoder:
                         spos, tpos = 0, seqlen
                     # span metrics update
-                    span_batch_metric.update(preds_seq_span[i][:seqlen][spos:tpos], outputs_seq_span[i][:seqlen][spos:tpos])
+                    span_batch_metric.update(preds_seq_span[i][:seqlen][spos:tpos],
+                                             outputs_seq_span[i][:seqlen][spos:tpos])
 
                     # attr metrics update
                     ## get prediction of sequence
@@ -1123,5 +1195,7 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
         val_cate_rec = batch_metric.recall(reduction='none')
         val_cate_f1 = batch_metric.f1_score(reduction='none')
         category_result = {self.model.id2attr[k]: v for k, v in enumerate(zip())}
-        result = {'loss': val_loss, 'span_acc': val_span_acc, 'acc': val_acc, 'span_micro_p': val_span_prec, 'span_micro_r': val_span_rec, 'span_micro_f1': val_span_f1, 'micro_p': val_prec, 'micro_r': val_rec, 'micro_f1': val_f1, 'category-p/r/f1': category_result}
+        result = {'loss': val_loss, 'span_acc': val_span_acc, 'acc': val_acc, 'span_micro_p': val_span_prec,
+                  'span_micro_r': val_span_rec, 'span_micro_f1': val_span_f1, 'micro_p': val_prec, 'micro_r': val_rec,
+                  'micro_f1': val_f1, 'category-p/r/f1': category_result}
         return result
