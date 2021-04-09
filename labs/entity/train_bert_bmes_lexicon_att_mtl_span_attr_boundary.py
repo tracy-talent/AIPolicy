@@ -118,6 +118,8 @@ args = parser.parse_args()
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
+if args.only_test:
+    args.compress_seq = False
 
 #set global random seed
 if args.dataset == 'weibo' and args.model_type != 'plerand':
