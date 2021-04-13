@@ -125,15 +125,25 @@ parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
         help='embedding size of pinyin character')
+parser.add_argument('--ple_dropout', default=0.0, type=float)
 parser.add_argument('--span_loss_weight', default=-1, type=float)   # -1 表示不使用
+parser.add_argument('--pactivation', default='relu', type=str,
+                    help="activation function used in ple layers")
+parser.add_argument('--use_ff', default=0, type=int,
+                    help="whether use feedforward network in ple")
+parser.add_argument('--lr_decay', default=0.5, type=float)
 args = parser.parse_args()
+print(f"experts_layers: {args.experts_layers}; experts_num: {args.experts_num};"
+      f" ple_dropout: {args.ple_dropout}; span_loss_weight: {args.span_loss_weight};"
+      f" batch_size: {args.batch_size}; pactivation: {args.pactivation};"
+      f" use_ff: {args.use_ff}; lr_decay: {args.lr_decay}")
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset in ['weibo', 'none'] and args.model_type != 'plerand':
+if args.dataset in ['weibo', 'none', 'resume', 'msra', 'ontonotes4'] and args.model_type != 'plerand':
     fix_seed(args.random_seed)
     print("Use random_sed: {}".format(args.random_seed))
 if args.only_test:
@@ -168,7 +178,8 @@ def make_model_name():
     elif args.model_type == 'mmoe':
         model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_mmoe_bert'
     elif args.model_type == 'ple':
-        model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        # model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_ple_bert'
+        model_name = f"el{args.experts_layers}_en{args.experts_num}_bz{args.batch_size}_{args.pactivation}_pff{args.use_ff}_pdpr{args.ple_dropout}_sw{args.span_loss_weight}_ld{args.lr_decay}_window{args.lexicon_window_size}_dpr{args.dropout_rate}_{args.loss}"
     elif args.model_type == 'plethree':
         model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_three_boundary_ple_bert'
     elif args.model_type == 'pletogether':
@@ -179,32 +190,33 @@ def make_model_name():
         model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_plecat_bert'
     else:
         model_name = f'bmes{args.group_num}_lexicon_{lexicon_name}_window{args.lexicon_window_size}_pinyin_{args.pinyin_embedding_type}_mtl_span_attr_boundary_base_bert'
+
     # model_name += '_noact'
     # model_name += '_drop_ln'
     # model_name += '_drop'
-    model_name += f'_relu_crf{args.crf_lr:.0e}_bert{args.bert_lr:.0e}'
+    # model_name += f'_relu_crf{args.crf_lr:.0e}_bert{args.bert_lr:.0e}'
     # model_name += '_relu_drop'
     # model_name += '_relu_ln'
     # model_name += '_relu_drop_ln'
 
-    if args.share_lstm:
-        model_name += '_sharelstm'
-    if args.span_use_lstm:
-        model_name += '_spanlstm'
-    if args.attr_use_lstm:
-        model_name += '_attrlstm'
-    if args.span_use_crf:
-        model_name += '_spancrf'
-    #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
-    model_name += '_' + args.loss
-    if 'dice' in args.loss:
-        model_name += str(args.dice_alpha)
-    if args.use_mtl_autoweighted_loss:
-        model_name += '_autoweighted'
-    if len(args.adv) > 0 and args.adv != 'none':
-        model_name += '_' + args.adv
-    model_name += '_dpr' + str(args.dropout_rate)
-    model_name += '_' + args.metric
+    # if args.share_lstm:
+    #     model_name += '_sharelstm'
+    # if args.span_use_lstm:
+    #     model_name += '_spanlstm'
+    # if args.attr_use_lstm:
+    #     model_name += '_attrlstm'
+    # if args.span_use_crf:
+    #     model_name += '_spancrf'
+    # #model_name += '_' + args.optimizer + '_' + str(args.weight_decay) + '_' + args.loss + '_' + str(args.dice_alpha)
+    # model_name += '_' + args.loss
+    # if 'dice' in args.loss:
+    #     model_name += str(args.dice_alpha)
+    # if args.use_mtl_autoweighted_loss:
+    #     model_name += '_autoweighted'
+    # if len(args.adv) > 0 and args.adv != 'none':
+    #     model_name += '_' + args.adv
+    # model_name += '_dpr' + str(args.dropout_rate)
+    # model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
     return "%s_blr_%.0E_lr_%.0E,bs=%d,wd=%.0E,ml=%d" % (op, blr, lr, bs, wd, ml)
@@ -399,7 +411,10 @@ elif args.model_type == 'ple' or args.model_type == 'plerand':
         span_use_crf=args.span_use_crf,
         dropout_rate=args.dropout_rate,
         experts_layers=args.experts_layers,
-        experts_num=args.experts_num
+        experts_num=args.experts_num,
+        ple_dropout=args.ple_dropout,
+        pactivation=args.pactivation,
+        use_ff=args.use_ff
     )
 elif args.model_type == 'plecat':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Cat_Boundary_PLE(
@@ -488,7 +503,8 @@ framework = framework_class(
     adv=args.adv,
     dice_alpha=args.dice_alpha,
     metric=args.metric,
-    span_loss_weight=args.span_loss_weight
+    span_loss_weight=args.span_loss_weight,
+    lr_decay=args.lr_decay
 )
 
 # Load pretrained model
@@ -509,10 +525,11 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
+log_dir = os.path.join(config['path']['ner_log'], dataset_name, model_name)
 if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{args.dataset}_{lexicon_name}_{args.model_type}_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
+    result = framework.eval_model(framework.val_loader, f'{log_dir}/{args.dataset}_{args.model_type}_ee({args.experts_layers},{args.experts_num})_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
 else:
-    result = framework.eval_model(framework.test_loader, f'{args.dataset}_{lexicon_name}_{args.model_type}_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
+    result = framework.eval_model(framework.test_loader, f'{log_dir}/{args.dataset}_{args.model_type}_ee({args.experts_layers},{args.experts_num})_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

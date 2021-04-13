@@ -11,3 +11,4 @@ test/test.py
 *.out
 *.csv
 *.txt
+venv

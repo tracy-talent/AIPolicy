@@ -327,7 +327,12 @@ def extract_prf1_from_logdir(log_dir):
 
     for subdir in subdirs:
         subdir_path = os.path.join(log_dir, subdir)
-        hyper_param = re.findall('(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+        if re.match('^el.*', subdir):
+            hyper_param = re.findall('(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+        else:
+            hyper_param = re.findall('(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:ee\(\d+,\d+\))|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+            hyper_param = [param.replace('ee(', 'el').replace(',', '_').replace(')', '') for param in hyper_param]
+        hyper_param = [param.replace('window', 'w') for param in hyper_param]
         if os.path.isdir(subdir_path):
             avg_best_test, avg_select_test = [], []
             for file in os.listdir(subdir_path):
@@ -372,17 +377,17 @@ def extract_prf1_from_logdir(log_dir):
                     score_dic = {'Precison': (list(zip(*test_scores))[0], list(zip(*val_scores))[0], list(zip(*train_scores))[0]),
                                  'Recall': (list(zip(*test_scores))[1], list(zip(*val_scores))[1], list(zip(*train_scores))[1]),
                                  'F1': (list(zip(*test_scores))[2], list(zip(*val_scores))[2], list(zip(*train_scores))[2])}
-                    avg_best_test.append(max(score_dic['F1'][0]))
-                    avg_select_test.append(score_dic['F1'][0][np.argmax(score_dic['F1'][1])])
+                    avg_best_test.append(round(max(score_dic['F1'][0]), 2))
+                    avg_select_test.append(round(score_dic['F1'][0][np.argmax(score_dic['F1'][1])], 2))
 
                     title = f'{dataset}_{"_".join(hyper_param)}'
                     for k, v in score_dic.items():
                         test_list, val_list, train_list = v
                         plot_score_curve(output_dir, title, k, test_list, val_list)
                 except Exception as e:
-                    print(f"{dataset}_{''.join(hyper_param)}_{file}: {e}")
-            result_dict[f'{dataset}_{"_".join(hyper_param)}'] = {'best_test': round(np.mean(avg_best_test), 2),
-                                                                 'dev_select_test': round(np.mean(avg_select_test), 2)}
+                    print(f"{dataset}_{'_'.join(hyper_param)}_{file}: {e}")
+            result_dict[f'{dataset}_{"_".join(hyper_param)}'] = \
+                {'best_test': avg_best_test, 'dev_select_test': avg_select_test}
     json.dump(result_dict, open(f'{output_dir}/{dataset}.json', 'w', encoding='utf8'), ensure_ascii=False, indent=2)
     return result_dict
 
@@ -439,9 +444,8 @@ def plot_score_curve(output_dir, title, y_label, test_score_list, dev_score_list
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
-    extract_score_from_logs('../output/entity/logs',
-                            save_path=None,
-                            target_dataset='none')
+    # extract_score_from_logs('../output/entity/logs',
+    #                         save_path=None,
+    #                         target_dataset='none')
 
-
-    # extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\AIPolicy\output\entity\logs\ontonotes4_bmoes')
+    extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\AIPolicy\output\entity\logs_4.8\ontonotes4_bmoes')

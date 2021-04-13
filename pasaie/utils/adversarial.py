@@ -466,6 +466,8 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
         if hasattr(ori_model, 'crf_span') and ori_model.crf_span is not None:
             log_likelihood = ori_model.crf_span(span_logits, span_labels, mask=mask, reduction='none') # B
             loss_span = -log_likelihood / seqs_len # B
+            if loss_span.mean().isnan():
+                print(f"NAN loss_span: {span_logits}")
         else:
             loss_span = criterion(span_logits.permute(0, 2, 1), span_labels) # B * S
             loss_span = torch.sum(loss_span * mask, dim=-1) / seqs_len # B
@@ -477,7 +479,8 @@ def adversarial_perturbation_span_attr_boundary_mtl(adv, model, criterion, autow
         if autoweighted_loss is not None:
             loss = autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
         else:
-            if torch.abs(loss_span) > 10:
+            if torch.abs(loss_span) > 100:
+                print(f"To large loss_span:{loss_span}; attr_loss: {loss_attr_start}, {loss_attr_end}")
                 loss = (loss_attr_start + loss_attr_end) / 2
             else:
                 span_loss_weight = kwargs['span_loss_weight']

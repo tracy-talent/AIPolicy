@@ -100,7 +100,8 @@ class MTL_Span_Attr_Boundary(nn.Module):
                  adv='fgm',
                  mtl_autoweighted_loss=True,
                  dice_alpha=0.6,
-                 span_loss_weight=None
+                 span_loss_weight=None,
+                 lr_decay=0.5
                  ):
 
         super(MTL_Span_Attr_Boundary, self).__init__()
@@ -132,12 +133,12 @@ class MTL_Span_Attr_Boundary(nn.Module):
 
         for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4']:
             if dataset_name in train_path.lower():
-                dataset = dataset_name
+                self.dataset = dataset_name
                 break
         self.train_loader, self.val_loader, self.test_loader = get_loaders(model, train_path, val_path, test_path,
                                                                            batch_size, compress_seq,
-                                                                           _cache_fp=f"cache/{dataset}_dataloader",
-                                                                           _refresh=False
+                                                                           _cache_fp=f"cache/{self.dataset}_dataloader",
+                                                                           _refresh=True
                                                                            )
         # Model
         self.model = model
@@ -258,6 +259,13 @@ class MTL_Span_Attr_Boundary(nn.Module):
             # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step,
                                                              num_training_steps=training_steps)
+        elif self.dataset in ['msra', 'resume']:
+            gamma_rate = lr_decay
+            self.decay_epochs = 1 if self.dataset in ['msra'] else 4
+            self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
+                                                              gamma=gamma_rate
+                                                              )
+            print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
         else:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                   mode='min' if 'loss' in self.metric else 'max',
@@ -602,6 +610,11 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
+
+            if self.dataset in ['msra', 'resume'] and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    print(param['lr'])
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
