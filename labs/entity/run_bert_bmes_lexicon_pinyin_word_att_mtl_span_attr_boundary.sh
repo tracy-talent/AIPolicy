@@ -1,7 +1,7 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
 # RESUME
-batch_size=48
+batch_size=16
 max_epoch=12
 dropout_rates=0.1
 lexicon_window_sizes=13
