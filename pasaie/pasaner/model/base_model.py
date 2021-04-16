@@ -346,3 +346,97 @@ class Base_BILSTM_CRF_Span_Attr_Three(nn.Module):
                 attr_seqs_hiddens_end = torch.add(*attr_seqs_hiddens_end.chunk(2, dim=-1))
         
         return span_seqs_hiddens, attr_seqs_hiddens_start, attr_seqs_hiddens_end
+
+
+
+class Base_BILSTM_Attr_Boundary(nn.Module):
+    def __init__(self, sequence_encoder, attr2id, compress_seq=False, share_lstm=False, 
+                    tagscheme='bmoes', batch_first=True, dropout_rate=0.3):
+        """
+        Args:
+            sequence_encoder (nn.Module): encoder of sequence
+            span2id (dict): map from span(et. B, I, O) to id
+            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
+            share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
+            span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
+            span_use_lstm (bool, optional): whether add attr lstm layer. Defaults to False.
+            span_use_crf (bool, optional): whether add span crf layer. Defaults to True.
+            batch_first (bool, optional): whether fisrt dim is batch. Defaults to True.
+            dropout_rate (float, optional): dropout rate. Defaults to 0.3.
+        """
+        
+        super(Base_BILSTM_Attr_Boundary, self).__init__()
+        self.batch_first = batch_first
+        self.tagscheme = tagscheme
+        self.compress_seq = compress_seq
+        self.sequence_encoder = sequence_encoder
+        self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
+        self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
+        self.dropout = nn.Dropout(dropout_rate)
+        self.attr2id = attr2id
+        self.id2attr = {}
+        for attr, aid in attr2id.items():
+            self.id2attr[aid] = attr
+
+        self.attr_start_bilstm = None
+        self.attr_end_bilstm = None
+        self.share_bilstm = None
+        if share_lstm:
+            self.share_bilstm = nn.LSTM(input_size=sequence_encoder.hidden_size, 
+                                hidden_size=sequence_encoder.hidden_size, 
+                                num_layers=1, 
+                                bidirectional=True, 
+                                batch_first=batch_first)
+        else:
+            self.attr_start_bilstm = nn.LSTM(input_size=sequence_encoder.hidden_size, 
+                                        hidden_size=sequence_encoder.hidden_size, 
+                                        num_layers=1, 
+                                        bidirectional=True, 
+                                        batch_first=batch_first)
+            
+            self.attr_end_bilstm = nn.LSTM(input_size=sequence_encoder.hidden_size, 
+                                        hidden_size=sequence_encoder.hidden_size, 
+                                        num_layers=1, 
+                                        bidirectional=True, 
+                                        batch_first=batch_first)
+
+
+    def forward(self, *args):
+        if not hasattr(self, '_flattened'):
+            if self.share_bilstm is not None:
+                self.share_bilstm.flatten_parameters()
+            if self.attr_start_bilstm is not None:
+                self.attr_start_bilstm.flatten_parameters()
+            if self.attr_end_bilstm is not None:
+                self.attr_end_bilstm.flatten_parameters()
+            setattr(self, '_flattened', True)
+        rep = self.sequence_encoder(*args) # B, S, D
+        self.encoder_output = rep
+        if self.share_bilstm is not None:
+            if self.compress_seq:
+                att_mask = args[-1]
+                seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
+                seqs_hiddens_packed, _ = self.share_bilstm(seqs_rep_packed)
+                seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+            else:
+                seqs_hiddens, _ = self.share_bilstm(rep)
+            attr_start_hiddens = torch.add(*seqs_hiddens.chunk(2, dim=-1))
+            attr_end_hiddens = attr_start_hiddens
+        else:
+            if self.compress_seq:
+                att_mask = args[-1]
+                seqs_length = att_mask.sum(dim=-1).detach().cpu()
+                seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
+                seqs_hiddens_packed, _ = self.attr_start_bilstm(seqs_rep_packed)
+                attr_start_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
+                seqs_hiddens_packed, _ = self.attr_end_bilstm(seqs_rep_packed)
+                attr_end_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
+            else:
+                attr_start_hiddens, _ = self.attr_start_bilstm(rep)
+                attr_end_hiddens, _ = self.attr_end_bilstm(rep)
+            attr_start_hiddens = torch.add(*attr_start_hiddens.chunk(2, dim=-1))
+            attr_end_hiddens = torch.add(*attr_end_hiddens.chunk(2, dim=-1))
+        
+        return attr_start_hiddens, attr_end_hiddens

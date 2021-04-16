@@ -29,11 +29,15 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
+parser.add_argument('--model_type', default='', type=str, choices=['ple', 'base'], help='model type')
 parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_cat', 'word_att_add', 'char_att_cat', 'char_att_add'],  help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
 parser.add_argument('--only_test', action='store_true', 
         help='Only run test')
+parser.add_argument('--share_lstm', action='store_true', 
+        help='whether make attr start and end share the same lstm after encoder, \
+                share_lstm and (attr_start_lstm/attr_end_lstm) are mutually exclusive')
 parser.add_argument('--use_lstm', action='store_true', 
         help='whether add lstm encoder on top of bert')
 parser.add_argument('--use_mtl_autoweighted_loss', action='store_true', 
@@ -118,6 +122,12 @@ parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
         help='embedding size of pinyin character')
+parser.add_argument('--ple_dropout', default=0.0, type=float)
+parser.add_argument('--pactivation', default='relu', type=str,
+                    help="activation function used in ple layers")
+parser.add_argument('--use_ff', default=0, type=int,
+                    help="whether use feedforward network in ple")
+parser.add_argument('--lr_decay', default=0.5, type=float)
 args = parser.parse_args()
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
@@ -125,8 +135,8 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset == 'weibo':
-    fix_seed(args.random_seed)
+# if args.dataset == 'weibo':
+fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
 if 'sgns_in_ctb' in args.word2vec_file:
@@ -300,13 +310,27 @@ else:
     raise NotImplementedError(f'args.pinyin_embedding_type: {args.pinyin_embedding_type} is not supported by exsited model currently.')
 
 # Define the model
-model = pasaner.model.Span_Pos_CLS(
+if args.model_type == 'ple':
+    model = pasaner.model.BILSTM_Attr_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
-        tag2id=tag2id, 
-        use_lstm=args.use_lstm, 
-        compress_seq=args.compress_seq, 
-        dropout_rate=args.dropout_rate
+        attr2id=attr2id,
+        compress_seq=args.compress_seq,
+        share_lstm=args.share_lstm, # False
+        dropout_rate=args.dropout_rate,
+        experts_layers=args.experts_layers,
+        experts_num=args.experts_num,
+        ple_dropout=args.ple_dropout,
+        pactivation=args.pactivation,
+        use_ff=args.use_ff
     )
+else:
+    model = pasaner.model.Span_Pos_CLS(
+            sequence_encoder=sequence_encoder, 
+            tag2id=tag2id, 
+            use_lstm=args.use_lstm, 
+            compress_seq=args.compress_seq, 
+            dropout_rate=args.dropout_rate
+        )
 
 # Define the whole training framework
 framework = pasaner.framework.Span_Multi_NER(
@@ -333,7 +357,8 @@ framework = pasaner.framework.Span_Multi_NER(
         loss=args.loss,
         adv=args.adv,
         dice_alpha=args.dice_alpha,
-        metric=args.metric
+        metric=args.metric,
+        lr_decay=args.lr_decay
     )
 
 # Load pretrained model

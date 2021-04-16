@@ -1,19 +1,19 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=(0.3)
-lexicon_window_sizes=(4)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
     --pretrain_path /root/qmc/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --word2pinyin_file /root/qmc/NLP/corpus/pinyin/word2pinyin_num5.txt \
     --pinyin_embedding_type word_att_add \
+    --model_type ple \
     --group_num 3 \
     --dataset $1 \
     --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
-    --use_lstm \
-    --batch_size 32 \
+    --random_seed 12345 \
+    --experts_layers 2 \
+    --experts_num 1 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
@@ -26,6 +26,24 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_attr_boundary.py \
     --adv fgm \
     --metric micro_f1
 "
+
+if [ $1 == resume]
+then
+    bz=16
+    pact=elu
+    pdpr=0
+    ld=1
+    dropout_rates=(0.1)
+    lexicon_window_sizes=(13)
+elif [ $1 == msra ]
+then
+    bz=64
+    pact=gelu
+    pdpr=0.1
+    ld=0.55
+    dropout_rates=(0.2)
+    lexicon_window_sizes=(9)
+fi
 
 if [ $1 == weibo -o $1 == resume ]
 then
@@ -64,6 +82,10 @@ do
     --max_length $maxlen \
     --max_epoch $maxep \
     --dropout_rate $dpr \
-    --lexicon_window_size $lws
+    --lexicon_window_size $lws \
+    --batch_size $bz \
+    --pactivation $pact \
+    --ple_sropout $pdpr \
+    --lr_decay $ld
     done
 done

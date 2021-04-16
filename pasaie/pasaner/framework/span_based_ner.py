@@ -326,6 +326,7 @@ class Span_Multi_NER(nn.Module):
                 loss='dice',
                 mtl_autoweighted_loss=True,
                 dice_alpha=0.6,
+                lr_decay=0.5,
                 sampler=None):
 
         super(Span_Multi_NER, self).__init__()
@@ -446,15 +447,24 @@ class Span_Multi_NER(nn.Module):
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
+        for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4']:
+            if dataset_name in train_path.lower():
+                self.dataset = dataset_name
+                break
         self.warmup_step = warmup_step
         if warmup_step > 0:
             training_steps = len(self.train_loader) // batch_size * self.max_epoch
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-        else:
+        elif early_stopping_step > 0:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                 mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
                                                                 patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
-            # self.scheduler = None
+        elif self.dataset in ['resume', 'msra']:
+            gamma_rate = lr_decay
+            self.decay_epochs = 1 if self.dataset in ['msra'] else 4
+            self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
+                                                              gamma=gamma_rate)
+            print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
         # Adversarial
         if adv == 'fgm':
             self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
@@ -643,24 +653,25 @@ class Span_Multi_NER(nn.Module):
             train_state['train_metrics'].append({'loss': avg_loss.avg, 'micro_p': prec.avg, 'micro_r': rec.avg, 'micro_f1': micro_f1})
 
             # Val 
-            self.logger.info("=== Epoch %d val ===" % epoch)
-            result = self.eval_model(self.val_loader)
-            acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
-            p = round(result['micro_p'], 4) * 100
-            r = round(result['micro_r'], 4) * 100
-            f1 = round(result['micro_f1'], 4) * 100
-            self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
-            self.logger.info('Evaluation result: {}.'.format(result))
-            self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
-            category_result = result.pop('category-p/r/f1')
-            train_state['val_metrics'].append(result)
-            result['category-p/r/f1'] = category_result
-            self.update_train_state(train_state)
-            if self.early_stopping_step > 0:
-                if not self.warmup_step > 0:
-                    self.scheduler.step(train_state['val_metrics'][-1][self.metric])
-                if train_state['stop_early']:
-                    break
+            with torch.no_grad():
+                self.logger.info("=== Epoch %d val ===" % epoch)
+                result = self.eval_model(self.val_loader)
+                acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
+                p = round(result['micro_p'], 4) * 100
+                r = round(result['micro_r'], 4) * 100
+                f1 = round(result['micro_f1'], 4) * 100
+                self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
+                self.logger.info('Evaluation result: {}.'.format(result))
+                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], train_state['early_stopping_best_val']))
+                category_result = result.pop('category-p/r/f1')
+                train_state['val_metrics'].append(result)
+                result['category-p/r/f1'] = category_result
+                self.update_train_state(train_state)
+                if self.early_stopping_step > 0:
+                    if not self.warmup_step > 0:
+                        self.scheduler.step(train_state['val_metrics'][-1][self.metric])
+                    if train_state['stop_early']:
+                        break
             
             # tensorboard val writer
             self.writer.add_scalar('val start acc', result['start_acc'], epoch)
@@ -670,24 +681,28 @@ class Span_Multi_NER(nn.Module):
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
             # test
-            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
-                self.logger.info("=== Epoch %d test ===" % epoch)
-                result = self.eval_model(self.test_loader)
-                acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
-                p = round(result['micro_p'], 4) * 100
-                r = round(result['micro_r'], 4) * 100
-                f1 = round(result['micro_f1'], 4) * 100
-                self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
-                self.logger.info('Test result: {}.'.format(result))
-                self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
-                if 'loss' in self.metric:
-                    cmp_op = operator.lt
-                else:
-                    cmp_op = operator.gt
-                if cmp_op(result[self.metric], test_best_metric):
-                    self.logger.info('Best test ckpt and saved')
-                    self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
-                    test_best_metric = result[self.metric]
+            with torch.no_grad():
+                if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+                    self.logger.info("=== Epoch %d test ===" % epoch)
+                    result = self.eval_model(self.test_loader)
+                    acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
+                    p = round(result['micro_p'], 4) * 100
+                    r = round(result['micro_r'], 4) * 100
+                    f1 = round(result['micro_f1'], 4) * 100
+                    self.logger.info(f"acc: ({' / '.join(acc)}), p: {p}, r: {r}, f1: {f1}")
+                    self.logger.info('Test result: {}.'.format(result))
+                    self.logger.info('Metric {} current / best: {} / {}'.format(self.metric, result[self.metric], test_best_metric))
+                    if 'loss' in self.metric:
+                        cmp_op = operator.lt
+                    else:
+                        cmp_op = operator.gt
+                    if cmp_op(result[self.metric], test_best_metric):
+                        self.logger.info('Best test ckpt and saved')
+                        self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
+                        test_best_metric = result[self.metric]
+            
+            if self.dataset in ['msra', 'resume'] and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
