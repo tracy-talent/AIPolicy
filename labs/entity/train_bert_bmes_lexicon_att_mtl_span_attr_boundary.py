@@ -113,7 +113,17 @@ parser.add_argument('--experts_num', default=2, type=int,
                     help='experts num of every experts in PLE')
 parser.add_argument('--group_num', default=3, type=int,
                     help="group by 'bmes' when group_num=4, group by 'bme' when group_num = 3")
+parser.add_argument('--ple_dropout', default=0.0, type=float)
+parser.add_argument('--pactivation', default='relu', type=str,
+                    help="activation function used in ple layers")
+parser.add_argument('--use_ff', default=0, type=int,
+                    help="whether use feedforward network in ple")
+parser.add_argument('--lr_decay', default=0.5, type=float)
 args = parser.parse_args()
+print(f"experts_layers: {args.experts_layers}; experts_num: {args.experts_num};"
+      f" ple_dropout: {args.ple_dropout}; random_seed: {args.random_seed}"
+      f" batch_size: {args.batch_size}; pactivation: {args.pactivation};"
+      f" use_ff: {args.use_ff}; lr_decay: {args.lr_decay}")
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
@@ -122,8 +132,8 @@ if args.only_test:
     args.compress_seq = False
 
 #set global random seed
-if args.dataset == 'weibo' and args.model_type != 'plerand':
-    fix_seed(args.random_seed)
+# if args.dataset == 'weibo' and args.model_type != 'plerand':
+fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
 if 'sgns_in_ctb' in args.word2vec_file:
@@ -327,7 +337,10 @@ elif args.model_type == 'ple' or args.model_type == 'plerand':
         span_use_crf=args.span_use_crf,
         dropout_rate=args.dropout_rate,
         experts_layers=args.experts_layers,
-        experts_num=args.experts_num
+        experts_num=args.experts_num,
+        ple_dropout=args.ple_dropout,
+        pactivation=args.pactivation,
+        use_ff=args.use_ff
     )
 elif args.model_type == 'plecat':
     model = pasaner.model.BILSTM_CRF_Span_Attr_Cat_Boundary_PLE(
@@ -414,6 +427,7 @@ framework = framework_class(
     adv=args.adv,
     dice_alpha=args.dice_alpha,
     metric=args.metric,
+    lr_decay=args.lr_decay
 )
 
 # Load pretrained model

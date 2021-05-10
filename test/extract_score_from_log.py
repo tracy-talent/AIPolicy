@@ -20,6 +20,7 @@ target_score_strings = ['Span Accuracy', 'Span Micro precision', 'Span Micro rec
                         'Micro precision', 'Micro recall', 'Micro F1']
 dpr_regex = 'dpr(\d+\.\d+)'
 wz_regex = '\(w(\d+),'
+pact_regex = '(?:relu)|(?:elu)|(?:gelu)'
 test_set_regex = 'Test set results'
 pinyin_vec_regex = '--pinyin2vec_file\s.*\\(.*)\.vec'
 
@@ -33,6 +34,8 @@ def extract_score_from_logs(log_dir, save_path=None, target_dataset="all"):
         dataset_log_path = os.path.join(log_dir, dataset)
         param_dict = {}
         for subdir in os.listdir(dataset_log_path):
+            if 'prf1_png' in subdir:
+                continue
             subdir_path = os.path.join(dataset_log_path, subdir)
             target_scores = defaultdict(list)
             pinyin_vec = None
@@ -108,13 +111,24 @@ def extract_target_scores(log_path):
 
 # 从目录中获取我们需要的信息
 def parse_params_dir(params_dir_str, pinyin_vec):
-    group_name = params_dir_str.split('_', maxsplit=1)[0]
-    lexicon_dict = 'ctb' if 'ctb' in params_dir_str else 'sgns'
+    if params_dir_str.startswith('bmes'):
+        group_name = params_dir_str.split('_', maxsplit=1)[0]
+    else:
+        group_name = ''
+    lexicon_dict = 'sgns' if 'sgns' in params_dir_str else 'ctb'
+    el = re.findall('el\d+', params_dir_str)[0] if re.findall('el\d+', params_dir_str) else ''
+    en = re.findall('en\d+', params_dir_str)[0] if re.findall('en\d+', params_dir_str) else ''
+    bz = re.findall('bz\d+', params_dir_str)[0] if re.findall('bz\d+', params_dir_str) else ''
+    try:
+        pact = re.findall(pact_regex, params_dir_str)[0]
+    except:
+        pact = 'nopact'
     if re.findall('pinyin_\w+_freq', params_dir_str):
         fusion_pattern = 'freq'
     else:
         fusion_pattern = 'attn'
-    return '_'.join([group_name, fusion_pattern, lexicon_dict, pinyin_vec])
+    params = filter(lambda x: x, [group_name, el, en, bz, fusion_pattern, lexicon_dict, pinyin_vec, pact])
+    return '_'.join(params)
 
 
 def resolve_data(param_dict):
@@ -341,7 +355,11 @@ def extract_prf1_from_logdir(log_dir):
                 filepath = os.path.join(subdir_path, file)
                 train_scores, val_scores, test_scores = [], [], []
                 train_flag, val_flag, test_flag = False, False, False
-                text = open(filepath, 'r', encoding='utf8').readlines()
+                try:
+                    text = open(filepath, 'r', encoding='utf8').readlines()
+                except Exception as e:
+                    print(e)
+                    continue
                 for line in text:
                     line = line.strip()
                     if not line:
@@ -378,7 +396,8 @@ def extract_prf1_from_logdir(log_dir):
                                  'Recall': (list(zip(*test_scores))[1], list(zip(*val_scores))[1], list(zip(*train_scores))[1]),
                                  'F1': (list(zip(*test_scores))[2], list(zip(*val_scores))[2], list(zip(*train_scores))[2])}
                     avg_best_test.append(round(max(score_dic['F1'][0]), 2))
-                    avg_select_test.append(round(score_dic['F1'][0][np.argmax(score_dic['F1'][1])], 2))
+                    select_best_idx = np.argmax(score_dic['F1'][1])
+                    avg_select_test.append(round(score_dic['F1'][0][select_best_idx], 2))
 
                     title = f'{dataset}_{"_".join(hyper_param)}'
                     for k, v in score_dic.items():
@@ -439,13 +458,16 @@ def plot_score_curve(output_dir, title, y_label, test_score_list, dev_score_list
         cnt += 1
         png_path = f'{target_dir}/{y_label}_{cnt}.png'
     plt.savefig(png_path)
+    plt.close()
+
+
 
 
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
-    # extract_score_from_logs('../output/entity/logs',
-    #                         save_path=None,
-    #                         target_dataset='none')
+    # extract_score_from_logs(r'C:\Users\90584\Desktop\AIPolicy实验\数据集实验\lexicon_window_size',
+    #                         save_path="./lwz.xls",
+    #                         target_dataset='all')
 
-    extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\AIPolicy\output\entity\logs_4.8\ontonotes4_bmoes')
+    extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\数据集实验\lexicon_window_size\resume_bmoes')

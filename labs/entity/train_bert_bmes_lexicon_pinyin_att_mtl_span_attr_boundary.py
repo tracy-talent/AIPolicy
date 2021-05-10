@@ -136,7 +136,7 @@ args = parser.parse_args()
 print(f"experts_layers: {args.experts_layers}; experts_num: {args.experts_num};"
       f" ple_dropout: {args.ple_dropout}; span_loss_weight: {args.span_loss_weight};"
       f" batch_size: {args.batch_size}; pactivation: {args.pactivation};"
-      f" use_ff: {args.use_ff}; lr_decay: {args.lr_decay}")
+      f" use_ff: {args.use_ff}; lr_decay: {args.lr_decay}; lexicon_window_size: {args.lexicon_window_size}")
 
 project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()

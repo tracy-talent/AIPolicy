@@ -137,7 +137,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 break
         self.train_loader, self.val_loader, self.test_loader = get_loaders(model, train_path, val_path, test_path,
                                                                            batch_size, compress_seq,
-                                                                           _cache_fp=f"cache/{self.dataset}_dataloader",
+                                                                           _cache_fp=f"cache/{self.dataset}_mtl_dataloader",
                                                                            _refresh=True
                                                                            )
         # Model
@@ -259,9 +259,9 @@ class MTL_Span_Attr_Boundary(nn.Module):
             # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step,
                                                              num_training_steps=training_steps)
-        elif self.dataset in ['msra', 'resume']:
+        elif self.dataset in ['msra', 'resume', 'weibo', 'ontonotes4']:
             gamma_rate = lr_decay
-            self.decay_epochs = 1 if self.dataset in ['msra'] else 4
+            self.decay_epochs = 1 if self.dataset in ['msra', 'ontonotes4'] else 6
             self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
                                                               gamma=gamma_rate
                                                               )
@@ -611,10 +611,10 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
 
-            if self.dataset in ['msra', 'resume'] and (epoch + 1) % self.decay_epochs == 0:
+            if self.dataset and (epoch + 1) % self.decay_epochs == 0:
                 self.scheduler.step()
                 for param in self.optimizer.param_groups:
-                    print(param['lr'])
+                    self.logger.info(param['lr'])
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:

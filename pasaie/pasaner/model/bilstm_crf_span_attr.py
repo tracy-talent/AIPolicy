@@ -595,7 +595,7 @@ class PLE_Layer(nn.Module):
 
 
 class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
-    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2, ple_dropout=0.0, pactivation='relu', use_ff=False):
+    def __init__(self, sequence_encoder, span2id, attr2id, compress_seq=False, share_lstm=False, span_use_lstm=True, attr_use_lstm=False, span_use_crf=True, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2, ple_dropout=0.0, pactivation='gelu', use_ff=False):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
