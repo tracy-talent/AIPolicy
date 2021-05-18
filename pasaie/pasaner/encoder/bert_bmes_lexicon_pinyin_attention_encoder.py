@@ -91,8 +91,8 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
             self.pinyin_embedding.weight.data.copy_(pinyin_embedding.weight.data)
             self.pinyin_embedding.weight.requires_grad = pinyin_embedding.weight.requires_grad
         # align word embedding and bert embedding
-        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_size, self.bert.config.hidden_size)
-        self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) + self.pinyin_size + self.word_size
+        self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) - 1 + self.word_size + self.pinyin_size, self.bert.config.hidden_size)
+        self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) - 1 + self.word_size + self.pinyin_size
 
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
@@ -111,7 +111,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
-        bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
+        bmes_one_hot_embed = bmes_one_hot_embed.index_select(dim=-1, index=torch.arange(len(self.bmes2id) - 1))
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(bert_seqs_embed, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2bert)
@@ -296,7 +296,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
-        bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
+        bmes_one_hot_embed = bmes_one_hot_embed.index_select(dim=-1, index=torch.arange(len(self.bmes2id) - 1))
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = self.bmes_lexicon_pinyin2bert(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
         cat_embed_att_output, _ = dot_product_attention(bert_seqs_embed, cat_embed, att_lexicon_mask)

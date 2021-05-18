@@ -5,6 +5,7 @@
  Last Modified time: 2021-01-03 11:13:24
 """
 
+from functools import total_ordering
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -136,7 +137,7 @@ class Base_BILSTM_CRF_Span_Attr(nn.Module):
                 seqs_length = att_mask.sum(dim=-1).detach().cpu()
                 seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
                 seqs_hiddens_packed, _ = self.share_bilstm(seqs_rep_packed)
-                span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+                span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first, total_length=att_mask.size(-1)) # B, S, D
             else:
                 span_seqs_hiddens, _ = self.share_bilstm(rep)
             span_seqs_hiddens = torch.add(*span_seqs_hiddens.chunk(2, dim=-1))
@@ -148,14 +149,14 @@ class Base_BILSTM_CRF_Span_Attr(nn.Module):
                     seqs_length = att_mask.sum(dim=-1).detach().cpu()
                     seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
                     seqs_hiddens_packed, _ = self.span_bilstm(seqs_rep_packed)
-                    span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+                    span_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first, total_length=att_mask.size(-1)) # B, S, D
                 else:
                     span_seqs_hiddens, _ = self.span_bilstm(rep)
                 span_seqs_hiddens = torch.add(*span_seqs_hiddens.chunk(2, dim=-1))
                 if self.attr_bilstm is not None:
                     if self.compress_seq:
                         seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
-                        attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S, D
+                        attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first, total_length=att_mask.size(-1)) # B, S, D
                     else:
                         attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                     attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))
@@ -165,7 +166,7 @@ class Base_BILSTM_CRF_Span_Attr(nn.Module):
                     seqs_length = att_mask.sum(dim=-1).detach().cpu()
                     seqs_rep_packed = pack_padded_sequence(rep, seqs_length, batch_first=self.batch_first)
                     seqs_hiddens_packed, _ = self.attr_bilstm(seqs_rep_packed)
-                    attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first) # B, S ,D
+                    attr_seqs_hiddens, _ = pad_packed_sequence(seqs_hiddens_packed, batch_first=self.batch_first, total_length=att_mask.size(-1)) # B, S ,D
                 else:
                     attr_seqs_hiddens, _ = self.attr_bilstm(rep)
                 attr_seqs_hiddens = torch.add(*attr_seqs_hiddens.chunk(2, dim=-1))

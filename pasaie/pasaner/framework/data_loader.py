@@ -27,7 +27,7 @@ def compress_sequence(seqs, lengths):
         torch.LongTensor: compressed batch seqs
     """
     packed_seqs = pack_padded_sequence(input=seqs, lengths=lengths.detach().cpu().numpy(), batch_first=True)
-    seqs, _ = pad_packed_sequence(sequence=packed_seqs, batch_first=True)
+    seqs, _ = pad_packed_sequence(sequence=packed_seqs, batch_first=True, total_length=lengths[0])
     return seqs
 
 
