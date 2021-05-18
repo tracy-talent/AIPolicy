@@ -74,9 +74,9 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
 
         self.group_num = group_num
         if self.group_num == 3:
-            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[UNK]': 3}
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, '[PAD]': 3}
         else:
-            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, 'S': 3, '[UNK]': 4}
+            self.bmes2id = {'B': 0, 'M': 1, 'E': 2, 'S': 3, '[PAD]': 4}
         self.word2id = word2id
         self.pinyin2id = pinyin2id
         self.word_size = word_size
@@ -111,6 +111,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
+        bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
         cat_embed_att_output, _ = dot_product_attention_with_project(bert_seqs_embed, cat_embed, att_lexicon_mask, self.bmes_lexicon_pinyin2bert)
@@ -118,9 +119,17 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
 
         return inputs_embed
     
-    
+
     def lexicon_match(self, tokens):
-        indexed_bmes = [[self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons]
+        """
+        Args:
+            tokens (list): token list
+        Returns:
+            indexed_bmes (list[list]): index of tokens' segmentation label in matched words.
+            indexed lexicons (list[list]): encode ids of tokens' matched words.
+            indexed pinyins (list[list]): encode ids of tokens' pinyin in matched words.
+        """
+        indexed_bmes = [[self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] + [self.bmes2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         indexed_lexicons = [[self.word2id['[CLS]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         indexed_pinyins = [[self.pinyin2id['[UNK]']] + [self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - 1)]
         for i in range(len(tokens)):
@@ -137,32 +146,33 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                     word = ''.join(tokens[i-p:i-p+w])
                     if word in self.word2id and word not in '～'.join(words):
                         words.append(word)
-                        try:
-                            pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
-                            if len(pinyin) > 7:
-                                if pinyin.isnumeric():
-                                    pinyin = '[DIGIT]'
-                                else:
-                                    pinyin = strip_accents(pinyin)
-                                    if pinyin.encode('utf-8').isalpha():
-                                        pinyin = '[ENG]'
-                                    else:
-                                        raise ValueError('pinyin length not exceed 7')
                         # try:
-                        #     pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
+                        #     pinyin = lazy_pinyin(word, style=Style.TONE3, nuetral_tone_with_five=True)[p]
                         #     if len(pinyin) > 7:
-                        #         if is_digit(pinyin):
+                        #         if pinyin.isnumeric():
                         #             pinyin = '[DIGIT]'
                         #         else:
-                        #             if is_eng_word(pinyin):
+                        #             pinyin = strip_accents(pinyin)
+                        #             if pinyin.encode('utf-8').isalpha():
                         #                 pinyin = '[ENG]'
                         #             else:
                         #                 raise ValueError('pinyin length not exceed 7')
-                        #     elif not is_pinyin(pinyin):
-                        #         pinyin = '[UNK]'
+                        try:
+                            pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
+                            if len(pinyin) > 7:
+                                if is_digit(pinyin):
+                                    pinyin = '[DIGIT]'
+                                else:
+                                    pinyin = strip_accents(pinyin)
+                                    if is_eng_word(pinyin):
+                                        pinyin = '[ENG]'
+                                    else:
+                                        raise ValueError('pinyin length not exceed 7')
+                            elif not is_pinyin(pinyin):
+                                pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
-                        if w == 0:
+                        if w == 1:
                             g == 'S'
                         elif p == 0:
                             g = 'B'
@@ -173,14 +183,10 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                         indexed_bmes[-1].append(self.bmes2id[g])
                         indexed_lexicons[-1].append(self.word2id[word])
                         indexed_pinyins[-1].append(self.pinyin2id[pinyin] if pinyin in self.pinyin2id else self.pinyin2id['[UNK]'])
-            if len(indexed_lexicons[-1]) == 0:
-                indexed_bmes[-1].append(self.bmes2id['[UNK]'])
-                indexed_lexicons[-1].append(self.word2id['[UNK]'])
-                indexed_pinyins[-1].append(self.pinyin2id['[UNK]'])
-            indexed_bmes[-1].extend([self.bmes2id['[UNK]']] * (self.max_matched_lexcons - len(indexed_bmes[-1])))
+            indexed_bmes[-1].extend([self.bmes2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_bmes[-1])))
             indexed_lexicons[-1].extend([self.word2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_lexicons[-1])))
             indexed_pinyins[-1].extend([self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - len(indexed_pinyins[-1])))
-        indexed_bmes.append([self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] * self.max_matched_lexcons)
+        indexed_bmes.append([self.bmes2id['B'] if self.group_num == 3 else self.bmes2id['S']] + [self.bmes2id['[PAD]']] * (self.max_matched_lexcons - 1))
         indexed_lexicons.append([self.word2id['[SEP]']] + [self.word2id['[PAD]']] * (self.max_matched_lexcons - 1))
         indexed_pinyins.append([self.pinyin2id['[UNK]']] + [self.pinyin2id['[PAD]']] * (self.max_matched_lexcons - 1))
         return indexed_bmes, indexed_lexicons, indexed_pinyins
@@ -222,9 +228,9 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                     indexed_tokens.append(bert_padding_idx)
                 indexed_bmes, indexed_lexicons, indexed_pinyins = self.lexicon_match(tokens[1:-1])
                 for _ in range(self.max_length - len(tokens)):
-                    indexed_bmes.append([self.bmes2id['[UNK]']] * self.max_matched_lexcons)
+                    indexed_bmes.append([self.bmes2id['[PAD]']] * self.max_matched_lexcons)
                     indexed_lexicons.append([self.word2id['[PAD]']] * self.max_matched_lexcons)
-                    indexed_pinyins.append([self.pinyin2id['[UNK]']] * self.max_matched_lexcons)
+                    indexed_pinyins.append([self.pinyin2id['[PAD]']] * self.max_matched_lexcons)
             else:
                 indexed_tokens[self.max_length - 1] = indexed_tokens[-1]
                 indexed_tokens = indexed_tokens[:self.max_length]
