@@ -296,6 +296,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
+        bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = self.bmes_lexicon_pinyin2bert(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
         cat_embed_att_output, _ = dot_product_attention(bert_seqs_embed, cat_embed, att_lexicon_mask)
