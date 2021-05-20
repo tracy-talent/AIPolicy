@@ -225,7 +225,7 @@ class BERTWithDSPEncoder(BERTEncoder):
         # dsp_hidden = torch.tanh(self.attention_map(dsp_hidden))
         attention_score = self.query(dsp_hidden).squeeze(dim=-1) # (B, S)
         for i in range(attention_score.size(0)):
-            attention_score[i, dsp_path_length[i]:] = 1e-9
+            attention_score[i, dsp_path_length[i]:] = -1e9
         attention_distribution = F.softmax(attention_score, dim=-1) # (B, S)
         attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), dsp_hidden).squeeze(dim=1) # (B, d)
         return attention_output
@@ -516,7 +516,7 @@ class BERTEntityWithContextEncoder(BERTEntityEncoder):
         # dsp_hidden = torch.tanh(self.attention_map(dsp_hidden))
         attention_score = query(hidden).squeeze(dim=-1) # (B, S)
         for i in range(hidden.size(0)):
-            attention_score[i, seq_length[i]:] = 1e-9
+            attention_score[i, seq_length[i]:] = -1e9
         attention_distribution = F.softmax(attention_score, dim=-1) # (B, S)
         attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), hidden).squeeze(dim=1) # (B, d)
         return attention_output
@@ -625,7 +625,7 @@ class BERTEntityWithDSPEncoder(BERTEntityEncoder):
         # dsp_hidden = torch.tanh(self.attention_map(dsp_hidden))
         attention_score = query(hidden).squeeze(dim=-1) # (B, S)
         for i in range(hidden.size(0)):
-            attention_score[i, seq_length[i]:] = 1e-9
+            attention_score[i, seq_length[i]:] = -1e9
         attention_distribution = F.softmax(attention_score, dim=-1) # (B, S)
         attention_output = torch.matmul(attention_distribution.unsqueeze(dim=1), hidden).squeeze(dim=1) # (B, d)
         return attention_output
