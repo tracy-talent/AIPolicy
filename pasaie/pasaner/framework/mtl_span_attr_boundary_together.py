@@ -348,22 +348,21 @@ class MTL_Span_Attr_Boundary_Together(nn.Module):
                 bs = outputs_seq_span.size(0)
 
                 # loss and optimizer
-                if self.adv is None:
-                    if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
-                    else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                        loss_span = -log_likelihood / inputs_seq_len # B
-                    loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
-                    loss_attr = torch.sum(loss_attr * inputs_mask, dim=-1) / inputs_seq_len # B
-                    loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
-                    if self.autoweighted_loss is not None:
-                        loss = self.autoweighted_loss(loss_span, loss_attr)
-                    else:
-                        loss = (loss_span + loss_attr) / 2
-                    loss.backward()
+                if self.model.crf_span is None:
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
+                    loss_span = -log_likelihood / inputs_seq_len # B
+                loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
+                loss_attr = torch.sum(loss_attr * inputs_mask, dim=-1) / inputs_seq_len # B
+                loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(loss_span, loss_attr)
+                else:
+                    loss = (loss_span + loss_attr) / 2
+                loss.backward()
+                if self.adv is not None:
                     retain_graph = False
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True

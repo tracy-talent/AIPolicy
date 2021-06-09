@@ -1,14 +1,14 @@
 #!/bin/bash
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
-dropout_rates=($5)
-lexicon_window_sizes=($6)
+dropout_rates=(0.3)
+lexicon_window_sizes=(3)
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_crf.py \
-    --pretrain_path /home/mist/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --pretrain_path /home/ghost/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --pinyin_embedding_type word_att_add \
+    --compress_seq \
     --group_num 3 \
     --dataset $1 \
-    --compress_seq \
     --tagscheme bmoes \
     --bert_name bert \
     --use_lstm \
@@ -30,9 +30,16 @@ if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
     maxep=10
+    ld=1.0
+elif [ $1 == policy ]
+then
+    maxlen=256
+    maxep=20
+    ld=1.0
 else
     maxlen=256
     maxep=5
+    ld=1.0
 fi
 
 if [ $2 == sgns ]
@@ -40,7 +47,7 @@ then
     lexicon2vec=sgns_merge_word.1293k.300d.bin
     pinyin_dim=300
 else
-    lexicon2vec=ctbword_gigachar_mix.710k.50d.bin
+    lexicon2vec=ctb.704k.50d.bin
     pinyin_dim=50
 fi
 
@@ -58,11 +65,12 @@ do
     echo "Run dataset $1: dpr=$dpr, wz=$lws"
     CUDA_VISIBLE_DEVICES=$4 \
     $python_command \
-    --word2vec_file /home/mist/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
-    --pinyin2vec_file /home/mist/NLP/corpus/pinyin/$pinyin2vec \
+    --word2vec_file /home/ghost/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
+    --pinyin2vec_file /home/ghost/NLP/corpus/pinyin/$pinyin2vec \
     --max_length $maxlen \
     --max_epoch $maxep \
     --dropout_rate $dpr \
-    --lexicon_window_size $lws
+    --lexicon_window_size $lws \
+    --lr_decay $ld
     done
 done

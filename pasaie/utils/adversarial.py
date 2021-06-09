@@ -211,8 +211,8 @@ def adversarial_step(adv, model, K, get_loss, retain_graph=False):
     """
     ori_model = model.module if hasattr(model, 'module') else model
     if adv.__class__.__name__ == 'FGM':
-        loss = get_loss()
-        loss.backward(retain_graph=retain_graph)  # 反向传播，得到正常的grad
+        #loss = get_loss()
+        #loss.backward(retain_graph=retain_graph)  # 反向传播，得到正常的grad
         # 对抗训练
         adv.backup() # 备份embedding
         adv.attack()  # 在embedding上添加对抗扰动
@@ -220,8 +220,8 @@ def adversarial_step(adv, model, K, get_loss, retain_graph=False):
         loss_adv.backward()  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
         adv.restore()  # 恢复embedding参数
     elif adv.__class__.__name__ == 'PGD':
-        loss = get_loss()
-        loss.backward(retain_graph=retain_graph)
+        #loss = get_loss()
+        #loss.backward(retain_graph=retain_graph)
         # 对抗训练
         adv.backup()  # first attack时备份embedding
         adv.backup_grad()  # 在第一次loss.backword()后以保证有梯度
@@ -245,9 +245,10 @@ def adversarial_step(adv, model, K, get_loss, retain_graph=False):
         # 对抗训练
         grad = defaultdict(lambda: 0)
         for t in range(1, K + 1):
-            loss_adv = get_loss()
-            if t != K:
-                loss_adv.backward(retain_graph=retain_graph)  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
+            if t != 1:
+                loss_adv = get_loss()
+                if t != K:
+                    loss_adv.backward(retain_graph=retain_graph)  # 反向传播，并在正常的grad基础上，累加对抗训练的梯度
             for name, param in model.named_parameters():
                 if param.requires_grad and param.grad is not None:
                     grad[name] += param.grad / t

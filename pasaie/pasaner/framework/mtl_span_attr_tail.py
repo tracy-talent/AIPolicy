@@ -267,28 +267,27 @@ class MTL_Span_Attr_Tail(nn.Module):
                 bs = outputs_seq_span.size(0)
 
                 # loss and optimizer
-                if self.adv is None:
-                    if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
-                    else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
-                        loss_span = -log_likelihood / inputs_seq_len # B
-                    if self.model.crf_attr is None:
-                        loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
-                        tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
-                        # tag_masks = (outputs_seq_attr != attr_negid).float()
-                        loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
-                    else:
-                        log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
-                        loss_attr = -log_likelihood / inputs_seq_len # B
-                    loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
-                    if self.autoweighted_loss is not None:
-                        loss = self.autoweighted_loss(loss_span, loss_attr)
-                    else:
-                        loss = (loss_span + loss_attr) / 2
-                    loss.backward()
+                if self.model.crf_span is None:
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span) # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask, reduction='none') # B
+                    loss_span = -log_likelihood / inputs_seq_len # B
+                if self.model.crf_attr is None:
+                    loss_attr = self.criterion(logits_attr.permute(0, 2, 1), outputs_seq_attr) # B * S
+                    tag_masks = ((outputs_seq_span == span_eid) | (outputs_seq_span == span_sid)).float()
+                    # tag_masks = (outputs_seq_attr != attr_negid).float()
+                    loss_attr = torch.sum(loss_attr * tag_masks, dim=-1) / torch.sum(tag_masks, dim=-1) # B
+                else:
+                    log_likelihood = self.model.crf_attr(logits_attr, outputs_seq_attr, mask=inputs_mask, reduction='none') # B
+                    loss_attr = -log_likelihood / inputs_seq_len # B
+                loss_span, loss_attr = loss_span.mean(), loss_attr.mean()
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(loss_span, loss_attr)
+                else:
+                    loss = (loss_span + loss_attr) / 2
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation_span_attr_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., outputs_seq_span, outputs_seq_attr, *data[2:])
                 torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()

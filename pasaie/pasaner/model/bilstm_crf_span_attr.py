@@ -739,12 +739,12 @@ class BILSTM_CRF_Span_Attr_Boundary_PLE(Base_BILSTM_CRF_Span_Attr):
 
 
 class BILSTM_Attr_Boundary_PLE(Base_BILSTM_Attr_Boundary):
-    def __init__(self, sequence_encoder, attr2id, compress_seq=False, share_lstm=False, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2, ple_dropout=0.0, pactivation='relu', use_ff=False):
+    def __init__(self, sequence_encoder, tag2id, compress_seq=False, share_lstm=False, tagscheme='bmoes', batch_first=True, dropout_rate=0.3, experts_layers=2, experts_num=2, ple_dropout=0.0, pactivation='relu', use_ff=False):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
             span2id (dict): map from span(et. B, I, O) to id
-            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            tag2id (dict): map from attr(et. PER, LOC, ORG) to id
             compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
             share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
             span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
@@ -758,7 +758,7 @@ class BILSTM_Attr_Boundary_PLE(Base_BILSTM_Attr_Boundary):
 
         super(BILSTM_Attr_Boundary_PLE, self).__init__(
             sequence_encoder=sequence_encoder,
-            attr2id=attr2id,
+            tag2id=tag2id,
             compress_seq=compress_seq,
             share_lstm=share_lstm,
             tagscheme='bmoes',

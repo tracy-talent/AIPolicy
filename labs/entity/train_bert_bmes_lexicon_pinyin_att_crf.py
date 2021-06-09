@@ -100,6 +100,7 @@ parser.add_argument('--pinyin_word_embedding_size', default=50, type=int,
         help='embedding size of pinyin')
 parser.add_argument('--pinyin_char_embedding_size', default=50, type=int,
         help='embedding size of pinyin character')
+parser.add_argument('--lr_decay', default=1.0, type=float)
 
 args = parser.parse_args()
 
@@ -108,8 +109,7 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 # set global random seed
-if args.dataset == 'weibo':
-    fix_seed(args.random_seed)
+fix_seed(args.random_seed)
 
 # get lexicon name which used in model_name
 if 'sgns_in_ctb' in args.word2vec_file:
@@ -303,8 +303,8 @@ model = pasaner.model.BILSTM_CRF(
 framework = pasaner.framework.Model_CRF(
     model=model,
     train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
-    test_path=args.test_file if not args.dataset == 'msra' else None,
+    val_path=args.val_file if not args.only_test or args.dataset == 'msra' or args.dataset == 'policy' else None,
+    test_path=args.test_file if args.dataset != 'msra' and args.dataset != 'policy' else None,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
@@ -322,7 +322,8 @@ framework = pasaner.framework.Model_CRF(
     loss=args.loss,
     adv=args.adv,
     dice_alpha=args.dice_alpha,
-    metric=args.metric
+    metric=args.metric,
+    lr_decay=args.lr_decay
 )
 
 # Load pretrained model
@@ -336,10 +337,7 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-if args.dataset == 'msra':
-    result = framework.eval_model(framework.val_loader)
-else:
-    result = framework.eval_model(framework.test_loader)
+result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
 logger.info('Accuracy: {}'.format(result['acc']))

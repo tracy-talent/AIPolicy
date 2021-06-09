@@ -55,7 +55,7 @@ class WordFrequencyFromCorpus(object):
 
     def enumerate_matched(self, tokens, pos, max_ngram, min_ngram):
         matched_words = []
-        for i in range(min_ngram, min(len(tokens), pos + max_ngram) + 1):
+        for i in range(min_ngram, min(len(tokens) - pos, max_ngram) + 1):
             if self.trie.query(tokens[pos:pos+i]):
                 matched_words.append((pos, tokens[pos:pos+i]))
         return matched_words

@@ -51,7 +51,8 @@ class Span_Single_NER(BaseFramework):
                 adv='fgm',
                 loss='ce',
                 dice_alpha=0.6, 
-                sampler=None):
+                sampler=None,
+                lr_decay=1.0):
 
         # Load Data
         if train_path != None:
@@ -87,6 +88,8 @@ class Span_Single_NER(BaseFramework):
                 compress_seq=compress_seq,
                 max_span=max_span
             )
+        else:
+            self.test_loader = self.val_loader
 
         # initialize base class
         super(Span_Single_NER, self).__init__(
@@ -107,7 +110,8 @@ class Span_Single_NER(BaseFramework):
             opt=opt,
             loss=loss,
             loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
-            dice_alpha=dice_alpha
+            dice_alpha=dice_alpha,
+            lr_decay=lr_decay
         )
         
         self.tagscheme = tagscheme
@@ -146,11 +150,10 @@ class Span_Single_NER(BaseFramework):
                 preds = logits.argmax(dim=-1)
                 
                 # Optimize
-                if self.adv is None:
-                    loss = self.criterion(logits, labels)
-                    loss = loss.mean()
-                    loss.backward()
-                else:
+                loss = self.criterion(logits, labels)
+                loss = loss.mean()
+                loss.backward()
+                if self.adv is not  None:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., labels, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
@@ -212,7 +215,7 @@ class Span_Single_NER(BaseFramework):
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
             
             # test
-            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
                 self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
                 self.logger.info('Test result: {}.'.format(result))
@@ -225,6 +228,12 @@ class Span_Single_NER(BaseFramework):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
+            
+            if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
@@ -326,7 +335,7 @@ class Span_Multi_NER(nn.Module):
                 loss='dice',
                 mtl_autoweighted_loss=True,
                 dice_alpha=0.6,
-                lr_decay=0.5,
+                lr_decay=1.0,
                 sampler=None):
 
         super(Span_Multi_NER, self).__init__()
@@ -378,6 +387,8 @@ class Span_Multi_NER(nn.Module):
                 shuffle=False,
                 compress_seq=compress_seq
             )
+        else:
+            self.test_loader = self.val_loader
 
         # Model
         self.model = model
@@ -447,7 +458,7 @@ class Span_Multi_NER(nn.Module):
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
-        for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4']:
+        for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4', 'policy']:
             if dataset_name in train_path.lower():
                 self.dataset = dataset_name
                 break
@@ -459,9 +470,9 @@ class Span_Multi_NER(nn.Module):
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                 mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
                                                                 patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
-        elif self.dataset in ['resume', 'msra']:
+        else:
             gamma_rate = lr_decay
-            self.decay_epochs = 1 if self.dataset in ['msra'] else 4
+            self.decay_epochs = 1 if self.dataset in ['msra'] else 5
             self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
                                                               gamma=gamma_rate)
             print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
@@ -568,18 +579,17 @@ class Span_Multi_NER(nn.Module):
                 bs = start_labels.size(0)
 
                 # Loss and Optimize
-                if self.adv is None:
-                    start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
-                    start_loss = torch.sum(start_loss * inputs_mask, dim=-1) / inputs_seq_len
-                    end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
-                    end_loss = torch.sum(end_loss * inputs_mask, dim=-1) / inputs_seq_len
-                    if self.autoweighted_loss is not None:
-                        loss = self.autoweighted_loss(start_loss, end_loss)
-                    else:
-                        loss = (start_loss + end_loss) / 2
-                    loss = loss.mean()
-                    loss.backward()
+                start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
+                start_loss = torch.sum(start_loss * inputs_mask, dim=-1) / inputs_seq_len
+                end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
+                end_loss = torch.sum(end_loss * inputs_mask, dim=-1) / inputs_seq_len
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(start_loss, end_loss)
                 else:
+                    loss = (start_loss + end_loss) / 2
+                loss = loss.mean()
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation_span_mtl(self.adv, self.parallel_model, self.criterion, self.autoweighted_loss, 3, 0., start_labels, end_labels, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
@@ -682,7 +692,7 @@ class Span_Multi_NER(nn.Module):
             
             # test
             with torch.no_grad():
-                if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
+                if hasattr(self, 'test_loader') and self.dataset not in ['msra', 'policy']:
                     self.logger.info("=== Epoch %d test ===" % epoch)
                     result = self.eval_model(self.test_loader)
                     acc = (str(round(result['start_acc'], 4) * 100), str(round(result['end_acc'], 4) * 100))
@@ -701,8 +711,11 @@ class Span_Multi_NER(nn.Module):
                         self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                         test_best_metric = result[self.metric]
             
-            if self.dataset in ['msra', 'resume'] and (epoch + 1) % self.decay_epochs == 0:
+            if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
                 self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:

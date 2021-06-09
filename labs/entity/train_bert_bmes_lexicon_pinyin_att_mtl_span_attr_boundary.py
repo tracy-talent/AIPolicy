@@ -57,7 +57,7 @@ parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'span_acc', 'attr_start_acc', 'attr_end_acc', 'loss'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='none', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4', 'none'],
+parser.add_argument('--dataset', default='', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'],
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -143,11 +143,12 @@ config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
 #set global random seed
-if args.dataset in ['weibo', 'none', 'resume', 'msra', 'ontonotes4'] and args.model_type != 'plerand':
+#if args.dataset in ['weibo', 'policy', 'resume', 'msra', 'ontonotes4'] and args.model_type != 'plerand':
+if args.model_type != 'plerand':
     fix_seed(args.random_seed)
     print("Use random_sed: {}".format(args.random_seed))
-if args.only_test:
-    args.compress_seq = False
+#if args.only_test:
+#    args.compress_seq = False
 
 # get lexicon name which used in model_name
 if 'sgns_in_ctb' in args.word2vec_file:
@@ -482,8 +483,8 @@ framework = framework_class(
     model=model,
     word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
-    test_path=args.test_file if not args.dataset == 'msra' else None,
+    val_path=args.val_file if not args.only_test or args.dataset == 'msra' or args.dataset == 'policy' else None,
+    test_path=args.test_file if args.dataset != 'msra' and args.dataset != 'policy' else None,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
@@ -526,10 +527,7 @@ if not args.only_test:
 
 # Test
 log_dir = os.path.join(config['path']['ner_log'], dataset_name, model_name)
-if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{log_dir}/{args.dataset}_{args.model_type}_ee({args.experts_layers},{args.experts_num})_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
-else:
-    result = framework.eval_model(framework.test_loader, f'{log_dir}/{args.dataset}_{args.model_type}_ee({args.experts_layers},{args.experts_num})_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
+result = framework.eval_model(framework.test_loader, f'{log_dir}/{args.dataset}_{args.model_type}_ee({args.experts_layers},{args.experts_num})_case_study_{ckpt.split(".pth.tar")[0][-1]}.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

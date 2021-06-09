@@ -40,7 +40,8 @@ class BaseFramework(nn.Module):
                 opt='adam',
                 loss='ce',
                 loss_weight=None,
-                dice_alpha=0.6):
+                dice_alpha=0.6,
+                lr_decay=1.0):
         super(BaseFramework, self).__init__()
         encoder_name = model.sequence_encoder.__class__.__name__.lower()
         if 'bert' in encoder_name or 'xlnet' in encoder_name:
@@ -157,15 +158,27 @@ class BaseFramework(nn.Module):
         else:
             raise Exception("Invalid optimizer. Must be 'sgd' or 'adam' or 'adamw'.")
         # Warmup
+        for dataset_name in ['msra', 'weibo', 'weibo.ne', 'weibo.nm', 'resume', 'ontonotes4', 'policy']:
+            if dataset_name in ckpt.lower():
+                self.dataset = dataset_name
+                break
         self.warmup_step = warmup_step
         if warmup_step > 0:
             training_steps = len(self.train_loader) // batch_size * self.max_epoch
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
-        else:
+        elif early_stopping_step > 0:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                 mode='min' if 'loss' in self.metric else 'max', factor=0.8, 
                                                                 patience=1, min_lr=5e-6) # mode='min' for loss, 'max' for acc/p/r/f1
             # self.scheduler = None
+        else:
+            gamma_rate = lr_decay
+            self.decay_epochs = 1 if self.dataset in ['msra', 'ontonotes4'] else 5
+            self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
+                                                              gamma=gamma_rate
+                                                              )
+            print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
+
         # Adversarial
         if adv == 'fgm':
             self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)

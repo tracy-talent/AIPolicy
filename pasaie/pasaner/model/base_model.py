@@ -351,13 +351,13 @@ class Base_BILSTM_CRF_Span_Attr_Three(nn.Module):
 
 
 class Base_BILSTM_Attr_Boundary(nn.Module):
-    def __init__(self, sequence_encoder, attr2id, compress_seq=False, share_lstm=False, 
+    def __init__(self, sequence_encoder, tag2id, compress_seq=False, share_lstm=False, 
                     tagscheme='bmoes', batch_first=True, dropout_rate=0.3):
         """
         Args:
             sequence_encoder (nn.Module): encoder of sequence
             span2id (dict): map from span(et. B, I, O) to id
-            attr2id (dict): map from attr(et. PER, LOC, ORG) to id
+            tag2id (dict): map from attr(et. PER, LOC, ORG) to id
             compress_seq (bool, optional): whether compress sequence for lstm. Defaults to True.
             share_lstm (bool, optional): whether make span and attr share the same lstm after encoder. Defaults to False.
             span_use_lstm (bool, optional): whether add span lstm layer. Defaults to True.
@@ -372,13 +372,13 @@ class Base_BILSTM_Attr_Boundary(nn.Module):
         self.tagscheme = tagscheme
         self.compress_seq = compress_seq
         self.sequence_encoder = sequence_encoder
-        self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
-        self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size, len(attr2id))
+        self.mlp_attr_start = nn.Linear(sequence_encoder.hidden_size, len(tag2id))
+        self.mlp_attr_end = nn.Linear(sequence_encoder.hidden_size, len(tag2id))
         self.dropout = nn.Dropout(dropout_rate)
-        self.attr2id = attr2id
-        self.id2attr = {}
-        for attr, aid in attr2id.items():
-            self.id2attr[aid] = attr
+        self.tag2id = tag2id
+        self.id2tag = {}
+        for tag, tid in tag2id.items():
+            self.id2tag[tid] = tag
 
         self.attr_start_bilstm = None
         self.attr_end_bilstm = None

@@ -1,10 +1,10 @@
 #!/bin/bash
 # $1: dataset, $2: GPU id
 # RESUME
-batch_size=8
-dropout_rates=0.1
-lexicon_window_sizes=9
-max_epoch=10
+#batch_size=8
+#dropout_rates=0.1
+#lexicon_window_sizes=9
+#max_epoch=10
 
 # MSRA
 #batch_size=64
@@ -24,19 +24,26 @@ max_epoch=10
 #dropout_rates=0.3
 #lexicon_window_sizes=4
 
+# Policy
+batch_size=8
+dropout_rates=0.3
+lexicon_window_sizes=3
+max_epoch=20
+
 experts_layers=2
 experts_num=1
 random_seed=12345
-ple_dropout=0.0     # PLE里面使用dropout rate
+ple_dropout=0.2     # PLE里面使用dropout rate
 span_loss_weight=-1 # -1表示不调整span_loss，还是1/3
-pactivation=elu  # PLE里面使用的激活函数
+pactivation=gelu  # PLE里面使用的激活函数
 use_ff=0  # 是否使用feedforward网络
 decay_rate=1.0  # 针对resume和msra使用的学习率衰减
 
 python_command="
 python train_bert_mtl_span_attr_boundary.py \
-    --pretrain_path /home/qiumengchuan/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --pretrain_path /home/ghost/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
     --model_type ple \
+    --compress_seq \
     --dataset $1 \
     --tagscheme bmoes \
     --bert_name bert \
@@ -59,6 +66,10 @@ if [ $1 == weibo -o $1 == resume ]
 then
     maxlen=200
     maxep=10
+elif [ $1 == policy ]
+then
+    maxlen=256
+    maxep=20
 else
     maxlen=256
     maxep=5

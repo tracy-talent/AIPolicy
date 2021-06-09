@@ -3,9 +3,10 @@
 
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
-    --pretrain_path /root/qmc/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2vec_file /root/qmc/NLP/corpus/embedding/chinese/lexicon/ctb.704k.50d.bin \
-    --pinyin2vec_file /root/qmc/NLP/corpus/pinyin/word2vec/word2vec_num5.1409.50d.vec \
+    --pretrain_path /home/ghost/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
+    --word2vec_file /home/ghost/NLP/corpus/embedding/chinese/lexicon/ctb.704k.50d.bin \
+    --pinyin2vec_file /home/ghost/NLP/corpus/pinyin/word2vec/word2vec_num5.1409.50d.vec \
+    --compress_seq \
     --pinyin_embedding_type word_att_add \
     --group_num 3 \
     --model_type ple \
@@ -27,7 +28,7 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pinyin_char_embedding_size 50 \
     --optimizer adam \
     --loss ce \
-    --adv fgm \
+    --adv none \
     --metric micro_f1 \
 "
 
@@ -68,6 +69,19 @@ then
     ld=0.55
     dropout_rates=(0.2)
     lexicon_window_sizes=(2 3 4 5 6 7 8 9)
+elif [ $1 == policy ]
+then
+    seed=12345
+    bz=8
+    pact=gelu
+	#lws=3
+	#dpr=0.3
+	pdpr=0.2
+	ld=1.0
+    #pdprs=(0.2)
+	#lds=(1.0)
+    dropout_rates=(0.3)
+    lexicon_window_sizes=(2 4)
 fi
 
 if [ $1 == weibo -o $1 == weibo.ne -o $1 == weibo.nm ]
@@ -78,14 +92,21 @@ elif [ $1 == resume ]
 then
     maxlen=200
     maxep=10
+elif [ $1 == policy ]
+then
+    maxlen=256
+    maxep=20
 else 
     maxlen=256
     maxep=5
 fi
 
 for lws in ${lexicon_window_sizes[*]}
+#for ld in ${lds[*]}
 do
     for dpr in ${dropout_rates[*]}
+	#do
+	#for pdpr in ${pdprs[*]}
     do  
     echo "Run dataset $1: batch_size=$bz, dropout_rate=$dpr, lexicon_window_size=$lws"
     CUDA_VISIBLE_DEVICES=$2 \
@@ -101,6 +122,7 @@ do
     --random_seed $seed \
     #--only_test 
     done
+	#done
 done
 
 #datestr=`date +%Y-%m-%d`

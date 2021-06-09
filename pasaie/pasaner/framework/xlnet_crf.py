@@ -147,16 +147,15 @@ class XLNet_CRF(BaseFramework):
                 logits_copy = logits_copy.detach().cpu()
 
                 # Optimize
-                if self.adv is None:
-                    if self.model.crf is None:
-                        loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
-                        loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
-                    else:
-                        log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
-                        loss = -log_likelihood / inputs_seq_len
-                    loss = loss.mean()
-                    loss.backward()
+                if self.model.crf is None:
+                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
+                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                    loss = -log_likelihood / inputs_seq_len
+                loss = loss.mean()
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()

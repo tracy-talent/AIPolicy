@@ -406,8 +406,8 @@ framework = framework_class(
     model=model,
     word_embedding=word_embedding,
     train_path=args.train_file if not args.only_test else None,
-    val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
-    test_path=args.test_file if not args.dataset == 'msra' else None,
+    val_path=args.val_file if not args.only_test or args.dataset == 'msra' or args.dataset == 'policy' else None,
+    test_path=args.test_file if args.dataset != 'msra' and args.dataset != 'policy' else None,
     ckpt=ckpt,
     logger=logger,
     tb_logdir=tb_logdir,
@@ -447,10 +447,7 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader, f'{args.dataset}_case_study_without_pinyin_{ckpt.split(".pth.tar")[0][-1]}.txt')
-else:
-    result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_without_pinyin_{ckpt.split(".pth.tar")[0][-1]}.txt')
+result = framework.eval_model(framework.test_loader, f'{args.dataset}_case_study_without_pinyin_{ckpt.split(".pth.tar")[0][-1]}.txt')
 # Print the result
 logger.info('Test set results:')
 logger.info('Span Accuracy: {}'.format(result['span_acc']))

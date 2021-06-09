@@ -313,7 +313,7 @@ else:
 if args.model_type == 'ple':
     model = pasaner.model.BILSTM_Attr_Boundary_PLE(
         sequence_encoder=sequence_encoder, 
-        attr2id=attr2id,
+        tag2id=tag2id,
         compress_seq=args.compress_seq,
         share_lstm=args.share_lstm, # False
         dropout_rate=args.dropout_rate,
@@ -336,8 +336,8 @@ else:
 framework = pasaner.framework.Span_Multi_NER(
         model=model,
         train_path=args.train_file if not args.only_test else None,
-        val_path=args.val_file if not args.only_test or args.dataset == 'msra' else None,
-        test_path=args.test_file if not args.dataset == 'msra' else None,
+        val_path=args.val_file if not args.only_test or args.dataset == 'msra' or args.dataset == 'policy' else None,
+        test_path=args.test_file if args.dataset != 'msra' and args.dataset != 'policy' else None,
         ckpt=ckpt,
         logger=logger,
         tb_logdir=tb_logdir,
@@ -372,10 +372,7 @@ if not args.only_test:
     framework.load_model(ckpt)
 
 # Test
-if 'msra' in args.dataset:
-    result = framework.eval_model(framework.val_loader)
-else:
-    result = framework.eval_model(framework.test_loader)
+result = framework.eval_model(framework.test_loader)
 # Print the result
 logger.info('Test set results:')
 logger.info('Start Accuracy: {}'.format(result['start_acc']))

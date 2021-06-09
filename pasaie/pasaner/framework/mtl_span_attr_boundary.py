@@ -101,7 +101,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
                  mtl_autoweighted_loss=True,
                  dice_alpha=0.6,
                  span_loss_weight=None,
-                 lr_decay=0.5
+                 lr_decay=1.0
                  ):
 
         super(MTL_Span_Attr_Boundary, self).__init__()
@@ -131,7 +131,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
         else:
             self.bigram_embedding = bigram_embedding
 
-        for dataset_name in ['msra', 'weibo', 'resume', 'ontonotes4']:
+        for dataset_name in ['msra', 'weibo', 'weibo.ne', 'weibo.nm', 'resume', 'ontonotes4', 'policy']:
             if dataset_name in train_path.lower():
                 self.dataset = dataset_name
                 break
@@ -259,20 +259,19 @@ class MTL_Span_Attr_Boundary(nn.Module):
             # self.scheduler = get_cosine_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step, num_training_steps=training_steps)
             self.scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=warmup_step,
                                                              num_training_steps=training_steps)
-        elif self.dataset in ['msra', 'resume', 'weibo', 'ontonotes4']:
-            gamma_rate = lr_decay
-            self.decay_epochs = 1 if self.dataset in ['msra', 'ontonotes4'] else 6
-            self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
-                                                              gamma=gamma_rate
-                                                              )
-            print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
-        else:
+        elif early_stopping_step > 0:
             self.scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer=self.optimizer,
                                                                   mode='min' if 'loss' in self.metric else 'max',
                                                                   factor=0.8,
                                                                   patience=1,
                                                                   min_lr=5e-6)  # mode='min' for loss, 'max' for acc/p/r/f1
-            # self.scheduler = None
+        else:
+            gamma_rate = lr_decay
+            self.decay_epochs = 1 if self.dataset in ['msra', 'ontonotes4'] else 5
+            self.scheduler = optim.lr_scheduler.ExponentialLR(optimizer=self.optimizer,
+                                                              gamma=gamma_rate
+                                                              )
+            print(f"Use stepLR gamma: {gamma_rate}; decay_epoch: {self.decay_epochs}")
         # Adversarial
         if adv == 'fgm':
             self.adv = FGM(model=self.parallel_model, emb_name='word_embeddings', epsilon=1.0)
@@ -393,29 +392,31 @@ class MTL_Span_Attr_Boundary(nn.Module):
                 bs = outputs_seq_span.size(0)
 
                 # loss and optimizer
-                if self.adv is None:
-                    if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
-                    else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
-                                                             reduction='none')  # B
-                        loss_span = -log_likelihood / inputs_seq_len  # B
-                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
-                                                     outputs_seq_attr_start)  # B * S
-                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
-                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
-                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
-                    loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
-                    if self.autoweighted_loss is not None:
-                        loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
-                    else:
-                        if torch.abs(loss_span) > 10:
-                            loss = (loss_attr_start + loss_attr_end) / 2
-                        else:
-                            loss = (loss_span + loss_attr_start + loss_attr_end) / 3
-                    loss.backward()
+                if self.model.crf_span is None:
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                 else:
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                         reduction='none')  # B
+                    loss_span = -log_likelihood / inputs_seq_len  # B
+                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
+                                                 outputs_seq_attr_start)  # B * S
+                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
+                loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
+                else:
+                    if torch.abs(loss_span) > 100:
+                        loss = (loss_attr_start + loss_attr_end) / 2
+                    else:
+                        if self.span_loss_weight is None:
+                            loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                        else:
+                            loss = self.span_loss_weight * loss_span + (1 - self.span_loss_weight) / 2 * (loss_attr_start + loss_attr_end)
+                loss.backward()
+                if self.adv is not None:
                     retain_graph = False
                     if self.word_embedding is not None and self.word_embedding.weight.requires_grad:
                         retain_graph = True
@@ -589,7 +590,7 @@ class MTL_Span_Attr_Boundary(nn.Module):
             self.writer.add_scalar('val micro f1', result['micro_f1'], epoch)
 
             # test
-            if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
+            if hasattr(self, 'test_loader') and self.dataset not in ['msra', 'policy']:
                 self.logger.info("=== Epoch %d test ===" % epoch)
                 result = self.eval_model(self.test_loader)
                 acc = (str(round(result['span_acc'], 4) * 100), str(round(result['attr_start_acc'], 4) * 100),
@@ -611,10 +612,11 @@ class MTL_Span_Attr_Boundary(nn.Module):
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
 
-            if self.dataset and (epoch + 1) % self.decay_epochs == 0:
+            if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
                 self.scheduler.step()
                 for param in self.optimizer.param_groups:
-                    self.logger.info(param['lr'])
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
@@ -878,27 +880,26 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                 bs = outputs_seq_span.size(0)
 
                 # loss and optimizer
-                if self.adv is None:
-                    if self.model.crf_span is None:
-                        loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
-                        loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
-                    else:
-                        log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
-                                                             reduction='none')  # B
-                        loss_span = -log_likelihood / inputs_seq_len  # B
-                    loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
-                                                     outputs_seq_attr_start)  # B * S
-                    loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
-                    loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
-                    loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
-
-                    loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
-                    if self.autoweighted_loss is not None:
-                        loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
-                    else:
-                        loss = (loss_span + loss_attr_start + loss_attr_end) / 3
-                    loss.backward()
+                if self.model.crf_span is None:
+                    loss_span = self.criterion(logits_span.permute(0, 2, 1), outputs_seq_span)  # B * S
+                    loss_span = torch.sum(loss_span * inputs_mask, dim=-1) / inputs_seq_len  # B
                 else:
+                    log_likelihood = self.model.crf_span(logits_span, outputs_seq_span, mask=inputs_mask,
+                                                         reduction='none')  # B
+                    loss_span = -log_likelihood / inputs_seq_len  # B
+                loss_attr_start = self.criterion(logits_attr_start.permute(0, 2, 1),
+                                                 outputs_seq_attr_start)  # B * S
+                loss_attr_start = torch.sum(loss_attr_start * inputs_mask, dim=-1) / inputs_seq_len  # B
+                loss_attr_end = self.criterion(logits_attr_end.permute(0, 2, 1), outputs_seq_attr_end)  # B * S
+                loss_attr_end = torch.sum(loss_attr_end * inputs_mask, dim=-1) / inputs_seq_len  # B
+
+                loss_span, loss_attr_start, loss_attr_end = loss_span.mean(), loss_attr_start.mean(), loss_attr_end.mean()
+                if self.autoweighted_loss is not None:
+                    loss = self.autoweighted_loss(loss_span, loss_attr_start, loss_attr_end)
+                else:
+                    loss = (loss_span + loss_attr_start + loss_attr_end) / 3
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation_span_attr_boundary_mtl(self.adv, self.parallel_model,
                                                                            self.criterion, self.autoweighted_loss, 3,
                                                                            0., outputs_seq_span, outputs_seq_attr_start,
@@ -1064,6 +1065,12 @@ class English_MTL_Span_Attr_Boundary(MTL_Span_Attr_Boundary):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
+        
+            if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
 
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:

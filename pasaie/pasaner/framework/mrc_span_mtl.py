@@ -299,25 +299,24 @@ class MRC_Span_MTL(nn.Module):
                         span_labels = torch.tensor(span_labels).float().to(span_logits.device)
 
                 # loss and optimize
-                if self.adv is None:
-                    start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
-                    start_loss = (torch.sum(start_loss * loss_mask, dim=-1) / valid_seq_len).mean()
-                    end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
-                    end_loss = (torch.sum(end_loss * loss_mask, dim=-1) / valid_seq_len).mean()
+                start_loss = self.criterion(start_logits.permute(0, 2, 1), start_labels)
+                start_loss = (torch.sum(start_loss * loss_mask, dim=-1) / valid_seq_len).mean()
+                end_loss = self.criterion(end_logits.permute(0, 2, 1), end_labels)
+                end_loss = (torch.sum(end_loss * loss_mask, dim=-1) / valid_seq_len).mean()
+                if self.span_bce is not None and len(span_out) > 0:
+                    span_loss = self.span_bce(span_logits, span_labels)
+                if self.autoweighted_loss is not None:
                     if self.span_bce is not None and len(span_out) > 0:
-                        span_loss = self.span_bce(span_logits, span_labels)
-                    if self.autoweighted_loss is not None:
-                        if self.span_bce is not None and len(span_out) > 0:
-                            loss = self.autoweighted_loss(start_loss, end_loss, span_loss)
-                        else:
-                            loss = self.autoweighted_loss(start_loss, end_loss)
+                        loss = self.autoweighted_loss(start_loss, end_loss, span_loss)
                     else:
-                        if self.span_bce is not None and len(span_out) > 0:
-                            loss = (start_loss + end_loss + span_loss) / 3
-                        else:
-                            loss = (start_loss + end_loss) / 2
-                    loss.backward()
+                        loss = self.autoweighted_loss(start_loss, end_loss)
                 else:
+                    if self.span_bce is not None and len(span_out) > 0:
+                        loss = (start_loss + end_loss + span_loss) / 3
+                    else:
+                        loss = (start_loss + end_loss) / 2
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation_mrc_span_mtl(self.adv, self.parallel_model, self.criterion, self.span_bce, self.autoweighted_loss, 3, 0., start_labels, end_labels, *data[3:])
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
