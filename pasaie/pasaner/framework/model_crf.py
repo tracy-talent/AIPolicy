@@ -45,7 +45,8 @@ class Model_CRF(BaseFramework):
                 adv='fgm',
                 opt='adam',
                 loss='ce',
-                dice_alpha=0.6):
+                dice_alpha=0.6,
+                lr_decay=1.0):
 
         # Load Data
         if train_path != None:
@@ -77,6 +78,8 @@ class Model_CRF(BaseFramework):
                 shuffle=False,
                 compress_seq=compress_seq
             )
+        else:
+            self.test_loader = self.val_loader
 
         # initialize base class
         super(Model_CRF, self).__init__(
@@ -98,7 +101,8 @@ class Model_CRF(BaseFramework):
             opt=opt,
             loss=loss,
             loss_weight=self.train_loader.dataset.weight if hasattr(self, 'train_loader') else None,
-            dice_alpha=dice_alpha
+            dice_alpha=dice_alpha,
+            lr_decay=lr_decay
         )
 
         self.tagscheme = tagscheme
@@ -144,19 +148,16 @@ class Model_CRF(BaseFramework):
                 inputs_seq_len = inputs_mask.sum(dim=-1)
                 bs = outputs_seq.size(0)
 
+                # Optimize
                 if self.model.crf is None:
-                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq)  # B * S
-                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len  # B
+                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
                     log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
                     loss = -log_likelihood / inputs_seq_len
                 loss = loss.mean()
-
-                # Optimize
-                if self.adv is None:
-                    loss.backward()
-                else:
-                    loss.backward(retain_graph=False)
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
@@ -263,6 +264,12 @@ class Model_CRF(BaseFramework):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
+
+            if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
             
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt:
@@ -414,16 +421,15 @@ class English_Model_CRF(Model_CRF):
                 bs = outputs_seq.size(0)
 
                 # Optimize
-                if self.adv is None:
-                    if self.model.crf is None:
-                        loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
-                        loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
-                    else:
-                        log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
-                        loss = -log_likelihood / inputs_seq_len
-                    loss = loss.mean()
-                    loss.backward()
+                if self.model.crf is None:
+                    loss = self.criterion(logits.permute(0, 2, 1), outputs_seq) # B * S
+                    loss = torch.sum(loss * inputs_mask, dim=-1) / inputs_seq_len # B
                 else:
+                    log_likelihood = self.model.crf(logits, outputs_seq, mask=inputs_mask, reduction='none')
+                    loss = -log_likelihood / inputs_seq_len
+                loss = loss.mean()
+                loss.backward()
+                if self.adv is not None:
                     loss = adversarial_perturbation(self.adv, self.parallel_model, self.criterion, 3, 0., outputs_seq, *args)
                 # torch.nn.utils.clip_grad_norm_(self.parameters(), self.max_grad_norm)
                 self.optimizer.step()
@@ -511,6 +517,12 @@ class English_Model_CRF(Model_CRF):
                     self.logger.info('Best test ckpt and saved')
                     self.save_model(self.ckpt[:-10] + '_test' + self.ckpt[-10:])
                     test_best_metric = result[self.metric]
+        
+        if self.warmup_step == 0 and self.early_stopping_step == 0  and (epoch + 1) % self.decay_epochs == 0:
+                self.scheduler.step()
+                for param in self.optimizer.param_groups:
+                    self.logger.info('learning rate after decay: {}'.format(param['lr']))
+                    break
             
         self.logger.info("Best %s on val set: %f" % (self.metric, train_state['early_stopping_best_val']))
         if hasattr(self, 'test_loader') and 'msra' not in self.ckpt and 'policy' not in self.ckpt:
