@@ -112,6 +112,7 @@ def make_model_name():
     if len(args.adv) > 0 and args.adv != 'none':
         model_name += '_' + args.adv
     model_name += '_dpr' + str(args.dropout_rate)
+    model_name += '_seed{}'.format(args.random_seed)
     model_name += '_' + args.metric
     return model_name
 def make_hparam_string(op, blr, lr, bs, wd, ml):
