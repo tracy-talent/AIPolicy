@@ -91,9 +91,8 @@ project_path = '/'.join(os.path.abspath(__file__).split('/')[:-3])
 config = configparser.ConfigParser()
 config.read(os.path.join(project_path, 'config.ini'))
 
-# set global random seed
-# if args.dataset == 'weibo':
-#     fix_seed(args.random_seed)
+if args.random_seed >= 0:
+    fix_seed(args.random_seed)
 
 # construct save path name
 def make_dataset_name():
@@ -194,6 +193,7 @@ model = pasaner.model.BILSTM_CRF(
     dropout_rate=args.dropout_rate
 )
 
+print('model')
 # Define the whole training framework
 framework = pasaner.framework.Model_CRF(
     model=model,
@@ -219,6 +219,7 @@ framework = pasaner.framework.Model_CRF(
     metric=args.metric
 )
 
+print('model-crf')
 # Load pretrained model
 # if ckpt_cnt > 0:
 #     logger.info('load checkpoint')

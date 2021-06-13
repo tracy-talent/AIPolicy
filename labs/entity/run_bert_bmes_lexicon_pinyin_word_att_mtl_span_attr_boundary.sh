@@ -2,52 +2,62 @@
 # $1: dataset, $2: word2vec_file, $3: pinyin2vec_file, $4: GPU id
 if [ $1 == resume ]; then
 # RESUME
-batch_size=8
-max_epoch=10
-dropout_rates=0.1
-lexicon_window_sizes=(9)
+batch_size=64
+max_epoch=20
+dropout_rates=(0.1)
+lexicon_window_sizes=(9 8 7 6 5 4 3 2)
 random_seeds=12345
-ple_dropout=0.0
+ple_dropouts=(0.0)
 pactivation=elu
 decay_rate=1.0
 elif [ $1 == weibo ]; then
 #WEIBO
-batch_size=64
-max_epoch=20
-dropout_rates=0.4
+batch_size=32
+max_epoch=10
+dropout_rates=(0.5)
 lexicon_window_sizes=(5)
-random_seeds=2
-ple_dropout=0.6
+random_seeds=12345
+ple_dropouts=(0.1)
 pactivation=gelu
 decay_rate=1.0
-fi
+elif [ $1 == msra ];then
 # MSRA
-#batch_size=64
-#max_epoch=5
-#dropout_rates=0.2
-#lexicon_window_sizes=(4)
-
-
+batch_size=32
+max_epoch=5
+dropout_rates=0.2
+lexicon_window_sizes=(11)
+random_seeds=12345
+ple_dropouts=0.1
+pactivation=gelu
+decay_rate=(0.38 0.37 0.36)
+#decay_rate=(0.41 0.39 0.45 0.35 0.6)
+elif [ $1 == ontonotes4 ];then
 # ONTONOTES4
-#batch_size=32
-#max_epoch=5
-#dropout_rates=0.3
-#lexicon_window_sizes=(4)
+batch_size=32
+max_epoch=5
+dropout_rates=(0.5)
+lexicon_window_sizes=(5)
+random_seeds=12345
+ple_dropouts=0.1
+pactivation=gelu
+decay_rate=(0.56 0.505 0.555)
+fi
 
+#random_seeds=34
+#ple_dropouts=0.6     # PLE里面使用dropout rate
+#pactivation=gelu  # PLE里面使用的激活函数
+#decay_rate=1.0  # 针对resume和msra使用的学习率衰减
 experts_layers=2
 experts_num=1
-#random_seeds=34
-#ple_dropout=0.6     # PLE里面使用dropout rate
 span_loss_weight=-1 # -1表示不调整span_loss，还是1/3
-#pactivation=gelu  # PLE里面使用的激活函数
 use_ff=0  # 是否使用feedforward网络
-#decay_rate=1.0  # 针对resume和msra使用的学习率衰减
 
 duplicate_run_rounds=1
 python_command="
 python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --pretrain_path /root/qmc/NLP/corpus/transformers/hfl-chinese-bert-wwm-ext \
-    --word2pinyin_file /root/qmc/NLP/corpus/pinyin/word2pinyin_num5.txt \
+    --word2vec_file /root/qmc/NLP/corpus/embedding/chinese/lexicon/ctb.704k.50d.bin \
+    --pinyin2vec_file /root/qmc/NLP/corpus/pinyin/word2vec/word2vec_num5.1409.50d.vec \
     --pinyin_embedding_type word_att_add \
     --group_num 3 \
     --model_type ple \
@@ -69,73 +79,57 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --loss ce \
     --adv fgm \
     --metric micro_f1 \
+    --compress_seq
 "
 
 if [ $1 == weibo -o $1 == resume -o $1 == none ]
 then
     maxlen=200
-    maxep=20
 else
     maxlen=256
-    maxep=10
 fi
 
-if [ $2 == sgns ]
-then
-    lexicon2vec=sgns_merge_word.1293k.300d.bin
-    pinyin_dim=300
-else
-    lexicon2vec=ctbword_gigachar_mix.710k.50d.bin
-    pinyin_dim=50
-fi
 
-if [ $3 == glove ]
-then
-    pinyin2vec=glove/glove_num5.1409.${pinyin_dim}d.vec
-else
-    pinyin2vec=word2vec/word2vec_num5.1409.${pinyin_dim}d.vec
-fi
-
-for epl in ${experts_layers[*]}
+for epn in ${experts_num[*]}
 do
-  for epn in ${experts_num[*]}
+  for seed in ${random_seeds[*]}
   do
-    for seed in ${random_seeds[*]}    # seed in ${random_seed[*]}
+    for lr_decay in ${decay_rate[*]}
     do
-      for lr_decay in ${decay_rate[*]}
+      for lwz in ${lexicon_window_sizes[*]}
       do
-        for lwz in ${lexicon_window_sizes[*]}
+        for dpr in ${dropout_rates[*]}
         do
-          echo "Run dataset $1: bz=$batch_size, dpr=$dropout_rates, wz=$lwz, seed=$seed"
-          CUDA_VISIBLE_DEVICES=$4 \
-          $python_command \
-          --word2vec_file /root/qmc/NLP/corpus/embedding/chinese/lexicon/$lexicon2vec \
-          --pinyin2vec_file /root/qmc/NLP/corpus/pinyin/$pinyin2vec \
-          --max_length $maxlen \
-          --max_epoch $max_epoch \
-          --dropout_rate $dropout_rates \
-          --lexicon_window_size $lwz \
-          --batch_size $batch_size \
-          --experts_layers $epl \
-          --experts_num $epn \
-          --random_seed $seed \
-          --ple_dropout $ple_dropout \
-          --span_loss_weight $span_loss_weight \
-          --pactivation $pactivation \
-          --use_ff $use_ff \
-          --lr_decay $lr_decay \
-#          --train_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/train.ne.bmoes \
-#          --val_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/dev.ne.bmoes \
-#          --test_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/test.ne.bmoes \
-#          --attr2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/attr2id.ne.bmoes \
-#          --span2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/span2id.bmoes \
-  #        --only_test \
-  #        --ckpt ~/qmc/github/AIPolicy/output/entity/ckpt_3.26/$1_bmoes/bmes3_lexicon_ctb_window5_pinyin_word_att_add_mtl_span_attr_boundary_base_bert_relu_crf1e-03_bert3e-05_spanlstm_attrlstm_spancrf_ce_fgm_dpr0.4_micro_f1_test_0.pth.tar
+          for pdpr in ${ple_dropouts[*]}
+          do
+            echo "Run dataset $1: bz=$batch_size, dpr=$dpr, pdpr=$pdpr, wz=$lwz, seed=$seed"
+            CUDA_VISIBLE_DEVICES=$2 \
+            $python_command \
+            --max_length $maxlen \
+            --max_epoch $max_epoch \
+            --dropout_rate $dpr \
+            --lexicon_window_size $lwz \
+            --batch_size $batch_size \
+            --experts_layers $experts_layers \
+            --experts_num $epn \
+            --random_seed $seed \
+            --ple_dropout $pdpr \
+            --span_loss_weight $span_loss_weight \
+            --pactivation $pactivation \
+            --use_ff $use_ff \
+            --lr_decay $lr_decay \
+  #          --train_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/train.ne.bmoes \
+  #          --val_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/dev.ne.bmoes \
+  #          --test_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/test.ne.bmoes \
+  #          --attr2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/attr2id.ne.bmoes \
+  #          --span2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/span2id.bmoes \
+          done
         done
       done
     done
   done
 done
+
 #
 #datestr=`date +%Y-%m-%d`
 #if [ ! -x /data/labs/$datestr ]; then

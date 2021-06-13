@@ -342,9 +342,9 @@ def extract_prf1_from_logdir(log_dir):
     for subdir in subdirs:
         subdir_path = os.path.join(log_dir, subdir)
         if re.match('^el.*', subdir):
-            hyper_param = re.findall('(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+            hyper_param = re.findall('(?:ld\d+\.(?:\d+)?)|(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:el\d+)|(?:en\d+)|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
         else:
-            hyper_param = re.findall('(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:ee\(\d+,\d+\))|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
+            hyper_param = re.findall('(?:ld\d+\.\d+?)|(?:[gr]?elu)|(?:bz\d+)|(?:pdpr0\.?\d+)|(?:ee\(\d+,\d+\))|(?:window\d+)|(?:dpr0\.?\d+)', subdir)
             hyper_param = [param.replace('ee(', 'el').replace(',', '_').replace(')', '') for param in hyper_param]
         hyper_param = [param.replace('window', 'w') for param in hyper_param]
         if os.path.isdir(subdir_path):
@@ -357,6 +357,8 @@ def extract_prf1_from_logdir(log_dir):
                 train_flag, val_flag, test_flag = False, False, False
                 try:
                     text = open(filepath, 'r', encoding='utf8').readlines()
+                    # seed = re.findall('random_seed: (\d+)', ''.join(text))[0]
+                    # hyper_param.append(seed)
                 except Exception as e:
                     print(e)
                     continue
@@ -404,7 +406,7 @@ def extract_prf1_from_logdir(log_dir):
                         test_list, val_list, train_list = v
                         plot_score_curve(output_dir, title, k, test_list, val_list)
                 except Exception as e:
-                    print(f"{dataset}_{'_'.join(hyper_param)}_{file}: {e}")
+                    print(f"{dataset}_{'_'.join(hyper_param)}_{file}: {e}, train/dev/test: {len(train_scores)}/{len(val_scores)}/{len(test_scores)}")
             result_dict[f'{dataset}_{"_".join(hyper_param)}'] = \
                 {'best_test': avg_best_test, 'dev_select_test': avg_select_test}
     json.dump(result_dict, open(f'{output_dir}/{dataset}.json', 'w', encoding='utf8'), ensure_ascii=False, indent=2)
@@ -461,8 +463,6 @@ def plot_score_curve(output_dir, title, y_label, test_score_list, dev_score_list
     plt.close()
 
 
-
-
 if __name__ == '__main__':
     # extract_score_from_logs(r'C:\NLP-Github\AIPolicy\output\entity\logs',
     #                         save_path='./example.xls')
@@ -470,4 +470,4 @@ if __name__ == '__main__':
     #                         save_path="./lwz.xls",
     #                         target_dataset='all')
 
-    extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\数据集实验\lexicon_window_size\resume_bmoes')
+    extract_prf1_from_logdir(log_dir=r'C:\Users\90584\Desktop\AIPolicy实验\AIPolicy\output\entity\logs\msra_bmoes')

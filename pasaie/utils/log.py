@@ -19,10 +19,10 @@ def get_logger(command_argv, log_file_path=None):
     # 设置日志输出内容：时间%Y-%m-%d %H:%M:%S，日志级别INFO,WARNING,ERROR，日志信息
     formatter = logging.Formatter(fmt='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
-    if log_file_path is None:
-        chlr = logging.StreamHandler()
-        chlr.setFormatter(formatter)
-        logger.addHandler(chlr)
+    # if log_file_path is None:
+    chlr = logging.StreamHandler()
+    chlr.setFormatter(formatter)
+    logger.addHandler(chlr)
 
     if log_file_path:
         # 设置日志输出文件

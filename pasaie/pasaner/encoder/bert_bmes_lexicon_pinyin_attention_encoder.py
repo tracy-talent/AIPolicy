@@ -93,6 +93,8 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
         # align word embedding and bert embedding
         self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) - 1 + self.word_size + self.pinyin_size, self.bert.config.hidden_size)
         self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) - 1 + self.word_size + self.pinyin_size
+        # self.bmes_lexicon_pinyin2bert = nn.Linear(len(self.bmes2id) + self.word_size + self.pinyin_size, self.bert.config.hidden_size)
+        # self.hidden_size = self.bert.config.hidden_size + len(self.bmes2id) + self.word_size + self.pinyin_size
 
 
     def forward(self, seqs_token_ids, seqs_lexicon_embed, seqs_pinyin_ids, seqs_lexicon_bmes_ids, att_lexicon_mask, att_token_mask):
@@ -111,6 +113,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
+        # bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
         bmes_one_hot_embed = bmes_one_hot_embed[..., :-1]
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1)
@@ -157,19 +160,19 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Cat_Encoder(nn.Module):
                                         pinyin = '[ENG]'
                                     else:
                                         raise ValueError('pinyin length not exceed 7')
-                        # try:
-                        #     pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
-                        #     if len(pinyin) > 7:
-                        #         if is_digit(pinyin):
-                        #             pinyin = '[DIGIT]'
-                        #         else:
-                        #             pinyin = strip_accents(pinyin)
-                        #             if is_eng_word(pinyin):
-                        #                 pinyin = '[ENG]'
-                        #             else:
-                        #                 raise ValueError('pinyin length not exceed 7')
-                        #     elif not is_pinyin(pinyin):
-                        #         pinyin = '[UNK]'
+                        #try:
+                        #    pinyin = lazy_pinyin(word, style=Style.TONE3, neutral_tone_with_five=True)[p]
+                        #    if len(pinyin) > 7:
+                        #        if is_digit(pinyin):
+                        #            pinyin = '[DIGIT]'
+                        #        else:
+                        #            pinyin = strip_accents(pinyin)
+                        #            if is_eng_word(pinyin):
+                        #                pinyin = '[ENG]'
+                        #            else:
+                        #                raise ValueError('pinyin length not exceed 7')
+                        #    elif not is_pinyin(pinyin):
+                        #        pinyin = '[UNK]'
                         except:
                             pinyin = '[UNK]'
                         if w == 1:
@@ -296,6 +299,7 @@ class BERT_BMES_Lexicon_PinYin_Word_Attention_Add_Encoder(BERT_BMES_Lexicon_PinY
 
         bmes_one_hot_embed = torch.zeros(*(seqs_lexicon_bmes_ids.size() + (len(self.bmes2id), ))).to(seqs_lexicon_bmes_ids.device)
         bmes_one_hot_embed.scatter_(-1, seqs_lexicon_bmes_ids.unsqueeze(-1), 1)
+        # bmes_one_hot_embed[seqs_lexicon_bmes_ids == self.bmes2id['[PAD]']] = 0.
         bmes_one_hot_embed = bmes_one_hot_embed[..., :-1]
         seqs_pinyin_embed = self.pinyin_embedding(seqs_pinyin_ids)
         cat_embed = self.bmes_lexicon_pinyin2bert(torch.cat([bmes_one_hot_embed, seqs_lexicon_embed, seqs_pinyin_embed], dim=-1))
