@@ -5,42 +5,56 @@ if [ $1 == resume ]; then
 batch_size=64
 max_epoch=20
 dropout_rates=(0.1)
-lexicon_window_sizes=(9 8 7 6 5 4 3 2)
+lexicon_window_sizes=(11) #  13 12 10 9 8 7 6 5 4 3 2
 random_seeds=12345
 ple_dropouts=(0.0)
 pactivation=elu
 decay_rate=1.0
+maxlen=200
 elif [ $1 == weibo ]; then
 #WEIBO
 batch_size=32
 max_epoch=10
 dropout_rates=(0.5)
 lexicon_window_sizes=(5)
-random_seeds=12345
+random_seeds=2
 ple_dropouts=(0.1)
 pactivation=gelu
 decay_rate=1.0
+maxlen=200
 elif [ $1 == msra ];then
 # MSRA
 batch_size=32
 max_epoch=5
 dropout_rates=0.2
-lexicon_window_sizes=(11)
+lexicon_window_sizes=(9)
 random_seeds=12345
 ple_dropouts=0.1
 pactivation=gelu
-decay_rate=(0.38 0.37 0.36)
+decay_rate=(0.4)
+maxlen=256
 #decay_rate=(0.41 0.39 0.45 0.35 0.6)
 elif [ $1 == ontonotes4 ];then
 # ONTONOTES4
 batch_size=32
 max_epoch=5
 dropout_rates=(0.5)
-lexicon_window_sizes=(5)
+lexicon_window_sizes=(5)  #  2 3 4 6 7 8
 random_seeds=12345
 ple_dropouts=0.1
 pactivation=gelu
-decay_rate=(0.56 0.505 0.555)
+decay_rate=(0.56)
+maxlen=256
+else
+batch_size=32
+max_epoch=10
+dropout_rates=(0.5)
+lexicon_window_sizes=(5)
+random_seeds=(6)
+ple_dropouts=(0.1)
+pactivation=gelu
+decay_rate=1.0
+maxlen=200
 fi
 
 #random_seeds=34
@@ -67,7 +81,6 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --span_use_lstm \
     --span_use_crf \
     --attr_use_lstm \
-    --batch_size 64 \
     --lr 1e-3 \
     --bert_lr 3e-5 \
     --weight_decay 0 \
@@ -81,13 +94,6 @@ python train_bert_bmes_lexicon_pinyin_att_mtl_span_attr_boundary.py \
     --metric micro_f1 \
     --compress_seq
 "
-
-if [ $1 == weibo -o $1 == resume -o $1 == none ]
-then
-    maxlen=200
-else
-    maxlen=256
-fi
 
 
 for epn in ${experts_num[*]}
@@ -118,11 +124,11 @@ do
             --pactivation $pactivation \
             --use_ff $use_ff \
             --lr_decay $lr_decay \
-  #          --train_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/train.ne.bmoes \
-  #          --val_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/dev.ne.bmoes \
-  #          --test_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/test.ne.bmoes \
-  #          --attr2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/attr2id.ne.bmoes \
-  #          --span2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/span2id.bmoes \
+            --train_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/train.nm.bmoes \
+            --val_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/dev.nm.bmoes \
+            --test_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/test.nm.bmoes \
+            --attr2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/attr2id.nm.bmoes \
+            --span2id_file /root/qmc/github/AIPolicy/input/benchmark/entity/weibo/span2id.bmoes
           done
         done
       done

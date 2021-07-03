@@ -30,7 +30,7 @@ parser.add_argument('--pretrain_path', default='bert-base-chinese',
         help='Pre-trained ckpt path / model name (hugginface)')
 parser.add_argument('--bert_name', default='bert', #choices=['bert', 'roberta', 'xlnet', 'albert'], 
         help='bert series model name')
-parser.add_argument('--model_type', default='', type=str, choices=['', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat', 'base'], help='model type')
+parser.add_argument('--model_type', default='', type=str, choices=['none', 'startprior', 'attention', 'mmoe', 'ple', 'plethree', 'pletogether', 'plerand', 'plecat', 'base'], help='model type')
 parser.add_argument('--pinyin_embedding_type', default='word_att_add', type=str, choices=['word_att_cat', 'word_att_add', 'char_att_cat', 'char_att_add'],  help='embedding type of pinyin')
 parser.add_argument('--ckpt', default='', 
         help='Checkpoint name')
@@ -57,7 +57,7 @@ parser.add_argument('--loss', default='ce', choices=['ce', 'wce', 'focal', 'dice
 # Data
 parser.add_argument('--metric', default='micro_f1', choices=['micro_f1', 'micro_p', 'micro_r', 'span_acc', 'attr_start_acc', 'attr_end_acc', 'loss'],
         help='Metric for picking up best checkpoint')
-parser.add_argument('--dataset', default='', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4'],
+parser.add_argument('--dataset', default='', choices=['policy', 'weibo', 'resume', 'msra', 'ontonotes4', 'none'],
         help='Dataset. If not none, the following args can be ignored')
 parser.add_argument('--train_file', default='', type=str,
         help='Training data file')
@@ -214,8 +214,8 @@ def make_model_name():
     #     model_name += str(args.dice_alpha)
     # if args.use_mtl_autoweighted_loss:
     #     model_name += '_autoweighted'
-    # if len(args.adv) > 0 and args.adv != 'none':
-    #     model_name += '_' + args.adv
+    if len(args.adv) > 0 and args.adv != 'none':
+        model_name += '_' + args.adv
     # model_name += '_dpr' + str(args.dropout_rate)
     # model_name += '_' + args.metric
     return model_name
